@@ -76,6 +76,8 @@ bool EditorInput::keyPressEvent(QKeyEvent* event)
         case Qt::Key_C: copy(); return true;
         case Qt::Key_X: cut(); return true;
         case Qt::Key_V: paste(); return true;
+        case Qt::Key_F: m_editor->showSearchBar(); return true;
+        case Qt::Key_H: m_editor->showReplaceBar(); return true;
         default: break;
         }
     }

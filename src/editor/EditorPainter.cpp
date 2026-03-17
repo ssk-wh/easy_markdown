@@ -12,7 +12,8 @@ void EditorPainter::paint(QPainter* painter, EditorLayout* layout, Document* doc
                           int gutterWidth, qreal scrollY,
                           bool cursorVisible,
                           TextPosition cursorPos,
-                          const QString& preeditString)
+                          const QString& preeditString,
+                          const QVector<QPair<int,int>>& searchMatches)
 {
     const qreal margin = 8;
     qreal viewWidth = painter->clipBoundingRect().width();
@@ -55,6 +56,27 @@ void EditorPainter::paint(QPainter* painter, EditorLayout* layout, Document* doc
                                       x2 - x1, layout->lineHeight(line)),
                               QColor(181, 213, 255));  // #B5D5FF
         }
+    }
+
+    // 搜索匹配高亮
+    for (auto& match : searchMatches) {
+        int matchLine = doc->offsetToLine(match.first);
+        if (matchLine < firstLine || matchLine > lastLine) continue;
+
+        QTextLayout* tl = layout->layoutForLine(matchLine);
+        if (!tl || tl->lineCount() == 0) continue;
+
+        int lineStartOffset = doc->lineToOffset(matchLine);
+        int colStart = match.first - lineStartOffset;
+        int colEnd = colStart + match.second;
+
+        qreal y = layout->lineY(matchLine) - scrollY;
+        qreal x1 = tl->lineAt(0).cursorToX(colStart);
+        qreal x2 = tl->lineAt(0).cursorToX(colEnd);
+
+        painter->fillRect(QRectF(gutterWidth + margin + x1, y,
+                                  x2 - x1, layout->lineHeight(matchLine)),
+                          QColor(255, 235, 59, 128));  // 半透明黄色
     }
 
     // Text

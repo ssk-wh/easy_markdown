@@ -9,6 +9,7 @@ class EditorLayout;
 class EditorPainter;
 class EditorInput;
 class GutterRenderer;
+class SearchBar;
 
 class EditorWidget : public QAbstractScrollArea {
     Q_OBJECT
@@ -23,6 +24,11 @@ public:
     int gutterWidth() const;
 
     void ensureCursorVisible();
+
+    void showSearchBar();
+    void showReplaceBar();
+
+    const QVector<QPair<int,int>>& searchMatches() const { return m_searchMatches; }
 
 protected:
     void paintEvent(QPaintEvent* event) override;
@@ -40,12 +46,18 @@ protected:
 
 private slots:
     void onTextChanged(int offset, int removedLen, int addedLen);
+    void onSearchTextChanged(const QString& text);
+    void findNext(const QString& text);
+    void findPrev(const QString& text);
+    void doReplaceNext(const QString& find, const QString& replace);
+    void doReplaceAll(const QString& find, const QString& replace);
 
 private:
     Document* m_doc = nullptr;
     EditorLayout* m_layout = nullptr;
     EditorPainter* m_painter = nullptr;
     EditorInput* m_input = nullptr;
+    SearchBar* m_searchBar = nullptr;
     int m_gutterWidth = 50;
 
     QTimer m_cursorBlinkTimer;
@@ -53,7 +65,11 @@ private:
     bool m_mousePressed = false;
     QString m_preeditString;
 
+    QVector<QPair<int,int>> m_searchMatches;  // (offset, length) pairs
+    QString m_currentSearchText;
+
     TextPosition pixelToTextPosition(const QPoint& pos) const;
+    TextPosition offsetToTextPos(int offset) const;
 
     void updateScrollBars();
     void updateGutterWidth();

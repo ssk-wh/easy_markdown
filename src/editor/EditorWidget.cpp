@@ -2,6 +2,7 @@
 #include "EditorLayout.h"
 #include "EditorPainter.h"
 #include "EditorInput.h"
+#include "SearchBar.h"
 #include "Document.h"
 
 #include <QPainter>
@@ -38,6 +39,19 @@ EditorWidget::EditorWidget(QWidget* parent)
         viewport()->update();
     });
     m_cursorBlinkTimer.start(500);
+
+    // 搜索栏
+    m_searchBar = new SearchBar(this);
+    connect(m_searchBar, &SearchBar::findNext, this, &EditorWidget::findNext);
+    connect(m_searchBar, &SearchBar::findPrev, this, &EditorWidget::findPrev);
+    connect(m_searchBar, &SearchBar::replaceNext, this, &EditorWidget::doReplaceNext);
+    connect(m_searchBar, &SearchBar::replaceAll, this, &EditorWidget::doReplaceAll);
+    connect(m_searchBar, &SearchBar::searchTextChanged, this, &EditorWidget::onSearchTextChanged);
+    connect(m_searchBar, &SearchBar::closed, this, [this]() {
+        m_searchMatches.clear();
+        m_currentSearchText.clear();
+        viewport()->update();
+    });
 
     setFocusPolicy(Qt::StrongFocus);
     setAttribute(Qt::WA_InputMethodEnabled, true);
@@ -120,7 +134,8 @@ void EditorWidget::paintEvent(QPaintEvent* event)
                      m_gutterWidth, sy,
                      m_cursorVisible && hasFocus(),
                      m_doc->selection().cursorPosition(),
-                     m_preeditString);
+                     m_preeditString,
+                     m_searchMatches);
     painter.restore();
 }
 
@@ -301,6 +316,132 @@ void EditorWidget::inputMethodEvent(QInputMethodEvent* event)
 
     viewport()->update();
     event->accept();
+}
+
+void EditorWidget::showSearchBar()
+{
+    m_searchBar->showSearch();
+}
+
+void EditorWidget::showReplaceBar()
+{
+    m_searchBar->showReplace();
+}
+
+TextPosition EditorWidget::offsetToTextPos(int offset) const
+{
+    int line = m_doc->offsetToLine(offset);
+    int col = offset - m_doc->lineToOffset(line);
+    return {line, col};
+}
+
+void EditorWidget::onSearchTextChanged(const QString& text)
+{
+    m_currentSearchText = text;
+    m_searchMatches.clear();
+    if (text.isEmpty()) {
+        viewport()->update();
+        return;
+    }
+    QString fullText = m_doc->text();
+    int pos = 0;
+    while ((pos = fullText.indexOf(text, pos, Qt::CaseInsensitive)) != -1) {
+        m_searchMatches.append({pos, text.length()});
+        pos += text.length();
+    }
+    viewport()->update();
+}
+
+void EditorWidget::findNext(const QString& text)
+{
+    if (text.isEmpty()) return;
+    onSearchTextChanged(text);
+
+    int cursorOffset = m_doc->lineToOffset(m_doc->selection().cursorPosition().line)
+                     + m_doc->selection().cursorPosition().column;
+
+    for (auto& match : m_searchMatches) {
+        if (match.first > cursorOffset) {
+            TextPosition start = offsetToTextPos(match.first);
+            TextPosition end = offsetToTextPos(match.first + match.second);
+            m_doc->selection().setSelection(start, end);
+            ensureCursorVisible();
+            viewport()->update();
+            return;
+        }
+    }
+    // 回绕到文件开头
+    if (!m_searchMatches.isEmpty()) {
+        auto& match = m_searchMatches.first();
+        TextPosition start = offsetToTextPos(match.first);
+        TextPosition end = offsetToTextPos(match.first + match.second);
+        m_doc->selection().setSelection(start, end);
+        ensureCursorVisible();
+        viewport()->update();
+    }
+}
+
+void EditorWidget::findPrev(const QString& text)
+{
+    if (text.isEmpty()) return;
+    onSearchTextChanged(text);
+
+    int cursorOffset = m_doc->lineToOffset(m_doc->selection().cursorPosition().line)
+                     + m_doc->selection().cursorPosition().column;
+
+    // 如果有选区，从选区起始位置往前找
+    if (m_doc->selection().hasSelection()) {
+        TextPosition startPos = m_doc->selection().range().start();
+        cursorOffset = m_doc->lineToOffset(startPos.line) + startPos.column;
+    }
+
+    for (int i = m_searchMatches.size() - 1; i >= 0; --i) {
+        if (m_searchMatches[i].first < cursorOffset) {
+            TextPosition start = offsetToTextPos(m_searchMatches[i].first);
+            TextPosition end = offsetToTextPos(m_searchMatches[i].first + m_searchMatches[i].second);
+            m_doc->selection().setSelection(start, end);
+            ensureCursorVisible();
+            viewport()->update();
+            return;
+        }
+    }
+    // 回绕到文件末尾
+    if (!m_searchMatches.isEmpty()) {
+        auto& match = m_searchMatches.last();
+        TextPosition start = offsetToTextPos(match.first);
+        TextPosition end = offsetToTextPos(match.first + match.second);
+        m_doc->selection().setSelection(start, end);
+        ensureCursorVisible();
+        viewport()->update();
+    }
+}
+
+void EditorWidget::doReplaceNext(const QString& find, const QString& replace)
+{
+    if (m_doc->selection().hasSelection()) {
+        auto range = m_doc->selection().range();
+        int startOff = m_doc->lineToOffset(range.start().line) + range.start().column;
+        int endOff = m_doc->lineToOffset(range.end().line) + range.end().column;
+        QString selected = m_doc->textAt(startOff, endOff - startOff);
+        if (selected.compare(find, Qt::CaseInsensitive) == 0) {
+            m_doc->replace(startOff, endOff - startOff, replace);
+            m_doc->selection().setCursorPosition(offsetToTextPos(startOff + replace.length()));
+        }
+    }
+    findNext(find);
+}
+
+void EditorWidget::doReplaceAll(const QString& find, const QString& replace)
+{
+    if (find.isEmpty()) return;
+    QString fullText = m_doc->text();
+    QString newText = fullText;
+    newText.replace(find, replace, Qt::CaseInsensitive);
+    if (newText != fullText) {
+        m_doc->remove(0, m_doc->length());
+        m_doc->insert(0, newText);
+    }
+    onSearchTextChanged(find);
 }
 
 QVariant EditorWidget::inputMethodQuery(Qt::InputMethodQuery query) const

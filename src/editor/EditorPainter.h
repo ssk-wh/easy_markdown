@@ -1,6 +1,8 @@
 #pragma once
 #include <QtGlobal>
 #include <QString>
+#include <QVector>
+#include <QPair>
 #include "Selection.h"
 
 class QPainter;
@@ -16,5 +18,6 @@ public:
                int gutterWidth, qreal scrollY,
                bool cursorVisible = false,
                TextPosition cursorPos = {0, 0},
-               const QString& preeditString = QString());
+               const QString& preeditString = QString(),
+               const QVector<QPair<int,int>>& searchMatches = {});
 };
