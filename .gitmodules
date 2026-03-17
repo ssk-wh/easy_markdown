@@ -1,0 +1,6 @@
+[submodule "3rdparty/cmark-gfm"]
+	path = 3rdparty/cmark-gfm
+	url = https://github.com/github/cmark-gfm.git
+[submodule "3rdparty/googletest"]
+	path = 3rdparty/googletest
+	url = https://github.com/google/googletest.git
