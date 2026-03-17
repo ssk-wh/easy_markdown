@@ -26,3 +26,11 @@ Thumbs.db
 
 # Stackdump
 *.stackdump
+
+# Installer build artifacts
+installer/dist/
+installer/*.exe
+installer/*.zip
+crash_report.txt
+crash.dmp
+easymarkdown*.log

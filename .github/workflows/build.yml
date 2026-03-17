@@ -1,0 +1,137 @@
+name: Build & Package
+
+on:
+  push:
+    branches: [master, main]
+    tags: ['v*']
+  pull_request:
+    branches: [master, main]
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: '5.15.2'
+          host: 'windows'
+          target: 'desktop'
+          arch: 'win64_msvc2019_64'
+          cache: true
+
+      - name: Install NSIS
+        run: choco install nsis -y
+
+      - name: Configure
+        run: cmake -S . -B build -A x64
+
+      - name: Build Release
+        run: cmake --build build --config Release
+
+      - name: Run Tests
+        run: ctest --test-dir build -C Release --output-on-failure
+
+      - name: Extract version
+        shell: bash
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            VERSION="${GITHUB_REF#refs/tags/v}"
+          else
+            VERSION=$(grep -oP 'project\(EasyMarkdown VERSION \K[0-9.]+' CMakeLists.txt)
+          fi
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+          echo "Building version: $VERSION"
+
+      - name: Collect dist files
+        shell: pwsh
+        run: |
+          $dist = "installer/dist"
+          if (Test-Path $dist) { Remove-Item -Recurse -Force $dist }
+          New-Item -ItemType Directory -Force -Path "$dist/platforms","$dist/imageformats","$dist/styles" | Out-Null
+
+          # Copy exe
+          Copy-Item "build/app/Release/EasyMarkdown.exe" "$dist/"
+
+          # Copy Qt DLLs
+          $qtBin = "$env:Qt5_DIR/bin"
+          foreach ($dll in @("Qt5Core","Qt5Gui","Qt5Widgets","Qt5Network","Qt5Svg")) {
+            $path = "$qtBin/$dll.dll"
+            if (Test-Path $path) { Copy-Item $path "$dist/" }
+          }
+
+          # Copy ANGLE/OpenGL
+          foreach ($dll in @("libEGL","libGLESv2","D3Dcompiler_47","opengl32sw")) {
+            $path = "$qtBin/$dll.dll"
+            if (Test-Path $path) { Copy-Item $path "$dist/" }
+          }
+
+          # Copy MSVC runtime from Qt bin (if present)
+          foreach ($dll in @("vcruntime140.dll","vcruntime140_1.dll","msvcp140.dll","concrt140.dll")) {
+            $path = "$qtBin/$dll"
+            if (Test-Path $path) { Copy-Item $path "$dist/" }
+          }
+
+          # Copy Qt plugins
+          $qtPlugins = "$env:Qt5_DIR/plugins"
+          Copy-Item "$qtPlugins/platforms/qwindows.dll" "$dist/platforms/"
+          foreach ($fmt in @("qjpeg","qgif","qico","qsvg","qwebp","qtiff")) {
+            $path = "$qtPlugins/imageformats/$fmt.dll"
+            if (Test-Path $path) { Copy-Item $path "$dist/imageformats/" }
+          }
+          $vistaStyle = "$qtPlugins/styles/qwindowsvistastyle.dll"
+          if (Test-Path $vistaStyle) { Copy-Item $vistaStyle "$dist/styles/" }
+
+          $count = (Get-ChildItem -Recurse "$dist" -File).Count
+          Write-Host "Collected $count files"
+
+      - name: Build NSIS installer
+        shell: pwsh
+        run: |
+          $nsi = "installer/EasyMarkdown.nsi"
+          (Get-Content $nsi) -replace '!define APP_VERSION ".*"', "!define APP_VERSION `"$env:VERSION`"" | Set-Content $nsi
+          cd installer
+          makensis EasyMarkdown.nsi
+
+      - name: Upload installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: EasyMarkdown-${{ env.VERSION }}-Setup
+          path: installer/EasyMarkdown-*-Setup.exe
+
+      - name: Create portable zip
+        shell: pwsh
+        run: |
+          Compress-Archive -Path "installer/dist/*" -DestinationPath "installer/EasyMarkdown-$env:VERSION-Portable.zip"
+
+      - name: Upload portable
+        uses: actions/upload-artifact@v4
+        with:
+          name: EasyMarkdown-${{ env.VERSION }}-Windows-Portable
+          path: installer/EasyMarkdown-*-Portable.zip
+
+  release:
+    needs: [build-windows]
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            artifacts/**/*-Setup.exe
+            artifacts/**/*-Portable.zip
+          generate_release_notes: true
