@@ -60,11 +60,19 @@ jobs:
           if (Test-Path $dist) { Remove-Item -Recurse -Force $dist }
           New-Item -ItemType Directory -Force -Path "$dist/platforms","$dist/imageformats","$dist/styles" | Out-Null
 
+          # Qt5_DIR points to lib/cmake/Qt5, resolve Qt root
+          # e.g. D:/a/easy_markdown/Qt/5.15.2/msvc2019_64/lib/cmake/Qt5 -> .../msvc2019_64
+          $qtRoot = (Resolve-Path "$env:Qt5_DIR/../../..").Path
+          $qtBin = "$qtRoot/bin"
+          $qtPlugins = "$qtRoot/plugins"
+          Write-Host "Qt root: $qtRoot"
+          Write-Host "Qt bin: $qtBin"
+          Write-Host "Qt plugins: $qtPlugins"
+
           # Copy exe
           Copy-Item "build/app/Release/EasyMarkdown.exe" "$dist/"
 
           # Copy Qt DLLs
-          $qtBin = "$env:Qt5_DIR/bin"
           foreach ($dll in @("Qt5Core","Qt5Gui","Qt5Widgets","Qt5Network","Qt5Svg")) {
             $path = "$qtBin/$dll.dll"
             if (Test-Path $path) { Copy-Item $path "$dist/" }
@@ -83,7 +91,6 @@ jobs:
           }
 
           # Copy Qt plugins
-          $qtPlugins = "$env:Qt5_DIR/plugins"
           Copy-Item "$qtPlugins/platforms/qwindows.dll" "$dist/platforms/"
           foreach ($fmt in @("qjpeg","qgif","qico","qsvg","qwebp","qtiff")) {
             $path = "$qtPlugins/imageformats/$fmt.dll"
