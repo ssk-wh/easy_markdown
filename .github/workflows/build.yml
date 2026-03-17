@@ -125,8 +125,10 @@ jobs:
         run: |
           $nsi = "installer/EasyMarkdown.nsi"
           (Get-Content $nsi) -replace '!define APP_VERSION ".*"', "!define APP_VERSION `"$env:VERSION`"" | Set-Content $nsi
+          $makensis = "${env:ProgramFiles(x86)}\NSIS\makensis.exe"
+          if (-not (Test-Path $makensis)) { $makensis = "$env:ProgramFiles\NSIS\makensis.exe" }
           cd installer
-          makensis EasyMarkdown.nsi
+          & $makensis EasyMarkdown.nsi
 
       - name: Upload installer
         uses: actions/upload-artifact@v4
