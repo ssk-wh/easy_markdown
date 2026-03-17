@@ -61,8 +61,26 @@ jobs:
           New-Item -ItemType Directory -Force -Path "$dist/platforms","$dist/imageformats","$dist/styles" | Out-Null
 
           # Qt5_DIR points to lib/cmake/Qt5, resolve Qt root
-          # e.g. D:/a/easy_markdown/Qt/5.15.2/msvc2019_64/lib/cmake/Qt5 -> .../msvc2019_64
+          # Actual: D:/a/easy_markdown/Qt/5.15.2/msvc2019_64/lib/cmake/Qt5
+          # We need: D:/a/easy_markdown/Qt/5.15.2/msvc2019_64
           $qtRoot = (Resolve-Path "$env:Qt5_DIR/../../..").Path
+          # Verify bin exists, otherwise try one more level up
+          if (-not (Test-Path "$qtRoot/bin/Qt5Core.dll")) {
+            # Maybe Qt5_DIR is lib/cmake (2 levels)
+            $qtRoot = (Resolve-Path "$env:Qt5_DIR/../..").Path
+          }
+          if (-not (Test-Path "$qtRoot/bin/Qt5Core.dll")) {
+            # Search for Qt5Core.dll under Qt5_DIR ancestors
+            $search = $env:Qt5_DIR
+            for ($i = 0; $i -lt 5; $i++) {
+              $search = Split-Path $search -Parent
+              if (Test-Path "$search/bin/Qt5Core.dll") { $qtRoot = $search; break }
+            }
+          }
+          if (-not (Test-Path "$qtRoot/bin/Qt5Core.dll")) {
+            Write-Host "::error::Cannot find Qt bin directory. Qt5_DIR=$env:Qt5_DIR"
+            exit 1
+          }
           $qtBin = "$qtRoot/bin"
           $qtPlugins = "$qtRoot/plugins"
           Write-Host "Qt root: $qtRoot"
