@@ -30,6 +30,8 @@ public:
 
     const QVector<QPair<int,int>>& searchMatches() const { return m_searchMatches; }
 
+    int firstVisibleLine() const;
+
 protected:
     void paintEvent(QPaintEvent* event) override;
     void resizeEvent(QResizeEvent* event) override;
@@ -73,7 +75,6 @@ private:
 
     void updateScrollBars();
     void updateGutterWidth();
-    int firstVisibleLine() const;
     int lastVisibleLine() const;
     qreal scrollY() const;
 };
