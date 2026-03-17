@@ -122,6 +122,20 @@ void EditorLayout::ensureLayout(int line) const
     }
     tl->setTextOption(option);
 
+    // 语法高亮格式必须在 beginLayout() 之前设置
+    QVector<HighlightToken> tokens = m_highlighter.highlightLine(line, text);
+    QVector<QTextLayout::FormatRange> formats;
+    formats.reserve(tokens.size());
+    for (const auto& token : tokens) {
+        QTextLayout::FormatRange fr;
+        fr.start = token.start;
+        fr.length = qMin(token.length, text.length() - token.start);
+        fr.format = token.format;
+        if (fr.start >= 0 && fr.length > 0 && fr.start < text.length())
+            formats.append(fr);
+    }
+    tl->setFormats(formats);
+
     tl->beginLayout();
     qreal y = 0;
     while (true) {
@@ -133,19 +147,6 @@ void EditorLayout::ensureLayout(int line) const
         tline.setPosition(QPointF(0, y));
         y += tline.height();
     }
-    // 语法高亮
-    QVector<HighlightToken> tokens = m_highlighter.highlightLine(line, text);
-    QVector<QTextLayout::FormatRange> formats;
-    formats.reserve(tokens.size());
-    for (const auto& token : tokens) {
-        QTextLayout::FormatRange fr;
-        fr.start = token.start;
-        fr.length = token.length;
-        fr.format = token.format;
-        formats.append(fr);
-    }
-    tl->setFormats(formats);
-
     tl->endLayout();
 
     info.height = y;
