@@ -1,6 +1,7 @@
 #include "EditorWidget.h"
 #include "EditorLayout.h"
 #include "EditorPainter.h"
+#include "EditorInput.h"
 #include "Document.h"
 
 #include <QPainter>
@@ -13,6 +14,7 @@ EditorWidget::EditorWidget(QWidget* parent)
 {
     m_layout = new EditorLayout(this);
     m_painter = new EditorPainter();
+    m_input = new EditorInput(this);
 
     // Use system monospace font
     QFont font = QFontDatabase::systemFont(QFontDatabase::FixedFont);
@@ -28,11 +30,21 @@ EditorWidget::EditorWidget(QWidget* parent)
     m_layout->setDocument(m_doc);
 
     connect(m_doc, &Document::textChanged, this, &EditorWidget::onTextChanged);
+
+    // 光标闪烁
+    connect(&m_cursorBlinkTimer, &QTimer::timeout, this, [this]() {
+        m_cursorVisible = !m_cursorVisible;
+        viewport()->update();
+    });
+    m_cursorBlinkTimer.start(500);
+
+    setFocusPolicy(Qt::StrongFocus);
 }
 
 EditorWidget::~EditorWidget()
 {
     delete m_painter;
+    delete m_input;
 }
 
 void EditorWidget::setDocument(Document* doc)
@@ -103,7 +115,9 @@ void EditorWidget::paintEvent(QPaintEvent* event)
     painter.setClipRect(m_gutterWidth, 0, viewport()->width() - m_gutterWidth, viewport()->height());
 
     m_painter->paint(&painter, m_layout, m_doc, first, last,
-                     m_gutterWidth, sy);
+                     m_gutterWidth, sy,
+                     m_cursorVisible && hasFocus(),
+                     m_doc->selection().cursorPosition());
     painter.restore();
 }
 
@@ -118,6 +132,49 @@ void EditorWidget::scrollContentsBy(int dx, int dy)
     Q_UNUSED(dx);
     Q_UNUSED(dy);
     viewport()->update();
+}
+
+void EditorWidget::keyPressEvent(QKeyEvent* event)
+{
+    if (m_input->keyPressEvent(event)) {
+        m_cursorVisible = true;
+        m_cursorBlinkTimer.start(500);  // 重置闪烁
+        ensureCursorVisible();
+        viewport()->update();
+    } else {
+        QAbstractScrollArea::keyPressEvent(event);
+    }
+}
+
+void EditorWidget::focusInEvent(QFocusEvent* event)
+{
+    m_cursorVisible = true;
+    m_cursorBlinkTimer.start(500);
+    viewport()->update();
+    QAbstractScrollArea::focusInEvent(event);
+}
+
+void EditorWidget::focusOutEvent(QFocusEvent* event)
+{
+    m_cursorBlinkTimer.stop();
+    m_cursorVisible = false;
+    viewport()->update();
+    QAbstractScrollArea::focusOutEvent(event);
+}
+
+void EditorWidget::ensureCursorVisible()
+{
+    QRectF cr = m_layout->cursorRect(m_doc->selection().cursorPosition());
+    qreal cy = cr.y();
+    qreal ch = cr.height();
+    qreal sy = scrollY();
+    qreal vh = viewport()->height();
+
+    if (cy < sy) {
+        verticalScrollBar()->setValue((int)cy);
+    } else if (cy + ch > sy + vh) {
+        verticalScrollBar()->setValue((int)(cy + ch - vh));
+    }
 }
 
 void EditorWidget::onTextChanged(int offset, int removedLen, int addedLen)
