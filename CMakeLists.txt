@@ -9,7 +9,7 @@ if(MSVC)
     add_compile_options(/utf-8)
 endif()
 
-find_package(Qt5 REQUIRED COMPONENTS Core)
+find_package(Qt5 REQUIRED COMPONENTS Core Widgets)
 
 option(CMARK_TESTS "" OFF)
 option(CMARK_SHARED "" OFF)
@@ -20,6 +20,8 @@ option(INSTALL_GTEST "" OFF)
 add_subdirectory(3rdparty/googletest)
 
 add_subdirectory(src)
+
+add_subdirectory(app)
 
 enable_testing()
 add_subdirectory(tests)
