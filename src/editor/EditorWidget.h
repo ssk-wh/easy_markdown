@@ -1,6 +1,7 @@
 #pragma once
 #include <QAbstractScrollArea>
 #include <QTimer>
+#include "Selection.h"
 
 class Document;
 class EditorLayout;
@@ -29,6 +30,10 @@ protected:
     void keyPressEvent(QKeyEvent* event) override;
     void focusInEvent(QFocusEvent* event) override;
     void focusOutEvent(QFocusEvent* event) override;
+    void mousePressEvent(QMouseEvent* event) override;
+    void mouseMoveEvent(QMouseEvent* event) override;
+    void mouseReleaseEvent(QMouseEvent* event) override;
+    void mouseDoubleClickEvent(QMouseEvent* event) override;
 
 private slots:
     void onTextChanged(int offset, int removedLen, int addedLen);
@@ -42,6 +47,9 @@ private:
 
     QTimer m_cursorBlinkTimer;
     bool m_cursorVisible = true;
+    bool m_mousePressed = false;
+
+    TextPosition pixelToTextPosition(const QPoint& pos) const;
 
     void updateScrollBars();
     void updateGutterWidth();

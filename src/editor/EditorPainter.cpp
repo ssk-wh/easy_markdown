@@ -13,10 +13,48 @@ void EditorPainter::paint(QPainter* painter, EditorLayout* layout, Document* doc
                           bool cursorVisible,
                           TextPosition cursorPos)
 {
-    Q_UNUSED(doc);
+    const qreal margin = 8;
+    qreal viewWidth = painter->clipBoundingRect().width();
 
     // Background
     painter->fillRect(painter->clipBoundingRect(), Qt::white);
+
+    // 当前行高亮 / 选区绘制
+    bool hasSelection = doc->selection().hasSelection();
+    if (!hasSelection) {
+        // 当前行浅色背景
+        qreal cy = layout->lineY(cursorPos.line) - scrollY;
+        qreal ch = layout->lineHeight(cursorPos.line);
+        painter->fillRect(QRectF(gutterWidth, cy, viewWidth, ch), QColor("#F5F5F5"));
+    } else {
+        // 选区蓝色背景
+        TextPosition startPos = doc->selection().range().start();
+        TextPosition endPos = doc->selection().range().end();
+        int startLine = qMax(startPos.line, firstLine);
+        int endLine = qMin(endPos.line, lastLine);
+
+        for (int line = startLine; line <= endLine && line < layout->lineCount(); ++line) {
+            QTextLayout* tl = layout->layoutForLine(line);
+            if (!tl) continue;
+
+            qreal lineTop = layout->lineY(line) - scrollY;
+            int lineLen = doc->lineText(line).length();
+
+            int selStart = (line == startPos.line) ? startPos.column : 0;
+            int selEnd = (line == endPos.line) ? endPos.column : lineLen;
+
+            if (selStart >= selEnd && line != endPos.line) {
+                selEnd = lineLen + 1;  // 选中换行符，整行宽度
+            }
+
+            qreal x1 = tl->lineAt(0).cursorToX(selStart);
+            qreal x2 = (selEnd > lineLen) ? viewWidth : tl->lineAt(0).cursorToX(selEnd);
+
+            painter->fillRect(QRectF(gutterWidth + margin + x1, lineTop,
+                                      x2 - x1, layout->lineHeight(line)),
+                              QColor(181, 213, 255));  // #B5D5FF
+        }
+    }
 
     // Text
     painter->setPen(Qt::black);
@@ -27,7 +65,7 @@ void EditorPainter::paint(QPainter* painter, EditorLayout* layout, Document* doc
         if (!tl) continue;
 
         qreal y = layout->lineY(line) - scrollY;
-        tl->draw(painter, QPointF(gutterWidth + 8, y));  // 8px left margin
+        tl->draw(painter, QPointF(gutterWidth + margin, y));  // 8px left margin
     }
 
     // 光标绘制

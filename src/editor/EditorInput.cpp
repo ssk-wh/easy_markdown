@@ -4,6 +4,8 @@
 #include "Document.h"
 
 #include <QScrollBar>
+#include <QApplication>
+#include <QClipboard>
 #include <algorithm>
 
 EditorInput::EditorInput(EditorWidget* editor)
@@ -71,6 +73,9 @@ bool EditorInput::keyPressEvent(QKeyEvent* event)
         case Qt::Key_Z: undo(); return true;
         case Qt::Key_Y: redo(); return true;
         case Qt::Key_A: selectAll(); return true;
+        case Qt::Key_C: copy(); return true;
+        case Qt::Key_X: cut(); return true;
+        case Qt::Key_V: paste(); return true;
         default: break;
         }
     }
@@ -302,6 +307,37 @@ void EditorInput::unindent()
         pos.column = qMax(0, pos.column - removeCount);
         sel().setCursorPosition(pos);
         sel().resetPreferredColumn();
+    }
+}
+
+void EditorInput::cut() {
+    copy();
+    if (sel().hasSelection()) {
+        TextPosition start = sel().range().start();
+        TextPosition end = sel().range().end();
+        int startOff = posToOffset(start);
+        int endOff = posToOffset(end);
+        doc()->remove(startOff, endOff - startOff);
+        sel().setCursorPosition(start);
+        sel().resetPreferredColumn();
+    }
+}
+
+void EditorInput::copy() {
+    if (sel().hasSelection()) {
+        TextPosition start = sel().range().start();
+        TextPosition end = sel().range().end();
+        int startOff = posToOffset(start);
+        int endOff = posToOffset(end);
+        QString text = doc()->textAt(startOff, endOff - startOff);
+        QApplication::clipboard()->setText(text);
+    }
+}
+
+void EditorInput::paste() {
+    QString text = QApplication::clipboard()->text();
+    if (!text.isEmpty()) {
+        insertText(text);
     }
 }
 

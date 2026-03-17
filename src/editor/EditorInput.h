@@ -45,6 +45,11 @@ private:
     void indent();
     void unindent();
 
+    // 剪贴板
+    void cut();
+    void copy();
+    void paste();
+
     // TextPosition <-> offset 转换
     int posToOffset(TextPosition pos);
     TextPosition offsetToPos(int offset);

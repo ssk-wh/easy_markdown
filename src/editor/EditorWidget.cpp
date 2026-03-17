@@ -6,6 +6,7 @@
 
 #include <QPainter>
 #include <QPaintEvent>
+#include <QMouseEvent>
 #include <QScrollBar>
 #include <QFontDatabase>
 
@@ -160,6 +161,65 @@ void EditorWidget::focusOutEvent(QFocusEvent* event)
     m_cursorVisible = false;
     viewport()->update();
     QAbstractScrollArea::focusOutEvent(event);
+}
+
+static bool isWordChar(QChar c) {
+    return c.isLetterOrNumber() || c == QLatin1Char('_');
+}
+
+TextPosition EditorWidget::pixelToTextPosition(const QPoint& pos) const {
+    qreal x = pos.x() - m_gutterWidth - 8;  // 减去 gutter 和 margin
+    qreal y = pos.y() + scrollY();
+    return m_layout->hitTest(QPointF(x, y));
+}
+
+void EditorWidget::mousePressEvent(QMouseEvent* event) {
+    if (event->button() == Qt::LeftButton) {
+        TextPosition pos = pixelToTextPosition(event->pos());
+        bool shift = event->modifiers() & Qt::ShiftModifier;
+        if (shift) {
+            m_doc->selection().extendSelection(pos);
+        } else {
+            m_doc->selection().setCursorPosition(pos);
+        }
+        m_mousePressed = true;
+        m_cursorVisible = true;
+        m_cursorBlinkTimer.start(500);
+        viewport()->update();
+    }
+    QAbstractScrollArea::mousePressEvent(event);
+}
+
+void EditorWidget::mouseMoveEvent(QMouseEvent* event) {
+    if (m_mousePressed) {
+        TextPosition pos = pixelToTextPosition(event->pos());
+        m_doc->selection().extendSelection(pos);
+        viewport()->update();
+    }
+    QAbstractScrollArea::mouseMoveEvent(event);
+}
+
+void EditorWidget::mouseReleaseEvent(QMouseEvent* event) {
+    m_mousePressed = false;
+    QAbstractScrollArea::mouseReleaseEvent(event);
+}
+
+void EditorWidget::mouseDoubleClickEvent(QMouseEvent* event) {
+    if (event->button() == Qt::LeftButton) {
+        TextPosition pos = pixelToTextPosition(event->pos());
+        QString lineText = m_doc->lineText(pos.line);
+
+        int wordStart = pos.column;
+        int wordEnd = pos.column;
+
+        while (wordStart > 0 && isWordChar(lineText[wordStart - 1]))
+            wordStart--;
+        while (wordEnd < lineText.length() && isWordChar(lineText[wordEnd]))
+            wordEnd++;
+
+        m_doc->selection().setSelection({pos.line, wordStart}, {pos.line, wordEnd});
+        viewport()->update();
+    }
 }
 
 void EditorWidget::ensureCursorVisible()
