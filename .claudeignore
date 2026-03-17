@@ -1,0 +1,11 @@
+build/
+out/
+3rdparty/cmark-gfm/
+3rdparty/googletest/
+.git/
+.vs/
+*.obj
+*.pdb
+*.exe
+*.dll
+*.stackdump

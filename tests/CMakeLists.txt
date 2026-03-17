@@ -1,0 +1,13 @@
+find_package(Qt5 REQUIRED COMPONENTS Core)
+
+function(add_unit_test TEST_NAME TEST_SOURCE)
+    add_executable(${TEST_NAME} ${TEST_SOURCE})
+    target_link_libraries(${TEST_NAME} PRIVATE easy_core gtest gtest_main)
+    add_test(NAME ${TEST_NAME} COMMAND ${TEST_NAME})
+endfunction()
+
+add_unit_test(test_MappedFile test_MappedFile.cpp)
+add_unit_test(test_PieceTable test_PieceTable.cpp)
+add_unit_test(test_UndoStack test_UndoStack.cpp)
+add_unit_test(test_Selection test_Selection.cpp)
+add_unit_test(test_Document  test_Document.cpp)
