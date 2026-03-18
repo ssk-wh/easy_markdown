@@ -16,6 +16,7 @@ public:
 
     void setTheme(const Theme& theme);
     const Theme& theme() const { return m_theme; }
+    void setSelectionColor(const QColor& color);
 
     void paint(QPainter* painter, EditorLayout* layout, Document* doc,
                int firstLine, int lastLine,
@@ -27,4 +28,5 @@ public:
 
 private:
     Theme m_theme;
+    QColor m_selectionColor = QColor(0, 51, 153, 100);
 };
