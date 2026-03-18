@@ -12,9 +12,14 @@ set "BUILD_DIR=%PROJECT_DIR%\build"
 set "DIST_DIR=%~dp0dist"
 set "QT_DIR="
 
-:: Find Qt installation
-for /d %%d in ("D:\Qt\5.15*\msvc2019_64" "C:\Qt\5.15*\msvc2019_64") do (
-    if exist "%%d\bin\Qt5Core.dll" set "QT_DIR=%%d"
+:: Find Qt installation (search D:\Qt\5.15.x\msvc2019_64 and C:\Qt\5.15.x\msvc2019_64)
+for /d %%v in ("D:\Qt\5.15*" "C:\Qt\5.15*") do (
+    if exist "%%v\msvc2019_64\bin\Qt5Core.dll" set "QT_DIR=%%v\msvc2019_64"
+)
+:: Also check flat layout (D:\Qt\5.15.2\msvc2019_64 already matched above)
+:: And try Qt5_DIR env var if set
+if "%QT_DIR%"=="" if defined Qt5_DIR (
+    for %%d in ("%Qt5_DIR%\..\..\..") do if exist "%%~fd\bin\Qt5Core.dll" set "QT_DIR=%%~fd"
 )
 
 if "%QT_DIR%"=="" (
@@ -83,7 +88,7 @@ echo [INFO] Collected %count% files
 
 :: Update version in NSIS script
 echo [STEP 3] Building installer...
-powershell -Command "(Get-Content '%~dp0EasyMarkdown.nsi') -replace '!define APP_VERSION \".*\"', '!define APP_VERSION \"%VERSION%\"' | Set-Content '%~dp0EasyMarkdown.nsi'"
+powershell -Command "(Get-Content -Encoding UTF8 '%~dp0EasyMarkdown.nsi') -replace '!define APP_VERSION \".*\"', '!define APP_VERSION \"%VERSION%\"' | Set-Content -Encoding UTF8 '%~dp0EasyMarkdown.nsi'"
 
 :: Build NSIS installer
 where makensis >nul 2>&1
