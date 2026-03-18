@@ -34,36 +34,11 @@ void EditorPainter::paint(QPainter* painter, EditorLayout* layout, Document* doc
     // Background
     painter->fillRect(painter->clipBoundingRect(), m_theme.editorBg);
 
-    // 当前行高亮 / 选区绘制（在背景之后、文字之前）
+    // 当前行高亮
     if (!doc->selection().hasSelection()) {
         qreal cy = layout->lineY(cursorPos.line) - scrollY;
         qreal ch = layout->lineHeight(cursorPos.line);
         painter->fillRect(QRectF(gutterWidth, cy, viewWidth, ch), m_theme.editorCurrentLine);
-    } else {
-        TextPosition startPos = doc->selection().range().start();
-        TextPosition endPos = doc->selection().range().end();
-        int startLine = qMax(startPos.line, firstLine);
-        int endLine = qMin(endPos.line, lastLine);
-
-        for (int line = startLine; line <= endLine && line < layout->lineCount(); ++line) {
-            QTextLayout* tl = layout->layoutForLine(line);
-            if (!tl || tl->lineCount() == 0) continue;
-
-            qreal lineTop = layout->lineY(line) - scrollY;
-            int lineLen = doc->lineText(line).length();
-            int selStart = (line == startPos.line) ? startPos.column : 0;
-            int selEnd = (line == endPos.line) ? endPos.column : lineLen;
-            if (selStart >= selEnd && line != endPos.line) selEnd = lineLen + 1;
-            if (selStart >= selEnd) continue;
-
-            qreal x1 = tl->lineAt(0).cursorToX(qMin(selStart, lineLen));
-            qreal x2 = (selEnd > lineLen) ? viewWidth
-                        : tl->lineAt(0).cursorToX(qMin(selEnd, lineLen));
-
-            painter->fillRect(QRectF(gutterWidth + margin + x1, lineTop,
-                                      x2 - x1, layout->lineHeight(line)),
-                              m_selectionColor);
-        }
     }
 
     // 搜索匹配高亮
@@ -87,16 +62,39 @@ void EditorPainter::paint(QPainter* painter, EditorLayout* layout, Document* doc
                           m_theme.editorSearchMatch);
     }
 
-    // Text
+    // Text (with selection highlighting via QTextLayout::draw)
     painter->setPen(m_theme.editorFg);
     painter->setFont(layout->font());
+
+    bool hasSelection = doc->selection().hasSelection();
+    TextPosition selStartPos, selEndPos;
+    if (hasSelection) {
+        selStartPos = doc->selection().range().start();
+        selEndPos = doc->selection().range().end();
+    }
 
     for (int line = firstLine; line <= lastLine && line < layout->lineCount(); ++line) {
         QTextLayout* tl = layout->layoutForLine(line);
         if (!tl) continue;
 
         qreal y = layout->lineY(line) - scrollY;
-        tl->draw(painter, QPointF(gutterWidth + margin, y));  // 8px left margin
+
+        // 构建选区 FormatRange 让 QTextLayout::draw 自己绘制选区背景
+        QVector<QTextLayout::FormatRange> selections;
+        if (hasSelection && line >= selStartPos.line && line <= selEndPos.line) {
+            int lineLen = doc->lineText(line).length();
+            int selStart = (line == selStartPos.line) ? selStartPos.column : 0;
+            int selEnd = (line == selEndPos.line) ? selEndPos.column : lineLen;
+            if (selStart < selEnd) {
+                QTextLayout::FormatRange fmt;
+                fmt.start = selStart;
+                fmt.length = selEnd - selStart;
+                fmt.format.setBackground(m_selectionColor);
+                selections.append(fmt);
+            }
+        }
+
+        tl->draw(painter, QPointF(gutterWidth + margin, y), selections);
     }
 
     // Preedit 文本绘制

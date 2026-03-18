@@ -117,3 +117,32 @@ TEST_F(EditorLayoutTest, RebuildAfterNewLine) {
     layout->rebuild();  // 行数变化需要 rebuild
     EXPECT_EQ(layout->lineCount(), 2);
 }
+
+TEST_F(EditorLayoutTest, SelectionCursorToX) {
+    doc->insert(0, "Hello World Test");
+    layout->rebuild();
+
+    QTextLayout* tl = layout->layoutForLine(0);
+    ASSERT_NE(tl, nullptr);
+    ASSERT_GT(tl->lineCount(), 0);
+
+    // 测试 cursorToX 在不同列的返回值
+    for (int col = 0; col <= 16; ++col) {
+        qreal x = tl->lineAt(0).cursorToX(col);
+        printf("  cursorToX(%d) = %.2f\n", col, x);
+    }
+
+    qreal x0 = tl->lineAt(0).cursorToX(0);
+    qreal x5 = tl->lineAt(0).cursorToX(5);
+    qreal x11 = tl->lineAt(0).cursorToX(11);
+    qreal x16 = tl->lineAt(0).cursorToX(16);
+
+    printf("Selection 'Hello' (0-5): x1=%.2f x2=%.2f width=%.2f\n", x0, x5, x5-x0);
+    printf("Selection 'World' (6-11): x1=%.2f x2=%.2f width=%.2f\n",
+           tl->lineAt(0).cursorToX(6), x11, x11 - tl->lineAt(0).cursorToX(6));
+
+    // cursorToX 应该返回递增的值
+    EXPECT_GT(x5, x0);
+    EXPECT_GT(x11, x5);
+    EXPECT_GT(x16, x11);
+}
