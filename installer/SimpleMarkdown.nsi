@@ -5,7 +5,7 @@
 
 ; ============== Basic Info ==============
 !define APP_NAME "SimpleMarkdown"
-!
+!define APP_VERSION "0.1.0"
 !define APP_PUBLISHER "SimpleMarkdown"
 !define APP_EXE "SimpleMarkdown.exe"
 !define UNINSTALL_KEY "Software\Microsoft\Windows\CurrentVersion\Uninstall\${APP_NAME}"
