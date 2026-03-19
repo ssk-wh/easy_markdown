@@ -1,6 +1,7 @@
 #pragma once
 #include <QAbstractScrollArea>
 #include <QTimer>
+#include <QThread>
 #include <QInputMethodEvent>
 #include "Selection.h"
 #include "Theme.h"
@@ -11,6 +12,7 @@ class EditorPainter;
 class EditorInput;
 class GutterRenderer;
 class SearchBar;
+class SearchWorker;
 
 class EditorWidget : public QAbstractScrollArea {
     Q_OBJECT
@@ -52,6 +54,7 @@ protected:
 private slots:
     void onTextChanged(int offset, int removedLen, int addedLen);
     void onSearchTextChanged(const QString& text);
+    void onSearchResultsReady(QVector<QPair<int,int>> matches, int requestId);
     void findNext(const QString& text);
     void findPrev(const QString& text);
     void doReplaceNext(const QString& find, const QString& replace);
@@ -73,6 +76,13 @@ private:
     Theme m_theme;
     QVector<QPair<int,int>> m_searchMatches;  // (offset, length) pairs
     QString m_currentSearchText;
+    int m_currentMatchIndex = -1;
+
+    // 搜索线程
+    QThread m_searchThread;
+    SearchWorker* m_searchWorker = nullptr;
+    QTimer m_searchDebounce;
+    int m_searchRequestId = 0;
 
     TextPosition pixelToTextPosition(const QPoint& pos) const;
     TextPosition offsetToTextPos(int offset) const;
@@ -81,4 +91,6 @@ private:
     void updateGutterWidth();
     int lastVisibleLine() const;
     qreal scrollY() const;
+
+    void updateSearchBarMatchInfo();
 };

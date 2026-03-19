@@ -1,8 +1,9 @@
 #pragma once
 #include <QWidget>
+#include "Theme.h"
 
 class QLineEdit;
-class QPushButton;
+class QLabel;
 class QHBoxLayout;
 class QVBoxLayout;
 class EditorWidget;
@@ -17,6 +18,8 @@ public:
     void hideBar();
 
     QString searchText() const;
+    void setTheme(const Theme& theme);
+    void updateMatchInfo(int currentIndex, int totalMatches);
 
 signals:
     void findNext(const QString& text);
@@ -28,14 +31,34 @@ signals:
 
 protected:
     bool eventFilter(QObject* obj, QEvent* event) override;
+    void paintEvent(QPaintEvent* event) override;
 
 private:
+    void applyThemeStyles();
+
     QLineEdit* m_findEdit;
     QLineEdit* m_replaceEdit;
     QWidget* m_replaceRow;
-    QPushButton* m_findNextBtn;
-    QPushButton* m_findPrevBtn;
-    QPushButton* m_replaceBtn;
-    QPushButton* m_replaceAllBtn;
-    QPushButton* m_closeBtn;
+    QLabel* m_matchInfoLabel;
+
+    // Custom painted buttons
+    struct ToolButton {
+        QRect rect;
+        bool hovered = false;
+        bool pressed = false;
+    };
+    ToolButton m_btnPrev;
+    ToolButton m_btnNext;
+    ToolButton m_btnClose;
+    ToolButton m_btnReplace;
+    ToolButton m_btnReplaceAll;
+
+    void mouseMoveEvent(QMouseEvent* event) override;
+    void mousePressEvent(QMouseEvent* event) override;
+    void mouseReleaseEvent(QMouseEvent* event) override;
+    void updateButtonRects();
+    ToolButton* hitTest(const QPoint& pos);
+
+    Theme m_theme;
+    bool m_replaceVisible = false;
 };

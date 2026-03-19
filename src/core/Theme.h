@@ -4,6 +4,7 @@
 
 struct Theme {
     QString name;
+    bool isDark = false;
 
     // 编辑器颜色
     QColor editorBg = QColor("#FFFFFF");

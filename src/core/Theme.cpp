@@ -10,6 +10,7 @@ Theme Theme::light() {
 Theme Theme::dark() {
     Theme t;
     t.name = "Dark";
+    t.isDark = true;
 
     // 编辑器颜色
     t.editorBg = QColor("#1E1E1E");

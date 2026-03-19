@@ -3,6 +3,7 @@
 #include "EditorPainter.h"
 #include "EditorInput.h"
 #include "SearchBar.h"
+#include "SearchWorker.h"
 #include "Document.h"
 #include "Theme.h"
 
@@ -51,7 +52,37 @@ EditorWidget::EditorWidget(QWidget* parent)
     connect(m_searchBar, &SearchBar::closed, this, [this]() {
         m_searchMatches.clear();
         m_currentSearchText.clear();
+        m_currentMatchIndex = -1;
         viewport()->update();
+    });
+
+    // 搜索线程
+    m_searchWorker = new SearchWorker();
+    m_searchWorker->moveToThread(&m_searchThread);
+    connect(&m_searchThread, &QThread::finished, m_searchWorker, &QObject::deleteLater);
+    qRegisterMetaType<QVector<QPair<int,int>>>("QVector<QPair<int,int>>");
+    connect(m_searchWorker, &SearchWorker::searchFinished,
+            this, &EditorWidget::onSearchResultsReady);
+    m_searchThread.start();
+
+    // 搜索防抖
+    m_searchDebounce.setSingleShot(true);
+    m_searchDebounce.setInterval(100);
+    connect(&m_searchDebounce, &QTimer::timeout, this, [this]() {
+        if (m_currentSearchText.isEmpty()) {
+            m_searchMatches.clear();
+            m_currentMatchIndex = -1;
+            updateSearchBarMatchInfo();
+            viewport()->update();
+            return;
+        }
+        QString fullText = m_doc->text();
+        int reqId = ++m_searchRequestId;
+        QMetaObject::invokeMethod(m_searchWorker, "search",
+                                  Qt::QueuedConnection,
+                                  Q_ARG(QString, m_currentSearchText),
+                                  Q_ARG(QString, fullText),
+                                  Q_ARG(int, reqId));
     });
 
     setFocusPolicy(Qt::StrongFocus);
@@ -60,6 +91,8 @@ EditorWidget::EditorWidget(QWidget* parent)
 
 EditorWidget::~EditorWidget()
 {
+    m_searchThread.quit();
+    m_searchThread.wait();
     delete m_painter;
     delete m_input;
 }
@@ -97,6 +130,7 @@ void EditorWidget::setTheme(const Theme& theme)
     m_theme = theme;
     m_painter->setTheme(theme);
     m_layout->setTheme(theme);
+    m_searchBar->setTheme(theme);
     viewport()->update();
 }
 
@@ -159,6 +193,11 @@ void EditorWidget::resizeEvent(QResizeEvent* event)
 {
     QAbstractScrollArea::resizeEvent(event);
     updateScrollBars();
+
+    // 搜索栏跟随右上角
+    if (m_searchBar->isVisible()) {
+        m_searchBar->move(width() - m_searchBar->width() - 20, 10);
+    }
 }
 
 void EditorWidget::scrollContentsBy(int dx, int dy)
@@ -358,53 +397,90 @@ TextPosition EditorWidget::offsetToTextPos(int offset) const
 void EditorWidget::onSearchTextChanged(const QString& text)
 {
     m_currentSearchText = text;
-    m_searchMatches.clear();
-    if (text.isEmpty()) {
-        viewport()->update();
-        return;
-    }
-    QString fullText = m_doc->text();
-    int pos = 0;
-    while ((pos = fullText.indexOf(text, pos, Qt::CaseInsensitive)) != -1) {
-        m_searchMatches.append({pos, text.length()});
-        pos += text.length();
-    }
+    m_currentMatchIndex = -1;
+    m_searchDebounce.start();
+}
+
+void EditorWidget::onSearchResultsReady(QVector<QPair<int,int>> matches, int requestId)
+{
+    if (requestId != m_searchRequestId)
+        return; // 过期结果，丢弃
+    m_searchMatches = std::move(matches);
+    m_currentMatchIndex = -1;
+    updateSearchBarMatchInfo();
     viewport()->update();
 }
 
 void EditorWidget::findNext(const QString& text)
 {
     if (text.isEmpty()) return;
-    onSearchTextChanged(text);
+
+    // 如果搜索文本变了，同步搜索一次（用户按 Enter 时）
+    if (text != m_currentSearchText || m_searchMatches.isEmpty()) {
+        m_currentSearchText = text;
+        m_searchMatches.clear();
+        QString fullText = m_doc->text();
+        int pos = 0;
+        while ((pos = fullText.indexOf(text, pos, Qt::CaseInsensitive)) != -1) {
+            m_searchMatches.append({pos, text.length()});
+            pos += text.length();
+        }
+    }
+
+    if (m_searchMatches.isEmpty()) {
+        m_currentMatchIndex = -1;
+        updateSearchBarMatchInfo();
+        viewport()->update();
+        return;
+    }
 
     int cursorOffset = m_doc->lineToOffset(m_doc->selection().cursorPosition().line)
                      + m_doc->selection().cursorPosition().column;
 
-    for (auto& match : m_searchMatches) {
-        if (match.first > cursorOffset) {
-            TextPosition start = offsetToTextPos(match.first);
-            TextPosition end = offsetToTextPos(match.first + match.second);
+    for (int i = 0; i < m_searchMatches.size(); ++i) {
+        if (m_searchMatches[i].first > cursorOffset) {
+            m_currentMatchIndex = i;
+            TextPosition start = offsetToTextPos(m_searchMatches[i].first);
+            TextPosition end = offsetToTextPos(m_searchMatches[i].first + m_searchMatches[i].second);
             m_doc->selection().setSelection(start, end);
             ensureCursorVisible();
+            updateSearchBarMatchInfo();
             viewport()->update();
             return;
         }
     }
     // 回绕到文件开头
-    if (!m_searchMatches.isEmpty()) {
-        auto& match = m_searchMatches.first();
-        TextPosition start = offsetToTextPos(match.first);
-        TextPosition end = offsetToTextPos(match.first + match.second);
-        m_doc->selection().setSelection(start, end);
-        ensureCursorVisible();
-        viewport()->update();
-    }
+    m_currentMatchIndex = 0;
+    auto& match = m_searchMatches.first();
+    TextPosition start = offsetToTextPos(match.first);
+    TextPosition end = offsetToTextPos(match.first + match.second);
+    m_doc->selection().setSelection(start, end);
+    ensureCursorVisible();
+    updateSearchBarMatchInfo();
+    viewport()->update();
 }
 
 void EditorWidget::findPrev(const QString& text)
 {
     if (text.isEmpty()) return;
-    onSearchTextChanged(text);
+
+    if (text != m_currentSearchText || m_searchMatches.isEmpty()) {
+        m_currentSearchText = text;
+        m_searchMatches.clear();
+        QString fullText = m_doc->text();
+        int pos = 0;
+        while ((pos = fullText.indexOf(text, pos, Qt::CaseInsensitive)) != -1) {
+            m_searchMatches.append({pos, text.length()});
+            pos += text.length();
+        }
+    }
+
+    if (m_searchMatches.isEmpty()) {
+        m_currentMatchIndex = -1;
+        updateSearchBarMatchInfo();
+        viewport()->update();
+        return;
+    }
 
     int cursorOffset = m_doc->lineToOffset(m_doc->selection().cursorPosition().line)
                      + m_doc->selection().cursorPosition().column;
@@ -417,23 +493,25 @@ void EditorWidget::findPrev(const QString& text)
 
     for (int i = m_searchMatches.size() - 1; i >= 0; --i) {
         if (m_searchMatches[i].first < cursorOffset) {
+            m_currentMatchIndex = i;
             TextPosition start = offsetToTextPos(m_searchMatches[i].first);
             TextPosition end = offsetToTextPos(m_searchMatches[i].first + m_searchMatches[i].second);
             m_doc->selection().setSelection(start, end);
             ensureCursorVisible();
+            updateSearchBarMatchInfo();
             viewport()->update();
             return;
         }
     }
     // 回绕到文件末尾
-    if (!m_searchMatches.isEmpty()) {
-        auto& match = m_searchMatches.last();
-        TextPosition start = offsetToTextPos(match.first);
-        TextPosition end = offsetToTextPos(match.first + match.second);
-        m_doc->selection().setSelection(start, end);
-        ensureCursorVisible();
-        viewport()->update();
-    }
+    m_currentMatchIndex = m_searchMatches.size() - 1;
+    auto& match = m_searchMatches.last();
+    TextPosition start = offsetToTextPos(match.first);
+    TextPosition end = offsetToTextPos(match.first + match.second);
+    m_doc->selection().setSelection(start, end);
+    ensureCursorVisible();
+    updateSearchBarMatchInfo();
+    viewport()->update();
 }
 
 void EditorWidget::doReplaceNext(const QString& find, const QString& replace)
@@ -489,4 +567,9 @@ QVariant EditorWidget::inputMethodQuery(Qt::InputMethodQuery query) const
     default:
         return QAbstractScrollArea::inputMethodQuery(query);
     }
+}
+
+void EditorWidget::updateSearchBarMatchInfo()
+{
+    m_searchBar->updateMatchInfo(m_currentMatchIndex, m_searchMatches.size());
 }

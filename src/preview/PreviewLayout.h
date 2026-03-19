@@ -7,6 +7,8 @@
 #include <vector>
 #include <memory>
 
+#include "Theme.h"
+
 class AstNode;
 
 struct InlineRun {
@@ -61,6 +63,7 @@ public:
 
     void setViewportWidth(qreal width);
     void setFont(const QFont& baseFont);
+    void setTheme(const Theme& theme);
     void buildFromAst(const std::shared_ptr<AstNode>& root);
     qreal totalHeight() const;
     const LayoutBlock& rootBlock() const;
@@ -78,6 +81,7 @@ private:
     LayoutBlock m_root;
     QFont m_baseFont;
     QFont m_monoFont;
+    Theme m_theme;
     qreal m_viewportWidth = 600.0;
     qreal m_lineHeight = 24.0;
     qreal m_codeLineHeight = 20.0;

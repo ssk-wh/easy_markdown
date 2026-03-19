@@ -101,6 +101,13 @@ void PreviewWidget::setTheme(const Theme& theme)
 {
     m_theme = theme;
     m_painter->setTheme(theme);
+    m_layout->setTheme(theme);
+
+    // 重建 layout 以更新 InlineRun 中的主题色
+    if (m_currentAst) {
+        m_layout->buildFromAst(m_currentAst);
+        updateScrollBars();
+    }
 
     QPalette pal = viewport()->palette();
     pal.setColor(QPalette::Window, theme.previewBg);

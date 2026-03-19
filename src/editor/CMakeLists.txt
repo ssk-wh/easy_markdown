@@ -7,6 +7,7 @@ add_library(easy_editor STATIC
     BandBuffer.h BandBuffer.cpp
     SyntaxHighlighter.h SyntaxHighlighter.cpp
     SearchBar.h SearchBar.cpp
+    SearchWorker.h SearchWorker.cpp
 )
 target_include_directories(easy_editor PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(easy_editor PUBLIC easy_core Qt5::Widgets)

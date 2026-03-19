@@ -31,6 +31,11 @@ void PreviewLayout::setFont(const QFont& baseFont)
     m_lineHeight = fm.height() * 1.5;
 }
 
+void PreviewLayout::setTheme(const Theme& theme)
+{
+    m_theme = theme;
+}
+
 void PreviewLayout::buildFromAst(const std::shared_ptr<AstNode>& root)
 {
     m_root = LayoutBlock();
@@ -67,7 +72,7 @@ LayoutBlock PreviewLayout::layoutBlock(const AstNode* node, qreal maxWidth)
     switch (node->type) {
     case AstNodeType::Paragraph: {
         block.type = LayoutBlock::Paragraph;
-        collectInlineRuns(node, block.inlineRuns, m_baseFont, Qt::black);
+        collectInlineRuns(node, block.inlineRuns, m_baseFont, m_theme.previewFg);
         qreal h = estimateParagraphHeight(block.inlineRuns, maxWidth);
         block.bounds = QRectF(0, 0, maxWidth, h);
         break;
@@ -89,7 +94,7 @@ LayoutBlock PreviewLayout::layoutBlock(const AstNode* node, qreal maxWidth)
         headingFont.setPointSizeF(m_baseFont.pointSizeF() * scale);
         headingFont.setWeight(QFont::Bold);
 
-        collectInlineRuns(node, block.inlineRuns, headingFont, Qt::black);
+        collectInlineRuns(node, block.inlineRuns, headingFont, m_theme.previewHeading);
         qreal h = estimateParagraphHeight(block.inlineRuns, maxWidth);
         // Extra bottom margin for H1/H2
         if (node->headingLevel <= 2) h += 8;
@@ -175,7 +180,7 @@ LayoutBlock PreviewLayout::layoutBlock(const AstNode* node, qreal maxWidth)
                 cellBlock.type = LayoutBlock::TableCell;
                 cellBlock.sourceStartLine = cellNode->startLine;
                 cellBlock.sourceEndLine = cellNode->endLine;
-                collectInlineRuns(cellNode.get(), cellBlock.inlineRuns, m_baseFont, Qt::black);
+                collectInlineRuns(cellNode.get(), cellBlock.inlineRuns, m_baseFont, m_theme.previewFg);
                 cellBlock.bounds = QRectF(cellX, 0, colWidth, rowHeight);
                 cellX += colWidth;
                 rowBlock.children.push_back(std::move(cellBlock));
@@ -209,7 +214,7 @@ LayoutBlock PreviewLayout::layoutBlock(const AstNode* node, qreal maxWidth)
     default: {
         // For unknown block types, try to layout children
         block.type = LayoutBlock::Paragraph;
-        collectInlineRuns(node, block.inlineRuns, m_baseFont, Qt::black);
+        collectInlineRuns(node, block.inlineRuns, m_baseFont, m_theme.previewFg);
         qreal h = estimateParagraphHeight(block.inlineRuns, maxWidth);
         block.bounds = QRectF(0, 0, maxWidth, qMax(h, m_lineHeight));
         break;
@@ -260,13 +265,13 @@ void PreviewLayout::collectInlineRuns(const AstNode* node, std::vector<InlineRun
             run.text = child->literal;
             run.font = m_monoFont;
             run.font.setPointSizeF(currentFont.pointSizeF() * 0.9);
-            run.color = QColor("#333333");
-            run.bgColor = QColor("#F0F0F0");
+            run.color = m_theme.previewCodeFg;
+            run.bgColor = m_theme.previewCodeBg;
             runs.push_back(std::move(run));
             break;
         }
         case AstNodeType::Link: {
-            QColor linkColor("#0366D6");
+            QColor linkColor = m_theme.previewLink;
             collectInlineRuns(child.get(), runs, currentFont, linkColor);
             // Set linkUrl on all runs added
             // Find runs we just added and set their URL
@@ -286,7 +291,7 @@ void PreviewLayout::collectInlineRuns(const AstNode* node, std::vector<InlineRun
             InlineRun run;
             run.text = child->title.isEmpty() ? QStringLiteral("[image]") : child->title;
             run.font = currentFont;
-            run.color = QColor("#666666");
+            run.color = m_theme.previewImagePlaceholderText;
             runs.push_back(std::move(run));
             break;
         }
@@ -311,7 +316,7 @@ void PreviewLayout::collectInlineRuns(const AstNode* node, std::vector<InlineRun
             InlineRun run;
             run.text = child->literal;
             run.font = currentFont;
-            run.color = QColor("#999999");
+            run.color = m_theme.syntaxFence;
             runs.push_back(std::move(run));
             break;
         }
