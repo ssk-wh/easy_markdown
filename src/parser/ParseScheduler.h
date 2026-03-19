@@ -11,6 +11,8 @@ class MarkdownParser;
 
 class ParseWorker : public QObject {
     Q_OBJECT
+public:
+    ~ParseWorker() override;
 public slots:
     void doParse(const QString& text, quint64 seq);
 signals:

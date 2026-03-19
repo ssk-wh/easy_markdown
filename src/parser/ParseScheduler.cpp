@@ -6,6 +6,8 @@
 
 // ---- ParseWorker ----
 
+ParseWorker::~ParseWorker() = default;
+
 void ParseWorker::doParse(const QString& text, quint64 seq)
 {
     if (!m_parser)
