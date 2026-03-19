@@ -1,0 +1,10 @@
+simplemarkdown (0.1.0) unstable; urgency=medium
+
+  * Initial release
+  * PieceTable-based text engine with syntax highlighting
+  * Real-time GFM preview powered by cmark-gfm
+  * Synchronized scrolling between editor and preview
+  * Search and replace functionality
+  * Recent files management
+
+ -- SimpleMarkdown Developers <dev@simplemarkdown.org>  Thu, 19 Mar 2026 12:00:00 +0800

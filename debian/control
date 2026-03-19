@@ -1,0 +1,18 @@
+Source: simplemarkdown
+Section: editors
+Priority: optional
+Maintainer: SimpleMarkdown Developers <dev@simplemarkdown.org>
+Build-Depends: debhelper-compat (= 12),
+               cmake (>= 3.16),
+               qtbase5-dev,
+               libqt5svg5-dev
+Standards-Version: 4.5.0
+Homepage: https://github.com/ssk-wh/simple_markdown
+
+Package: simplemarkdown
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}
+Description: Lightweight Markdown editor with live preview
+ SimpleMarkdown is a cross-platform Markdown editor featuring a custom
+ text engine built on PieceTable, real-time GFM preview powered by
+ cmark-gfm, and synchronized scrolling between editor and preview panes.

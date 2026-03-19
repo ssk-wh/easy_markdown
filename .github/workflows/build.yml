@@ -61,16 +61,11 @@ jobs:
           New-Item -ItemType Directory -Force -Path "$dist/platforms","$dist/imageformats","$dist/styles" | Out-Null
 
           # Qt5_DIR points to lib/cmake/Qt5, resolve Qt root
-          # Actual: D:/a/easy_markdown/Qt/5.15.2/msvc2019_64/lib/cmake/Qt5
-          # We need: D:/a/easy_markdown/Qt/5.15.2/msvc2019_64
           $qtRoot = (Resolve-Path "$env:Qt5_DIR/../../..").Path
-          # Verify bin exists, otherwise try one more level up
           if (-not (Test-Path "$qtRoot/bin/Qt5Core.dll")) {
-            # Maybe Qt5_DIR is lib/cmake (2 levels)
             $qtRoot = (Resolve-Path "$env:Qt5_DIR/../..").Path
           }
           if (-not (Test-Path "$qtRoot/bin/Qt5Core.dll")) {
-            # Search for Qt5Core.dll under Qt5_DIR ancestors
             $search = $env:Qt5_DIR
             for ($i = 0; $i -lt 5; $i++) {
               $search = Split-Path $search -Parent
@@ -147,8 +142,52 @@ jobs:
           name: SimpleMarkdown-${{ env.VERSION }}-Windows-Portable
           path: installer/SimpleMarkdown-*-Portable.zip
 
+  build-linux:
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Extract version
+        id: version
+        run: |
+          VERSION=$(sed -n 's/^[^(]*(\([^)]*\)).*/\1/p' debian/changelog | head -1)
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Building version: $VERSION"
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            debhelper cmake qtbase5-dev libqt5svg5-dev \
+            fakeroot dpkg-dev librsvg2-bin
+
+      - name: Generate PNG icons from SVG
+        run: |
+          cd resources
+          for size in 16 24 32 48 128 256 512; do
+            rsvg-convert -w $size -h $size app-icon.svg -o simplemarkdown_${size}.png
+          done
+
+      - name: Build DEB package
+        run: dpkg-buildpackage -us -uc -b
+
+      - name: Collect artifacts
+        run: |
+          mkdir -p dist
+          cp ../simplemarkdown_*.deb dist/
+
+      - name: Upload DEB artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: simplemarkdown_${{ steps.version.outputs.version }}_amd64
+          path: dist/*.deb
+
   release:
-    needs: [build-windows]
+    needs: [build-windows, build-linux]
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     permissions:
@@ -166,4 +205,5 @@ jobs:
           files: |
             artifacts/**/*-Setup.exe
             artifacts/**/*-Portable.zip
+            artifacts/**/*.deb
           generate_release_notes: true
