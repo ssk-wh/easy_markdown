@@ -12,6 +12,7 @@ class RecentFiles;
 class QSplitter;
 class QMenu;
 class QActionGroup;
+class QLocalServer;
 
 class MainWindow : public QMainWindow {
     Q_OBJECT
@@ -20,6 +21,7 @@ public:
 
     void openFile(const QString& path);
     void newTab();
+    void startLocalServer(const char* serverName);
 
 protected:
     void dragEnterEvent(QDragEnterEvent* event) override;
@@ -49,6 +51,7 @@ private:
     QMenu* m_recentMenu = nullptr;
 
     Theme m_currentTheme;
+    QLocalServer* m_localServer = nullptr;
 
     void setupMenuBar();
     void setupDragDrop();

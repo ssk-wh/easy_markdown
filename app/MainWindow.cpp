@@ -17,6 +17,8 @@
 #include <QFileInfo>
 #include <QShortcut>
 #include <QActionGroup>
+#include <QLocalServer>
+#include <QLocalSocket>
 
 MainWindow::MainWindow(QWidget* parent)
     : QMainWindow(parent)
@@ -212,6 +214,7 @@ void MainWindow::updateTabTitle(int index)
         title += " *";
 
     m_tabWidget->setTabText(index, title);
+    m_tabWidget->setTabToolTip(index, doc->filePath().isEmpty() ? tr("Untitled") : QFileInfo(doc->filePath()).absoluteFilePath());
 
     // Update window title
     if (index == m_tabWidget->currentIndex())
@@ -386,4 +389,31 @@ void MainWindow::closeEvent(QCloseEvent* event)
         }
     }
     event->accept();
+}
+
+void MainWindow::startLocalServer(const char* serverName)
+{
+    QLocalServer::removeServer(serverName);
+    m_localServer = new QLocalServer(this);
+    m_localServer->listen(serverName);
+
+    connect(m_localServer, &QLocalServer::newConnection, this, [this]() {
+        QLocalSocket* socket = m_localServer->nextPendingConnection();
+        if (!socket)
+            return;
+
+        socket->waitForReadyRead(1000);
+        QByteArray data = socket->readAll();
+        socket->deleteLater();
+
+        QString filePath = QString::fromUtf8(data);
+        if (!filePath.isEmpty()) {
+            openFile(filePath);
+        }
+
+        // Activate window
+        setWindowState((windowState() & ~Qt::WindowMinimized) | Qt::WindowActive);
+        raise();
+        activateWindow();
+    });
 }

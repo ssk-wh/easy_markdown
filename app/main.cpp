@@ -1,5 +1,6 @@
 #include <QApplication>
 #include <QIcon>
+#include <QLocalSocket>
 #include "MainWindow.h"
 
 #ifdef _WIN32
@@ -45,6 +46,22 @@ static LONG WINAPI crashHandler(EXCEPTION_POINTERS* ep)
 }
 #endif
 
+static const char* kServerName = "SimpleMarkdownInstance";
+
+static bool sendToRunningInstance(const QString& filePath)
+{
+    QLocalSocket socket;
+    socket.connectToServer(kServerName);
+    if (!socket.waitForConnected(500))
+        return false;
+
+    QByteArray data = filePath.toUtf8();
+    socket.write(data);
+    socket.waitForBytesWritten(1000);
+    socket.disconnectFromServer();
+    return true;
+}
+
 int main(int argc, char* argv[])
 {
 #ifdef _WIN32
@@ -56,10 +73,19 @@ int main(int argc, char* argv[])
     app.setOrganizationName("SimpleMarkdown");
     app.setWindowIcon(QIcon(":/app-icon.png"));
 
-    MainWindow window;
+    QString filePath;
+    if (argc > 1)
+        filePath = QFileInfo(QString::fromLocal8Bit(argv[1])).absoluteFilePath();
 
-    if (argc > 1) {
-        window.openFile(QString::fromLocal8Bit(argv[1]));
+    // Try to send to existing instance
+    if (sendToRunningInstance(filePath))
+        return 0;
+
+    MainWindow window;
+    window.startLocalServer(kServerName);
+
+    if (!filePath.isEmpty()) {
+        window.openFile(filePath);
     } else {
         window.newTab();
     }
