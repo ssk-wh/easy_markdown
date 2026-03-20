@@ -49,8 +49,9 @@ void PreviewPainter::paintBlock(QPainter* p, const LayoutBlock& block,
     qreal absY = offsetY + block.bounds.y();
     qreal blockBottom = absY + block.bounds.height();
 
-    // Culling: skip blocks entirely outside viewport
+    // Culling: skip blocks entirely outside viewport, but count their chars
     if (blockBottom < scrollY - 50 || absY > scrollY + viewportHeight + 50) {
+        countBlockChars(block);
         return;
     }
 
@@ -364,4 +365,26 @@ void PreviewPainter::paintInlineRuns(QPainter* p, const LayoutBlock& block,
     }
     // Block separator newline
     m_charCounter++;
+}
+
+void PreviewPainter::countBlockChars(const LayoutBlock& block)
+{
+    // Count inline runs (Paragraph, Heading, TableCell, etc.)
+    for (const auto& run : block.inlineRuns) {
+        m_charCounter += run.text.length();
+    }
+    if (!block.inlineRuns.empty())
+        m_charCounter++; // block separator newline
+
+    // Count code block text
+    if (!block.codeText.isEmpty()) {
+        const QStringList lines = block.codeText.split('\n');
+        for (const auto& line : lines)
+            m_charCounter += line.length() + 1; // +1 for '\n'
+    }
+
+    // Recurse into children
+    for (const auto& child : block.children) {
+        countBlockChars(child);
+    }
 }

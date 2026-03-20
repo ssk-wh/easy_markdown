@@ -36,6 +36,7 @@ private:
     void paintInlineRuns(QPainter* p, const LayoutBlock& block,
                          qreal x, qreal y, qreal maxWidth);
     void recordSegment(const QRectF& rect, int charStart, int charLen);
+    void countBlockChars(const LayoutBlock& block);
 
     Theme m_theme;
     QVector<TextSegment> m_textSegments;

@@ -14,6 +14,7 @@ public:
 
 private slots:
     void onEditorScrolled();
+    void onPreviewScrolled();
 
 private:
     EditorWidget* m_editor;

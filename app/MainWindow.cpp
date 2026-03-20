@@ -18,6 +18,7 @@
 #include <QShortcut>
 #include <QActionGroup>
 #include <QLocalServer>
+#include <QSettings>
 #include <QLocalSocket>
 
 MainWindow::MainWindow(QWidget* parent)
@@ -41,6 +42,7 @@ MainWindow::MainWindow(QWidget* parent)
 
     setupMenuBar();
     setupDragDrop();
+    loadSettings();
 }
 
 void MainWindow::setupMenuBar()
@@ -102,29 +104,29 @@ void MainWindow::setupMenuBar()
     QActionGroup* themeGroup = new QActionGroup(this);
     themeGroup->setExclusive(true);
 
-    QAction* lightThemeAct = viewMenu->addAction(tr("Light Theme"));
-    lightThemeAct->setCheckable(true);
-    lightThemeAct->setChecked(true);
-    themeGroup->addAction(lightThemeAct);
+    m_lightThemeAct = viewMenu->addAction(tr("Light Theme"));
+    m_lightThemeAct->setCheckable(true);
+    m_lightThemeAct->setChecked(true);
+    themeGroup->addAction(m_lightThemeAct);
 
-    QAction* darkThemeAct = viewMenu->addAction(tr("Dark Theme"));
-    darkThemeAct->setCheckable(true);
-    themeGroup->addAction(darkThemeAct);
+    m_darkThemeAct = viewMenu->addAction(tr("Dark Theme"));
+    m_darkThemeAct->setCheckable(true);
+    themeGroup->addAction(m_darkThemeAct);
 
-    connect(lightThemeAct, &QAction::triggered, this, [this]() {
+    connect(m_lightThemeAct, &QAction::triggered, this, [this]() {
         applyTheme(Theme::light());
     });
-    connect(darkThemeAct, &QAction::triggered, this, [this]() {
+    connect(m_darkThemeAct, &QAction::triggered, this, [this]() {
         applyTheme(Theme::dark());
     });
 
     viewMenu->addSeparator();
 
     // 自动换行
-    QAction* wordWrapAct = viewMenu->addAction(tr("Word Wrap"));
-    wordWrapAct->setCheckable(true);
-    wordWrapAct->setChecked(true);
-    connect(wordWrapAct, &QAction::toggled, this, [this](bool checked) {
+    m_wordWrapAct = viewMenu->addAction(tr("Word Wrap"));
+    m_wordWrapAct->setCheckable(true);
+    m_wordWrapAct->setChecked(true);
+    connect(m_wordWrapAct, &QAction::toggled, this, [this](bool checked) {
         for (auto& tab : m_tabs) {
             tab.editor->setWordWrap(checked);
             tab.preview->setWordWrap(checked);
@@ -146,8 +148,10 @@ void MainWindow::setupMenuBar()
         if (qFuzzyCompare(opt.factor, 1.0))
             act->setChecked(true);
         spacingGroup->addAction(act);
+        m_spacingActions.append(act);
         qreal factor = opt.factor;
         connect(act, &QAction::triggered, this, [this, factor]() {
+            m_lineSpacingFactor = factor;
             for (auto& tab : m_tabs)
                 tab.editor->setLineSpacing(factor);
         });
@@ -172,6 +176,7 @@ void MainWindow::newTab()
         "\n"
         "A **lightweight** cross-platform Markdown editor.\n"
     );
+    tab.editor->document()->setModified(false);
     // parseNow will be triggered by textChanged → debounce
 }
 
@@ -218,9 +223,13 @@ MainWindow::TabData MainWindow::createTab()
     // Scroll sync: editor -> preview
     tab.scrollSync = new ScrollSync(tab.editor, tab.preview, tab.splitter);
 
-    // Apply current theme
+    // Apply current settings
     tab.editor->setTheme(m_currentTheme);
     tab.preview->setTheme(m_currentTheme);
+    tab.editor->setWordWrap(m_wordWrapAct && m_wordWrapAct->isChecked());
+    tab.preview->setWordWrap(m_wordWrapAct && m_wordWrapAct->isChecked());
+    if (!qFuzzyCompare(m_lineSpacingFactor, 1.0))
+        tab.editor->setLineSpacing(m_lineSpacingFactor);
 
     // Track modifications for tab title
     connect(tab.editor->document(), &Document::modifiedChanged,
@@ -297,6 +306,10 @@ bool MainWindow::maybeSave(int index)
 
     Document* doc = m_tabs[index].editor->document();
     if (!doc->isModified())
+        return true;
+
+    // 空的未命名文件无需保存确认
+    if (doc->filePath().isEmpty() && doc->length() == 0)
         return true;
 
     QString name = doc->filePath().isEmpty() ? tr("Untitled") : QFileInfo(doc->filePath()).fileName();
@@ -423,6 +436,7 @@ void MainWindow::closeEvent(QCloseEvent* event)
             return;
         }
     }
+    saveSettings();
     event->accept();
 }
 
@@ -451,4 +465,48 @@ void MainWindow::startLocalServer(const char* serverName)
         raise();
         activateWindow();
     });
+}
+
+void MainWindow::saveSettings()
+{
+    QSettings s;
+    s.setValue("view/wordWrap", m_wordWrapAct ? m_wordWrapAct->isChecked() : true);
+    s.setValue("view/lineSpacing", m_lineSpacingFactor);
+    s.setValue("view/darkTheme", m_darkThemeAct ? m_darkThemeAct->isChecked() : false);
+    s.setValue("window/geometry", saveGeometry());
+}
+
+void MainWindow::loadSettings()
+{
+    QSettings s;
+
+    // 窗口位置
+    if (s.contains("window/geometry"))
+        restoreGeometry(s.value("window/geometry").toByteArray());
+
+    // 主题
+    bool dark = s.value("view/darkTheme", false).toBool();
+    if (dark) {
+        m_darkThemeAct->setChecked(true);
+        applyTheme(Theme::dark());
+    }
+
+    // 自动换行
+    bool wordWrap = s.value("view/wordWrap", true).toBool();
+    m_wordWrapAct->setChecked(wordWrap);
+
+    // 行间距
+    m_lineSpacingFactor = s.value("view/lineSpacing", 1.0).toDouble();
+    // 更新菜单选中状态
+    double spacings[] = {1.0, 1.2, 1.5, 1.8, 2.0};
+    for (int i = 0; i < m_spacingActions.size() && i < 5; ++i) {
+        if (qFuzzyCompare(spacings[i], m_lineSpacingFactor))
+            m_spacingActions[i]->setChecked(true);
+    }
+    // 应用到已有标签页
+    for (auto& tab : m_tabs) {
+        tab.editor->setLineSpacing(m_lineSpacingFactor);
+        tab.editor->setWordWrap(wordWrap);
+        tab.preview->setWordWrap(wordWrap);
+    }
 }

@@ -53,6 +53,16 @@ private:
     Theme m_currentTheme;
     QLocalServer* m_localServer = nullptr;
 
+    // 持久化的视图设置
+    QAction* m_wordWrapAct = nullptr;
+    QAction* m_lightThemeAct = nullptr;
+    QAction* m_darkThemeAct = nullptr;
+    QVector<QAction*> m_spacingActions;
+    qreal m_lineSpacingFactor = 1.0;
+
+    void saveSettings();
+    void loadSettings();
+
     void setupMenuBar();
     void setupDragDrop();
     TabData createTab();
