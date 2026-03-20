@@ -20,7 +20,7 @@ public:
 
     void paint(QPainter* painter, EditorLayout* layout, Document* doc,
                int firstLine, int lastLine,
-               int gutterWidth, qreal scrollY,
+               int gutterWidth, qreal scrollY, qreal scrollX = 0,
                bool cursorVisible = false,
                TextPosition cursorPos = {0, 0},
                const QString& preeditString = QString(),

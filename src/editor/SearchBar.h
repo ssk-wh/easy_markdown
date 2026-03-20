@@ -18,6 +18,7 @@ public:
     void hideBar();
 
     QString searchText() const;
+    void keepFocus();
     void setTheme(const Theme& theme);
     void updateMatchInfo(int currentIndex, int totalMatches);
 

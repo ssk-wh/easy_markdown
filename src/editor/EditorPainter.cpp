@@ -22,7 +22,7 @@ void EditorPainter::setSelectionColor(const QColor& color)
 
 void EditorPainter::paint(QPainter* painter, EditorLayout* layout, Document* doc,
                           int firstLine, int lastLine,
-                          int gutterWidth, qreal scrollY,
+                          int gutterWidth, qreal scrollY, qreal scrollX,
                           bool cursorVisible,
                           TextPosition cursorPos,
                           const QString& preeditString,
@@ -41,6 +41,8 @@ void EditorPainter::paint(QPainter* painter, EditorLayout* layout, Document* doc
         painter->fillRect(QRectF(gutterWidth, cy, viewWidth, ch), m_theme.editorCurrentLine);
     }
 
+    qreal textLeft = gutterWidth + margin - scrollX;
+
     // 搜索匹配高亮
     for (auto& match : searchMatches) {
         int matchLine = doc->offsetToLine(match.first);
@@ -53,13 +55,26 @@ void EditorPainter::paint(QPainter* painter, EditorLayout* layout, Document* doc
         int colStart = match.first - lineStartOffset;
         int colEnd = colStart + match.second;
 
-        qreal y = layout->lineY(matchLine) - scrollY;
-        qreal x1 = tl->lineAt(0).cursorToX(colStart);
-        qreal x2 = tl->lineAt(0).cursorToX(colEnd);
+        qreal baseY = layout->lineY(matchLine) - scrollY;
 
-        painter->fillRect(QRectF(gutterWidth + margin + x1, y,
-                                  x2 - x1, layout->lineHeight(matchLine)),
-                          m_theme.editorSearchMatch);
+        // 遍历视觉行，找到匹配所在的视觉行
+        for (int vi = 0; vi < tl->lineCount(); ++vi) {
+            QTextLine vline = tl->lineAt(vi);
+            int lineStart = vline.textStart();
+            int lineEnd = lineStart + vline.textLength();
+
+            int hlStart = qMax(colStart, lineStart);
+            int hlEnd = qMin(colEnd, lineEnd);
+            if (hlStart >= hlEnd) continue;
+
+            qreal x1 = vline.cursorToX(hlStart);
+            qreal x2 = vline.cursorToX(hlEnd);
+            qreal vy = baseY + vline.y();
+
+            painter->fillRect(QRectF(textLeft + x1, vy,
+                                      x2 - x1, vline.height()),
+                              m_theme.editorSearchMatch);
+        }
     }
 
     // Text (with selection highlighting via QTextLayout::draw)
@@ -94,13 +109,13 @@ void EditorPainter::paint(QPainter* painter, EditorLayout* layout, Document* doc
             }
         }
 
-        tl->draw(painter, QPointF(gutterWidth + margin, y), selections);
+        tl->draw(painter, QPointF(textLeft, y), selections);
     }
 
     // Preedit 文本绘制
     if (!preeditString.isEmpty()) {
         QRectF cr = layout->cursorRect(cursorPos);
-        qreal px = cr.x() + gutterWidth + margin;
+        qreal px = cr.x() + textLeft;
         qreal py = cr.y() - scrollY;
 
         painter->save();
@@ -123,7 +138,7 @@ void EditorPainter::paint(QPainter* painter, EditorLayout* layout, Document* doc
     // 光标绘制
     if (cursorVisible) {
         QRectF cr = layout->cursorRect(cursorPos);
-        cr.moveLeft(cr.x() + gutterWidth + 8);  // 加 gutter 和 margin 偏移
+        cr.moveLeft(cr.x() + textLeft);
         cr.moveTop(cr.y() - scrollY);
         painter->fillRect(cr, m_theme.editorCursor);
     }

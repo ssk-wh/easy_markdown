@@ -14,10 +14,24 @@ void PreviewPainter::setTheme(const Theme& theme)
     m_theme = theme;
 }
 
+void PreviewPainter::setSelection(int selStart, int selEnd)
+{
+    m_selStart = qMin(selStart, selEnd);
+    m_selEnd = qMax(selStart, selEnd);
+}
+
+void PreviewPainter::recordSegment(const QRectF& rect, int charStart, int charLen)
+{
+    m_textSegments.append({rect, charStart, charLen});
+}
+
 void PreviewPainter::paint(QPainter* painter, const LayoutBlock& root,
                             qreal scrollY, qreal viewportHeight, qreal viewportWidth)
 {
     if (!painter) return;
+
+    m_textSegments.clear();
+    m_charCounter = 0;
 
     painter->setRenderHint(QPainter::Antialiasing, true);
     painter->setRenderHint(QPainter::TextAntialiasing, true);
@@ -72,14 +86,33 @@ void PreviewPainter::paintBlock(QPainter* p, const LayoutBlock& block,
         monoFont.setStyleHint(QFont::Monospace);
         p->setFont(monoFont);
         p->setPen(m_theme.previewCodeFg);
-        QFontMetricsF fm(monoFont);
+        QFontMetricsF fm(monoFont, p->device());
         qreal lineH = fm.height() * 1.4;
         qreal textX = drawX + 8;
         qreal textY = drawY + 8;
 
         const QStringList lines = block.codeText.split('\n');
         for (const auto& line : lines) {
+            qreal w = fm.horizontalAdvance(line);
+            QRectF segRect(textX, textY, w, lineH);
+
+            // 选区高亮
+            if (m_selStart >= 0 && m_selEnd > m_selStart) {
+                int segStart = m_charCounter;
+                int segEnd = segStart + line.length();
+                int hlStart = qMax(segStart, m_selStart);
+                int hlEnd = qMin(segEnd, m_selEnd);
+                if (hlStart < hlEnd) {
+                    qreal x1 = fm.horizontalAdvance(line.left(hlStart - segStart));
+                    qreal x2 = fm.horizontalAdvance(line.left(hlEnd - segStart));
+                    p->fillRect(QRectF(textX + x1, textY, x2 - x1, lineH),
+                                QColor(0, 120, 215, 80));
+                }
+            }
+
+            recordSegment(segRect, m_charCounter, line.length());
             p->drawText(QPointF(textX, textY + fm.ascent()), line);
+            m_charCounter += line.length() + 1; // +1 for '\n'
             textY += lineH;
         }
         break;
@@ -109,7 +142,7 @@ void PreviewPainter::paintBlock(QPainter* p, const LayoutBlock& block,
             QFont baseFont("Segoe UI", 10);
             p->setFont(baseFont);
             p->setPen(m_theme.previewFg);
-            QFontMetricsF fm(baseFont);
+            QFontMetricsF fm(baseFont, p->device());
 
             if (block.ordered) {
                 QString num = QString::number(block.listStart + itemIndex) + ".";
@@ -219,77 +252,116 @@ void PreviewPainter::paintInlineRuns(QPainter* p, const LayoutBlock& block,
 
     qreal curX = x;
     qreal curY = y;
-    QFontMetricsF defaultFm(block.inlineRuns[0].font);
+    QFontMetricsF defaultFm(block.inlineRuns[0].font, p->device());
     qreal lineHeight = defaultFm.height() * 1.5;
+
+    QColor selColor(0, 120, 215, 80);
+
+    auto drawSelectionHighlight = [&](qreal sx, qreal sy, qreal sw, qreal sh, int charStart, int charLen) {
+        recordSegment(QRectF(sx, sy, sw, sh), charStart, charLen);
+        if (m_selStart >= 0 && m_selEnd > m_selStart && charLen > 0) {
+            int segEnd = charStart + charLen;
+            int hlStart = qMax(charStart, m_selStart);
+            int hlEnd = qMin(segEnd, m_selEnd);
+            if (hlStart < hlEnd) {
+                // 基于字符比例估算高亮区域
+                qreal ratio1 = (qreal)(hlStart - charStart) / charLen;
+                qreal ratio2 = (qreal)(hlEnd - charStart) / charLen;
+                p->fillRect(QRectF(sx + sw * ratio1, sy, sw * (ratio2 - ratio1), sh), selColor);
+            }
+        }
+    };
 
     for (const auto& run : block.inlineRuns) {
         p->setFont(run.font);
         p->setPen(run.color);
 
         if (run.text == "\n") {
+            m_charCounter++; // count the newline
             curX = x;
             curY += lineHeight;
             continue;
         }
 
-        QFontMetricsF fm(run.font);
+        QFontMetricsF fm(run.font, p->device());
 
-        // Inline code background
-        if (run.bgColor.isValid() && run.bgColor != Qt::transparent) {
-            qreal w = fm.horizontalAdvance(run.text);
-            if (curX + w > x + maxWidth && curX > x) {
-                curX = x;
-                curY += lineHeight;
+        bool hasBg = run.bgColor.isValid() && run.bgColor != Qt::transparent;
+
+        // Helper: draw a segment with background, selection, decorations
+        auto drawSegment = [&](const QString& seg, qreal segW, int segOffset) {
+            if (hasBg)
+                p->fillRect(QRectF(curX - 2, curY, segW + 4, lineHeight), run.bgColor);
+            drawSelectionHighlight(curX, curY, segW, lineHeight,
+                                   m_charCounter + segOffset, seg.length());
+            p->drawText(QPointF(curX, curY + fm.ascent()), seg);
+            if (!run.linkUrl.isEmpty())
+                p->drawLine(QPointF(curX, curY + fm.ascent() + 2), QPointF(curX + segW, curY + fm.ascent() + 2));
+            if (run.isStrikethrough)
+                p->drawLine(QPointF(curX, curY + fm.ascent() / 2), QPointF(curX + segW, curY + fm.ascent() / 2));
+        };
+
+        // Find how many chars fit within 'remaining' width using incremental measurement
+        auto findFitCount = [&](const QString& str, qreal remaining) -> int {
+            int fit = 0;
+            qreal accW = 0;
+            for (int i = 0; i < str.length(); ++i) {
+                accW += fm.horizontalAdvance(str[i]);
+                if (accW > remaining) break;
+                fit = i + 1;
             }
-            p->fillRect(QRectF(curX - 2, curY, w + 4, lineHeight), run.bgColor);
-        }
+            return fit;
+        };
 
-        // Draw run text directly, with simple line-wrap at word boundaries
+        // Draw run text with character-level line-wrap
         QString text = run.text;
+        int textOffset = 0;
         while (!text.isEmpty()) {
             qreal fullWidth = fm.horizontalAdvance(text);
+            qreal remaining = x + maxWidth - curX;
 
             // Fits on current line?
-            if (curX + fullWidth <= x + maxWidth || curX <= x) {
-                p->drawText(QPointF(curX, curY + fm.ascent()), text);
-                if (!run.linkUrl.isEmpty())
-                    p->drawLine(QPointF(curX, curY + fm.ascent() + 2), QPointF(curX + fullWidth, curY + fm.ascent() + 2));
-                if (run.isStrikethrough)
-                    p->drawLine(QPointF(curX, curY + fm.ascent() / 2), QPointF(curX + fullWidth, curY + fm.ascent() / 2));
+            if (fullWidth <= remaining || curX <= x) {
+                // At line start but still doesn't fit: split at char boundary
+                if (fullWidth > remaining && curX <= x) {
+                    int fitCount = findFitCount(text, remaining);
+                    if (fitCount <= 0) fitCount = 1;
+
+                    QString segment = text.left(fitCount);
+                    qreal segW = fm.horizontalAdvance(segment);
+                    drawSegment(segment, segW, textOffset);
+
+                    textOffset += fitCount;
+                    curX = x;
+                    curY += lineHeight;
+                    text = text.mid(fitCount);
+                    continue;
+                }
+                drawSegment(text, fullWidth, textOffset);
                 curX += fullWidth;
                 break;
             }
 
-            // Need to wrap: find last space that fits
-            int wrapAt = -1;
-            for (int i = 0; i < text.length(); ++i) {
-                if (text[i] == ' ') {
-                    qreal w = fm.horizontalAdvance(text.left(i));
-                    if (curX + w > x + maxWidth) break;
-                    wrapAt = i;
-                }
-            }
+            // Need to wrap: find last char that fits
+            int wrapAt = findFitCount(text, remaining);
 
             if (wrapAt <= 0) {
-                // No space fits, force wrap entire text to next line
+                // Nothing fits here (curX > x), move to next line and retry
                 curX = x;
                 curY += lineHeight;
                 continue;
             }
 
-            // Draw up to wrapAt
             QString segment = text.left(wrapAt);
             qreal segW = fm.horizontalAdvance(segment);
-            p->drawText(QPointF(curX, curY + fm.ascent()), segment);
-            if (!run.linkUrl.isEmpty())
-                p->drawLine(QPointF(curX, curY + fm.ascent() + 2), QPointF(curX + segW, curY + fm.ascent() + 2));
-            if (run.isStrikethrough)
-                p->drawLine(QPointF(curX, curY + fm.ascent() / 2), QPointF(curX + segW, curY + fm.ascent() / 2));
+            drawSegment(segment, segW, textOffset);
 
-            // Move to next line, skip the space at wrapAt
+            textOffset += wrapAt;
             curX = x;
             curY += lineHeight;
-            text = text.mid(wrapAt + 1);
+            text = text.mid(wrapAt);
         }
+        m_charCounter += run.text.length();
     }
+    // Block separator newline
+    m_charCounter++;
 }

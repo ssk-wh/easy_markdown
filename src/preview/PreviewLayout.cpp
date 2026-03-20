@@ -167,20 +167,30 @@ LayoutBlock PreviewLayout::layoutBlock(const AstNode* node, qreal maxWidth)
         block.columnWidths.resize(cols, colWidth);
 
         qreal y = 0;
+        qreal cellPadding = 8.0;
         for (const auto& rowNode : node->children) {
             LayoutBlock rowBlock;
             rowBlock.type = LayoutBlock::TableRow;
             rowBlock.sourceStartLine = rowNode->startLine;
             rowBlock.sourceEndLine = rowNode->endLine;
-            qreal rowHeight = m_lineHeight + 8.0; // padding
 
-            qreal cellX = 0;
+            // First pass: collect inline runs and compute row height
+            qreal rowHeight = m_lineHeight + cellPadding;
+            std::vector<LayoutBlock> cellBlocks;
             for (const auto& cellNode : rowNode->children) {
                 LayoutBlock cellBlock;
                 cellBlock.type = LayoutBlock::TableCell;
                 cellBlock.sourceStartLine = cellNode->startLine;
                 cellBlock.sourceEndLine = cellNode->endLine;
                 collectInlineRuns(cellNode.get(), cellBlock.inlineRuns, m_baseFont, m_theme.previewFg);
+                qreal cellContentH = estimateParagraphHeight(cellBlock.inlineRuns, colWidth - cellPadding);
+                rowHeight = qMax(rowHeight, cellContentH + cellPadding);
+                cellBlocks.push_back(std::move(cellBlock));
+            }
+
+            // Second pass: assign bounds with computed row height
+            qreal cellX = 0;
+            for (auto& cellBlock : cellBlocks) {
                 cellBlock.bounds = QRectF(cellX, 0, colWidth, rowHeight);
                 cellX += colWidth;
                 rowBlock.children.push_back(std::move(cellBlock));

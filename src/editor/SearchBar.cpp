@@ -139,6 +139,11 @@ QString SearchBar::searchText() const
     return m_findEdit->text();
 }
 
+void SearchBar::keepFocus()
+{
+    m_findEdit->setFocus();
+}
+
 void SearchBar::showSearch()
 {
     m_replaceVisible = false;

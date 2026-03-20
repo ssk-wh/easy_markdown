@@ -24,6 +24,8 @@ public:
     QFont font() const;
     void setTabStopWidth(int spaces);
     void setWrapWidth(qreal width);  // 0 = 不折行
+    void setLineSpacingFactor(qreal factor);  // 1.0 = 默认, 1.5 = 1.5倍行距
+    qreal lineSpacingFactor() const { return m_lineSpacingFactor; }
     void setTheme(const Theme& theme);
 
     // 关联文档
@@ -53,6 +55,7 @@ public:
     // 默认行高（未创建 QTextLayout 的行使用这个估计值）
     qreal defaultLineHeight() const;
 
+
 private:
     struct LineInfo {
         mutable std::unique_ptr<QTextLayout> layout;
@@ -64,6 +67,7 @@ private:
     QFont m_font;
     QFontMetricsF m_fontMetrics;
     qreal m_wrapWidth = 0;
+    qreal m_lineSpacingFactor = 1.0;
     int m_tabStopSpaces = 4;
     qreal m_defaultLineHeight = 0;
     qreal m_charWidth = 0;

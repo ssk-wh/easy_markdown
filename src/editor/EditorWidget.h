@@ -30,6 +30,11 @@ public:
 
     void ensureCursorVisible();
 
+    void setWordWrap(bool enabled);
+    bool wordWrap() const { return m_wordWrap; }
+    void setLineSpacing(qreal factor);
+    qreal lineSpacing() const;
+
     void showSearchBar();
     void showReplaceBar();
 
@@ -69,8 +74,10 @@ private:
     int m_gutterWidth = 50;
 
     QTimer m_cursorBlinkTimer;
+    QTimer m_dragScrollTimer;
     bool m_cursorVisible = true;
     bool m_mousePressed = false;
+    bool m_wordWrap = true;
     QString m_preeditString;
 
     Theme m_theme;
@@ -91,6 +98,8 @@ private:
     void updateGutterWidth();
     int lastVisibleLine() const;
     qreal scrollY() const;
+    qreal scrollX() const;
 
     void updateSearchBarMatchInfo();
+    qreal m_lastDevicePixelRatio = 0;
 };

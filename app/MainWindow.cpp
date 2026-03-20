@@ -117,6 +117,41 @@ void MainWindow::setupMenuBar()
     connect(darkThemeAct, &QAction::triggered, this, [this]() {
         applyTheme(Theme::dark());
     });
+
+    viewMenu->addSeparator();
+
+    // 自动换行
+    QAction* wordWrapAct = viewMenu->addAction(tr("Word Wrap"));
+    wordWrapAct->setCheckable(true);
+    wordWrapAct->setChecked(true);
+    connect(wordWrapAct, &QAction::toggled, this, [this](bool checked) {
+        for (auto& tab : m_tabs) {
+            tab.editor->setWordWrap(checked);
+            tab.preview->setWordWrap(checked);
+        }
+    });
+
+    // 行间距
+    QMenu* lineSpacingMenu = viewMenu->addMenu(tr("Line Spacing"));
+    QActionGroup* spacingGroup = new QActionGroup(this);
+    spacingGroup->setExclusive(true);
+
+    struct SpacingOption { const char* label; qreal factor; };
+    SpacingOption spacings[] = {
+        {"1.0", 1.0}, {"1.2", 1.2}, {"1.5", 1.5}, {"1.8", 1.8}, {"2.0", 2.0}
+    };
+    for (auto& opt : spacings) {
+        QAction* act = lineSpacingMenu->addAction(tr(opt.label));
+        act->setCheckable(true);
+        if (qFuzzyCompare(opt.factor, 1.0))
+            act->setChecked(true);
+        spacingGroup->addAction(act);
+        qreal factor = opt.factor;
+        connect(act, &QAction::triggered, this, [this, factor]() {
+            for (auto& tab : m_tabs)
+                tab.editor->setLineSpacing(factor);
+        });
+    }
 }
 
 void MainWindow::setupDragDrop()

@@ -45,8 +45,19 @@ void EditorLayout::setTabStopWidth(int spaces)
         rebuild();
 }
 
+void EditorLayout::setLineSpacingFactor(qreal factor)
+{
+    if (qFuzzyCompare(m_lineSpacingFactor, factor))
+        return;
+    m_lineSpacingFactor = factor;
+    if (m_doc)
+        rebuild();
+}
+
 void EditorLayout::setWrapWidth(qreal width)
 {
+    if (qFuzzyCompare(m_wrapWidth, width))
+        return;
     m_wrapWidth = width;
     if (m_doc)
         rebuild();
@@ -118,7 +129,7 @@ void EditorLayout::ensureLayout(int line) const
     if (m_wrapWidth <= 0) {
         option.setWrapMode(QTextOption::NoWrap);
     } else {
-        option.setWrapMode(QTextOption::WrapAtWordBoundaryOrAnywhere);
+        option.setWrapMode(QTextOption::WrapAnywhere);
     }
     tl->setTextOption(option);
 
@@ -145,7 +156,7 @@ void EditorLayout::ensureLayout(int line) const
         if (m_wrapWidth > 0)
             tline.setLineWidth(m_wrapWidth);
         tline.setPosition(QPointF(0, y));
-        y += tline.height();
+        y += tline.height() * m_lineSpacingFactor;
     }
     tl->endLayout();
 
@@ -264,11 +275,17 @@ qreal EditorLayout::lineY(int line) const
 qreal EditorLayout::lineHeight(int line) const
 {
     if (line < 0 || line >= static_cast<int>(m_lines.size()))
-        return m_defaultLineHeight;
+        return m_defaultLineHeight * m_lineSpacingFactor;
 
     auto& info = m_lines[line];
     if (!info.dirty && info.layout)
         return info.height;
+
+    // 需要实际高度时才触发布局（换行或自定义行距）
+    if (m_wrapWidth > 0 || !qFuzzyCompare(m_lineSpacingFactor, 1.0)) {
+        ensureLayout(line);
+        return info.layout ? info.height : m_defaultLineHeight * m_lineSpacingFactor;
+    }
 
     return m_defaultLineHeight;
 }
@@ -320,5 +337,6 @@ QTextLayout* EditorLayout::layoutForLine(int line) const
 
 qreal EditorLayout::defaultLineHeight() const
 {
-    return m_defaultLineHeight;
+    return m_defaultLineHeight * m_lineSpacingFactor;
 }
+

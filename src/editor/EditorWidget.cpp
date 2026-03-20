@@ -28,10 +28,14 @@ EditorWidget::EditorWidget(QWidget* parent)
     // Viewport settings
     viewport()->setCursor(Qt::IBeamCursor);
     viewport()->setMouseTracking(true);
+    setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
 
     // Create default document
     m_doc = new Document(this);
     m_layout->setDocument(m_doc);
+
+    // 默认启用换行
+    m_wordWrap = true;
 
     connect(m_doc, &Document::textChanged, this, &EditorWidget::onTextChanged);
 
@@ -41,6 +45,29 @@ EditorWidget::EditorWidget(QWidget* parent)
         viewport()->update();
     });
     m_cursorBlinkTimer.start(500);
+
+    // 拖选自动滚动
+    m_dragScrollTimer.setInterval(50);
+    connect(&m_dragScrollTimer, &QTimer::timeout, this, [this]() {
+        QPoint mousePos = viewport()->mapFromGlobal(QCursor::pos());
+        int margin = 20;
+        int scrollStep = (int)m_layout->defaultLineHeight();
+
+        if (mousePos.y() < margin) {
+            // 向上滚动
+            int delta = qBound(1, (margin - mousePos.y()) / 5, 5);
+            verticalScrollBar()->setValue(verticalScrollBar()->value() - scrollStep * delta);
+        } else if (mousePos.y() > viewport()->height() - margin) {
+            // 向下滚动
+            int delta = qBound(1, (mousePos.y() - viewport()->height() + margin) / 5, 5);
+            verticalScrollBar()->setValue(verticalScrollBar()->value() + scrollStep * delta);
+        }
+
+        // 更新选区到当前鼠标位置
+        TextPosition pos = pixelToTextPosition(mousePos);
+        m_doc->selection().extendSelection(pos);
+        viewport()->update();
+    });
 
     // 搜索栏
     m_searchBar = new SearchBar(this);
@@ -74,6 +101,7 @@ EditorWidget::EditorWidget(QWidget* parent)
             m_currentMatchIndex = -1;
             updateSearchBarMatchInfo();
             viewport()->update();
+            m_searchBar->keepFocus();
             return;
         }
         QString fullText = m_doc->text();
@@ -134,6 +162,34 @@ void EditorWidget::setTheme(const Theme& theme)
     viewport()->update();
 }
 
+void EditorWidget::setWordWrap(bool enabled)
+{
+    m_wordWrap = enabled;
+    if (enabled) {
+        qreal textAreaWidth = viewport()->width() - m_gutterWidth - 16;
+        m_layout->setWrapWidth(textAreaWidth > 50 ? textAreaWidth : 50);
+        horizontalScrollBar()->setRange(0, 0);
+    } else {
+        m_layout->setWrapWidth(0);
+    }
+
+    updateScrollBars();
+    ensureCursorVisible();
+    viewport()->update();
+}
+
+void EditorWidget::setLineSpacing(qreal factor)
+{
+    m_layout->setLineSpacingFactor(factor);
+    updateScrollBars();
+    viewport()->update();
+}
+
+qreal EditorWidget::lineSpacing() const
+{
+    return m_layout->lineSpacingFactor();
+}
+
 int EditorWidget::gutterWidth() const
 {
     return m_gutterWidth;
@@ -142,6 +198,20 @@ int EditorWidget::gutterWidth() const
 void EditorWidget::paintEvent(QPaintEvent* event)
 {
     Q_UNUSED(event);
+
+    // 检测 DPI 变化（切换屏幕时触发重建）
+    qreal currentDpr = viewport()->devicePixelRatioF();
+    if (!qFuzzyCompare(currentDpr, m_lastDevicePixelRatio)) {
+        m_lastDevicePixelRatio = currentDpr;
+        if (m_layout && m_doc) {
+            m_layout->setFont(font());
+            if (m_wordWrap) {
+                qreal textAreaWidth = viewport()->width() - m_gutterWidth - 16;
+                m_layout->setWrapWidth(textAreaWidth > 50 ? textAreaWidth : 50);
+            }
+            updateScrollBars();
+        }
+    }
 
     QPainter painter(viewport());
     painter.setRenderHint(QPainter::TextAntialiasing);
@@ -181,7 +251,7 @@ void EditorWidget::paintEvent(QPaintEvent* event)
 
     m_painter->setSelectionColor(selColor);
     m_painter->paint(&painter, m_layout, m_doc, first, last,
-                     m_gutterWidth, sy,
+                     m_gutterWidth, sy, scrollX(),
                      m_cursorVisible && hasFocus(),
                      m_doc->selection().cursorPosition(),
                      m_preeditString,
@@ -192,6 +262,13 @@ void EditorWidget::paintEvent(QPaintEvent* event)
 void EditorWidget::resizeEvent(QResizeEvent* event)
 {
     QAbstractScrollArea::resizeEvent(event);
+
+    // 自动换行：wrapWidth = 可用文本区域宽度
+    if (m_wordWrap) {
+        qreal textAreaWidth = viewport()->width() - m_gutterWidth - 16;
+        m_layout->setWrapWidth(textAreaWidth > 50 ? textAreaWidth : 50);
+    }
+
     updateScrollBars();
 
     // 搜索栏跟随右上角
@@ -209,6 +286,12 @@ void EditorWidget::scrollContentsBy(int dx, int dy)
 
 void EditorWidget::keyPressEvent(QKeyEvent* event)
 {
+    // 搜索栏打开时不处理文本编辑按键，避免误操作
+    if (m_searchBar->isVisible()) {
+        QAbstractScrollArea::keyPressEvent(event);
+        return;
+    }
+
     if (m_input->keyPressEvent(event)) {
         m_cursorVisible = true;
         m_cursorBlinkTimer.start(500);  // 重置闪烁
@@ -240,7 +323,7 @@ static bool isWordChar(QChar c) {
 }
 
 TextPosition EditorWidget::pixelToTextPosition(const QPoint& pos) const {
-    qreal x = pos.x() - m_gutterWidth - 8;  // 减去 gutter 和 margin
+    qreal x = pos.x() - m_gutterWidth - 8 + scrollX();  // 减去 gutter 和 margin，加上水平滚动偏移
     qreal y = pos.y() + scrollY();
     return m_layout->hitTest(QPointF(x, y));
 }
@@ -269,6 +352,18 @@ void EditorWidget::mouseMoveEvent(QMouseEvent* event) {
     if (m_mousePressed && (event->buttons() & Qt::LeftButton)) {
         TextPosition pos = pixelToTextPosition(event->pos());
         m_doc->selection().extendSelection(pos);
+
+        // 鼠标超出视口边界时启动自动滚动
+        int margin = 20;
+        bool outsideBounds = event->pos().y() < margin
+                          || event->pos().y() > viewport()->height() - margin;
+        if (outsideBounds && !m_dragScrollTimer.isActive()) {
+            m_dragScrollTimer.start();
+        } else if (!outsideBounds && m_dragScrollTimer.isActive()) {
+            m_dragScrollTimer.stop();
+        }
+
+        ensureCursorVisible();
         viewport()->update();
         event->accept();
         return;
@@ -278,6 +373,7 @@ void EditorWidget::mouseMoveEvent(QMouseEvent* event) {
 
 void EditorWidget::mouseReleaseEvent(QMouseEvent* event) {
     m_mousePressed = false;
+    m_dragScrollTimer.stop();
     QAbstractScrollArea::mouseReleaseEvent(event);
 }
 
@@ -311,6 +407,19 @@ void EditorWidget::ensureCursorVisible()
         verticalScrollBar()->setValue((int)cy);
     } else if (cy + ch > sy + vh) {
         verticalScrollBar()->setValue((int)(cy + ch - vh));
+    }
+
+    // 水平方向（不换行模式）
+    if (!m_wordWrap) {
+        qreal cx = cr.x();
+        qreal sx = scrollX();
+        qreal vw = viewport()->width() - m_gutterWidth - 16;
+
+        if (cx < sx) {
+            horizontalScrollBar()->setValue((int)cx);
+        } else if (cx > sx + vw - 10) {
+            horizontalScrollBar()->setValue((int)(cx - vw + 10));
+        }
     }
 }
 
@@ -361,6 +470,11 @@ int EditorWidget::lastVisibleLine() const
 qreal EditorWidget::scrollY() const
 {
     return verticalScrollBar()->value();
+}
+
+qreal EditorWidget::scrollX() const
+{
+    return horizontalScrollBar()->value();
 }
 
 void EditorWidget::inputMethodEvent(QInputMethodEvent* event)
@@ -431,6 +545,7 @@ void EditorWidget::findNext(const QString& text)
         m_currentMatchIndex = -1;
         updateSearchBarMatchInfo();
         viewport()->update();
+        m_searchBar->keepFocus();
         return;
     }
 
@@ -446,6 +561,7 @@ void EditorWidget::findNext(const QString& text)
             ensureCursorVisible();
             updateSearchBarMatchInfo();
             viewport()->update();
+            m_searchBar->keepFocus();
             return;
         }
     }
@@ -458,6 +574,7 @@ void EditorWidget::findNext(const QString& text)
     ensureCursorVisible();
     updateSearchBarMatchInfo();
     viewport()->update();
+    m_searchBar->keepFocus();
 }
 
 void EditorWidget::findPrev(const QString& text)
@@ -479,6 +596,7 @@ void EditorWidget::findPrev(const QString& text)
         m_currentMatchIndex = -1;
         updateSearchBarMatchInfo();
         viewport()->update();
+        m_searchBar->keepFocus();
         return;
     }
 
@@ -500,6 +618,7 @@ void EditorWidget::findPrev(const QString& text)
             ensureCursorVisible();
             updateSearchBarMatchInfo();
             viewport()->update();
+            m_searchBar->keepFocus();
             return;
         }
     }
@@ -512,6 +631,7 @@ void EditorWidget::findPrev(const QString& text)
     ensureCursorVisible();
     updateSearchBarMatchInfo();
     viewport()->update();
+    m_searchBar->keepFocus();
 }
 
 void EditorWidget::doReplaceNext(const QString& find, const QString& replace)
@@ -550,7 +670,7 @@ QVariant EditorWidget::inputMethodQuery(Qt::InputMethodQuery query) const
 
     case Qt::ImCursorRectangle: {
         QRectF cr = m_layout->cursorRect(m_doc->selection().cursorPosition());
-        cr.moveLeft(cr.x() + m_gutterWidth + 8);
+        cr.moveLeft(cr.x() + m_gutterWidth + 8 - scrollX());
         cr.moveTop(cr.y() - scrollY());
         return cr.toRect();
     }

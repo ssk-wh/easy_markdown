@@ -13,7 +13,7 @@
 
 Name "${APP_NAME} ${APP_VERSION}"
 OutFile "${APP_NAME}-${APP_VERSION}-Setup.exe"
-InstallDir "$PROGRAMFILES\${APP_NAME}"
+InstallDir "$PROGRAMFILES64\${APP_NAME}"
 InstallDirRegKey HKLM "${UNINSTALL_KEY}" "InstallLocation"
 RequestExecutionLevel admin
 Unicode True
