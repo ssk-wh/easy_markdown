@@ -11,6 +11,8 @@ struct TextSegment {
     QRectF rect;       // 屏幕坐标（相对于 viewport，已减 scrollY）
     int charStart;     // 在纯文本中的起始字符索引
     int charLen;       // 字符长度
+    QString text;      // 段内文本（用于逐字精确定位）
+    QFont font;        // 段所用字体
 };
 
 class PreviewPainter {
@@ -35,7 +37,8 @@ private:
                     qreal scrollY, qreal viewportHeight, qreal viewportWidth);
     void paintInlineRuns(QPainter* p, const LayoutBlock& block,
                          qreal x, qreal y, qreal maxWidth);
-    void recordSegment(const QRectF& rect, int charStart, int charLen);
+    void recordSegment(const QRectF& rect, int charStart, int charLen,
+                       const QString& text, const QFont& font);
     void countBlockChars(const LayoutBlock& block);
 
     Theme m_theme;

@@ -81,10 +81,11 @@ void PreviewWidget::paintEvent(QPaintEvent* /*event*/)
 
     if (!m_currentAst) return;
 
-    // 检测 DPI 变化（切换屏幕时触发重建）
+    // 检测 DPI 变化（切换屏幕时用新设备度量重建布局）
     qreal currentDpr = viewport()->devicePixelRatioF();
     if (!qFuzzyCompare(currentDpr, m_lastDevicePixelRatio)) {
         m_lastDevicePixelRatio = currentDpr;
+        m_layout->updateMetrics(viewport());
         rebuildLayout();
     }
 
@@ -207,6 +208,38 @@ void PreviewWidget::mouseReleaseEvent(QMouseEvent* event)
     QAbstractScrollArea::mouseReleaseEvent(event);
 }
 
+void PreviewWidget::mouseDoubleClickEvent(QMouseEvent* event)
+{
+    if (event->button() == Qt::LeftButton && !m_plainText.isEmpty()) {
+        qreal scrollXVal = m_wordWrap ? 0 : horizontalScrollBar()->value();
+        QPointF pt(event->pos().x() - 20 + scrollXVal, event->pos().y());
+        int idx = textIndexAtPoint(pt);
+
+        if (idx >= 0 && idx < m_plainText.length()) {
+            auto isWordChar = [](QChar c) {
+                return c.isLetterOrNumber() || c == QLatin1Char('_');
+            };
+
+            if (isWordChar(m_plainText.at(idx))) {
+                int start = idx;
+                while (start > 0 && isWordChar(m_plainText.at(start - 1)))
+                    --start;
+                int end = idx + 1;
+                while (end < m_plainText.length() && isWordChar(m_plainText.at(end)))
+                    ++end;
+                m_selStart = start;
+                m_selEnd = end;
+            } else {
+                m_selStart = idx;
+                m_selEnd = idx + 1;
+            }
+
+            m_selecting = false;
+            viewport()->update();
+        }
+    }
+}
+
 void PreviewWidget::keyPressEvent(QKeyEvent* event)
 {
     if (event->matches(QKeySequence::Copy)) {
@@ -260,30 +293,44 @@ QString PreviewWidget::extractPlainText() const
 
 void PreviewWidget::extractBlockText(const LayoutBlock& block, QString& out) const
 {
-    // Inline text (paragraph, heading, etc.)
-    for (const auto& run : block.inlineRuns) {
-        out += run.text;
+    // Inline text - 匹配 paintInlineRuns 的计数：所有 run.text + 无条件分隔换行
+    if (!block.inlineRuns.empty()) {
+        for (const auto& run : block.inlineRuns) {
+            out += run.text;
+        }
+        out += '\n';
     }
 
-    // Code block
+    // Code block - 匹配 paintBlock 的逐行计数，跳过 split 产生的尾部空元素
     if (!block.codeText.isEmpty()) {
-        out += block.codeText;
-        if (!block.codeText.endsWith('\n'))
+        const QStringList lines = block.codeText.split('\n');
+        for (int i = 0; i < lines.size(); ++i) {
+            if (i == lines.size() - 1 && lines[i].isEmpty())
+                break;
+            out += lines[i];
             out += '\n';
+        }
     }
 
     // Recurse into children
     for (const auto& child : block.children) {
         extractBlockText(child, out);
     }
+}
 
-    // Add newline between blocks (except for inline containers)
-    if (block.type != LayoutBlock::Document &&
-        block.type != LayoutBlock::TableRow &&
-        block.type != LayoutBlock::TableCell) {
-        if (!out.isEmpty() && !out.endsWith('\n'))
-            out += '\n';
+// 在段内使用字体度量逐字精确定位字符索引
+static int hitTestSegment(const TextSegment& seg, qreal relX)
+{
+    if (seg.text.isEmpty()) return seg.charStart;
+    QFontMetricsF fm(seg.font);
+    for (int i = 0; i < seg.text.length(); ++i) {
+        qreal w = fm.horizontalAdvance(seg.text.left(i + 1));
+        if (relX < w) {
+            qreal prevW = (i > 0) ? fm.horizontalAdvance(seg.text.left(i)) : 0;
+            return seg.charStart + ((relX - prevW < w - relX) ? i : i + 1);
+        }
     }
+    return seg.charStart + seg.charLen;
 }
 
 int PreviewWidget::textIndexAtPoint(const QPointF& point) const
@@ -292,33 +339,35 @@ int PreviewWidget::textIndexAtPoint(const QPointF& point) const
     if (segments.isEmpty())
         return 0;
 
-    // 查找包含该点的文本段
     int closest = 0;
     qreal closestDist = std::numeric_limits<qreal>::max();
 
     for (const auto& seg : segments) {
         if (seg.rect.contains(point)) {
-            // 在段内精确定位字符
-            qreal relX = point.x() - seg.rect.x();
-            qreal ratio = qBound(0.0, relX / qMax(seg.rect.width(), 1.0), 1.0);
-            return seg.charStart + qRound(ratio * seg.charLen);
+            return hitTestSegment(seg, point.x() - seg.rect.x());
         }
 
-        // 记录最近的段（用于点击在段之间的情况）
-        qreal cy = seg.rect.center().y();
-        qreal dist = qAbs(point.y() - cy);
-        if (dist < closestDist || (qFuzzyCompare(dist, closestDist) && point.x() >= seg.rect.x())) {
+        // 计算点到矩形的 2D 距离（解决表格单元格间隙定位问题）
+        qreal dx = 0, dy = 0;
+        if (point.x() < seg.rect.left())
+            dx = seg.rect.left() - point.x();
+        else if (point.x() > seg.rect.right())
+            dx = point.x() - seg.rect.right();
+        if (point.y() < seg.rect.top())
+            dy = seg.rect.top() - point.y();
+        else if (point.y() > seg.rect.bottom())
+            dy = point.y() - seg.rect.bottom();
+
+        qreal dist = dy * dy + dx * dx;
+
+        if (dist < closestDist) {
             closestDist = dist;
-            // 如果在段的右边，定位到段末尾
             if (point.x() >= seg.rect.right())
                 closest = seg.charStart + seg.charLen;
-            else if (point.x() <= seg.rect.x())
+            else if (point.x() <= seg.rect.left())
                 closest = seg.charStart;
-            else {
-                qreal relX = point.x() - seg.rect.x();
-                qreal ratio = qBound(0.0, relX / qMax(seg.rect.width(), 1.0), 1.0);
-                closest = seg.charStart + qRound(ratio * seg.charLen);
-            }
+            else
+                closest = hitTestSegment(seg, point.x() - seg.rect.x());
         }
     }
 

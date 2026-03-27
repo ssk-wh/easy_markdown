@@ -85,11 +85,7 @@ int main(int argc, char* argv[])
     MainWindow window;
     window.startLocalServer(kServerName);
 
-    if (!filePath.isEmpty()) {
-        window.openFile(filePath);
-    } else {
-        window.newTab();
-    }
+    window.restoreSession(filePath);
 
     window.show();
     return app.exec();

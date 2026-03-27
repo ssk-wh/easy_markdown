@@ -2,6 +2,7 @@
 
 !include "MUI2.nsh"
 !include "FileFunc.nsh"
+!include "LogicLib.nsh"
 
 ; ============== Basic Info ==============
 !define APP_NAME "SimpleMarkdown"
@@ -23,6 +24,9 @@ Unicode True
 !define MUI_ICON "..\resources\app-icon.ico"
 !define MUI_UNICON "..\resources\app-icon.ico"
 
+; ============== Variables ==============
+Var WasRunning
+
 ; ============== Pages ==============
 !insertmacro MUI_PAGE_WELCOME
 !insertmacro MUI_PAGE_DIRECTORY
@@ -37,6 +41,56 @@ Unicode True
 !insertmacro MUI_LANGUAGE "SimpChinese"
 
 ; ============== Installer Sections ==============
+Function .onInit
+    ; 检测进程是否在运行
+    StrCpy $WasRunning "0"
+    nsExec::ExecToStack 'tasklist /FI "IMAGENAME eq ${APP_EXE}" /NH'
+    Pop $0 ; return code
+    Pop $1 ; output
+    StrCmp $0 "error" done_check
+    ${If} $1 != ""
+        ; 检查输出是否包含进程名
+        Push $1
+        Push "${APP_EXE}"
+        Call StrContains
+        Pop $0
+        ${If} $0 != ""
+            StrCpy $WasRunning "1"
+            nsExec::Exec 'taskkill /F /IM ${APP_EXE}'
+            Sleep 500
+        ${EndIf}
+    ${EndIf}
+    done_check:
+FunctionEnd
+
+; 字符串包含检测函数
+Function StrContains
+    Exch $R1 ; search string
+    Exch
+    Exch $R2 ; source string
+    Push $R3
+    Push $R4
+    StrLen $R3 $R1
+    StrCpy $R4 ""
+    loop:
+        StrCpy $R4 $R2 $R3
+        StrCmp $R4 $R1 found
+        StrLen $R4 $R2
+        IntCmp $R4 $R3 notfound notfound
+        StrCpy $R2 $R2 "" 1
+        Goto loop
+    found:
+        StrCpy $R1 $R4
+        Goto done
+    notfound:
+        StrCpy $R1 ""
+    done:
+    Pop $R4
+    Pop $R3
+    Pop $R2
+    Exch $R1
+FunctionEnd
+
 Section "!$(^Name)" SecMain
     SectionIn RO
 
@@ -88,6 +142,11 @@ Section "!$(^Name)" SecMain
     !insertmacro RegisterExtension "txt"
 
     System::Call 'shell32::SHChangeNotify(i 0x08000000, i 0x0000, p 0, p 0)'
+
+    ; 如果安装前进程在运行，安装完成后自动重启
+    ${If} $WasRunning == "1"
+        Exec '"$INSTDIR\${APP_EXE}"'
+    ${EndIf}
 SectionEnd
 
 Section "Start Menu" SecStartMenu

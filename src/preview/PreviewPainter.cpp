@@ -20,9 +20,10 @@ void PreviewPainter::setSelection(int selStart, int selEnd)
     m_selEnd = qMax(selStart, selEnd);
 }
 
-void PreviewPainter::recordSegment(const QRectF& rect, int charStart, int charLen)
+void PreviewPainter::recordSegment(const QRectF& rect, int charStart, int charLen,
+                                    const QString& text, const QFont& font)
 {
-    m_textSegments.append({rect, charStart, charLen});
+    m_textSegments.append({rect, charStart, charLen, text, font});
 }
 
 void PreviewPainter::paint(QPainter* painter, const LayoutBlock& root,
@@ -93,7 +94,12 @@ void PreviewPainter::paintBlock(QPainter* p, const LayoutBlock& block,
         qreal textY = drawY + 8;
 
         const QStringList lines = block.codeText.split('\n');
-        for (const auto& line : lines) {
+        for (int li = 0; li < lines.size(); ++li) {
+            const auto& line = lines[li];
+            // 跳过 split 产生的尾部空元素，与 extractBlockText 保持一致
+            if (li == lines.size() - 1 && line.isEmpty())
+                break;
+
             qreal w = fm.horizontalAdvance(line);
             QRectF segRect(textX, textY, w, lineH);
 
@@ -111,7 +117,7 @@ void PreviewPainter::paintBlock(QPainter* p, const LayoutBlock& block,
                 }
             }
 
-            recordSegment(segRect, m_charCounter, line.length());
+            recordSegment(segRect, m_charCounter, line.length(), line, monoFont);
             p->drawText(QPointF(textX, textY + fm.ascent()), line);
             m_charCounter += line.length() + 1; // +1 for '\n'
             textY += lineH;
@@ -258,17 +264,19 @@ void PreviewPainter::paintInlineRuns(QPainter* p, const LayoutBlock& block,
 
     QColor selColor(0, 120, 215, 80);
 
-    auto drawSelectionHighlight = [&](qreal sx, qreal sy, qreal sw, qreal sh, int charStart, int charLen) {
-        recordSegment(QRectF(sx, sy, sw, sh), charStart, charLen);
+    auto drawSelectionHighlight = [&](const QString& segText, qreal sx, qreal sy, qreal sw, qreal sh, int charStart, int charLen) {
+        QFont curFont = p->font();
+        recordSegment(QRectF(sx, sy, sw, sh), charStart, charLen, segText, curFont);
         if (m_selStart >= 0 && m_selEnd > m_selStart && charLen > 0) {
             int segEnd = charStart + charLen;
             int hlStart = qMax(charStart, m_selStart);
             int hlEnd = qMin(segEnd, m_selEnd);
             if (hlStart < hlEnd) {
-                // 基于字符比例估算高亮区域
-                qreal ratio1 = (qreal)(hlStart - charStart) / charLen;
-                qreal ratio2 = (qreal)(hlEnd - charStart) / charLen;
-                p->fillRect(QRectF(sx + sw * ratio1, sy, sw * (ratio2 - ratio1), sh), selColor);
+                // 使用字体度量精确定位高亮区域
+                QFontMetricsF segFm(curFont, p->device());
+                qreal x1 = segFm.horizontalAdvance(segText.left(hlStart - charStart));
+                qreal x2 = segFm.horizontalAdvance(segText.left(hlEnd - charStart));
+                p->fillRect(QRectF(sx + x1, sy, x2 - x1, sh), selColor);
             }
         }
     };
@@ -292,7 +300,7 @@ void PreviewPainter::paintInlineRuns(QPainter* p, const LayoutBlock& block,
         auto drawSegment = [&](const QString& seg, qreal segW, int segOffset) {
             if (hasBg)
                 p->fillRect(QRectF(curX - 2, curY, segW + 4, lineHeight), run.bgColor);
-            drawSelectionHighlight(curX, curY, segW, lineHeight,
+            drawSelectionHighlight(seg, curX, curY, segW, lineHeight,
                                    m_charCounter + segOffset, seg.length());
             p->drawText(QPointF(curX, curY + fm.ascent()), seg);
             if (!run.linkUrl.isEmpty())
@@ -379,8 +387,11 @@ void PreviewPainter::countBlockChars(const LayoutBlock& block)
     // Count code block text
     if (!block.codeText.isEmpty()) {
         const QStringList lines = block.codeText.split('\n');
-        for (const auto& line : lines)
-            m_charCounter += line.length() + 1; // +1 for '\n'
+        for (int i = 0; i < lines.size(); ++i) {
+            if (i == lines.size() - 1 && lines[i].isEmpty())
+                break;
+            m_charCounter += lines[i].length() + 1;
+        }
     }
 
     // Recurse into children

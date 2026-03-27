@@ -21,6 +21,7 @@ public:
 
     void openFile(const QString& path);
     void newTab();
+    void restoreSession(const QString& requestedFile = QString());
     void startLocalServer(const char* serverName);
 
 protected:
@@ -54,6 +55,7 @@ private:
     QLocalServer* m_localServer = nullptr;
 
     // 持久化的视图设置
+    QAction* m_restoreSessionAct = nullptr;
     QAction* m_wordWrapAct = nullptr;
     QAction* m_lightThemeAct = nullptr;
     QAction* m_darkThemeAct = nullptr;

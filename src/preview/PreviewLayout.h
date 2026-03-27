@@ -7,6 +7,8 @@
 #include <vector>
 #include <memory>
 
+class QPaintDevice;
+
 #include "Theme.h"
 
 class AstNode;
@@ -63,6 +65,7 @@ public:
 
     void setViewportWidth(qreal width);
     void setFont(const QFont& baseFont);
+    void updateMetrics(QPaintDevice* device);
     void setTheme(const Theme& theme);
     void buildFromAst(const std::shared_ptr<AstNode>& root);
     qreal totalHeight() const;

@@ -20,6 +20,9 @@
 #include <QLocalServer>
 #include <QSettings>
 #include <QLocalSocket>
+#include <QScrollBar>
+#include <QTimer>
+#include <QApplication>
 
 MainWindow::MainWindow(QWidget* parent)
     : QMainWindow(parent)
@@ -156,6 +159,31 @@ void MainWindow::setupMenuBar()
                 tab.editor->setLineSpacing(factor);
         });
     }
+
+    viewMenu->addSeparator();
+
+    m_restoreSessionAct = viewMenu->addAction(tr("Restore Last File"));
+    m_restoreSessionAct->setCheckable(true);
+    m_restoreSessionAct->setChecked(true);
+
+    // -- Help menu --
+    QMenu* helpMenu = menuBar()->addMenu(tr("Help"));
+    helpMenu->addAction(tr("About"), this, [this]() {
+        QString about = QString(
+            "<h2>SimpleMarkdown %1</h2>"
+            "<p>A lightweight cross-platform Markdown editor.</p>"
+            "<table>"
+            "<tr><td><b>Author:</b></td><td>pcfan</td></tr>"
+            "<tr><td><b>Build Date:</b></td><td>%2</td></tr>"
+            "<tr><td><b>Qt Version:</b></td><td>%3</td></tr>"
+            "</table>"
+            "<p>Source: <a href=\"https://github.com/ssk-wh/simple_markdown\">"
+            "https://github.com/ssk-wh/simple_markdown</a></p>"
+        ).arg(QApplication::applicationVersion().isEmpty() ? "0.1.0" : QApplication::applicationVersion(),
+              QString(__DATE__),
+              qVersion());
+        QMessageBox::about(this, tr("About SimpleMarkdown"), about);
+    });
 }
 
 void MainWindow::setupDragDrop()
@@ -178,6 +206,95 @@ void MainWindow::newTab()
     );
     tab.editor->document()->setModified(false);
     // parseNow will be triggered by textChanged → debounce
+}
+
+void MainWindow::restoreSession(const QString& requestedFile)
+{
+    QSettings s;
+    bool restore = s.value("session/restoreLastFile", true).toBool();
+
+    // 命令行指定了文件
+    if (!requestedFile.isEmpty()) {
+        // 先恢复会话中的其他标签页
+        if (restore) {
+            int count = s.beginReadArray("session/tabs");
+            for (int i = 0; i < count; ++i) {
+                s.setArrayIndex(i);
+                QString fp = s.value("file").toString();
+                if (fp == QFileInfo(requestedFile).absoluteFilePath()) continue;
+                if (!fp.isEmpty() && QFileInfo::exists(fp)) {
+                    openFile(fp);
+                    int idx = m_tabWidget->count() - 1;
+                    int es = s.value("editorScroll", 0).toInt();
+                    int ps = s.value("previewScroll", 0).toInt();
+                    QTimer::singleShot(200, this, [this, idx, es, ps]() {
+                        if (idx < m_tabs.size()) {
+                            m_tabs[idx].editor->verticalScrollBar()->setValue(es);
+                            m_tabs[idx].preview->verticalScrollBar()->setValue(ps);
+                        }
+                    });
+                }
+            }
+            s.endArray();
+        }
+        // 打开命令行指定的文件并恢复其滚动位置
+        openFile(requestedFile);
+        if (restore) {
+            int count = s.beginReadArray("session/tabs");
+            for (int i = 0; i < count; ++i) {
+                s.setArrayIndex(i);
+                if (s.value("file").toString() == QFileInfo(requestedFile).absoluteFilePath()) {
+                    int es = s.value("editorScroll", 0).toInt();
+                    int ps = s.value("previewScroll", 0).toInt();
+                    QTimer::singleShot(200, this, [this, es, ps]() {
+                        if (auto* tab = currentTab()) {
+                            tab->editor->verticalScrollBar()->setValue(es);
+                            tab->preview->verticalScrollBar()->setValue(ps);
+                        }
+                    });
+                    break;
+                }
+            }
+            s.endArray();
+        }
+        return;
+    }
+
+    // 无命令行文件：恢复整个会话
+    if (restore) {
+        int count = s.beginReadArray("session/tabs");
+        QVector<QPair<int, int>> scrollPositions;
+        bool opened = false;
+        for (int i = 0; i < count; ++i) {
+            s.setArrayIndex(i);
+            QString fp = s.value("file").toString();
+            if (!fp.isEmpty() && QFileInfo::exists(fp)) {
+                openFile(fp);
+                scrollPositions.append({s.value("editorScroll", 0).toInt(),
+                                        s.value("previewScroll", 0).toInt()});
+                opened = true;
+            }
+        }
+        s.endArray();
+
+        if (opened) {
+            // 恢复当前标签
+            int activeTab = s.value("session/activeTab", 0).toInt();
+            if (activeTab >= 0 && activeTab < m_tabWidget->count())
+                m_tabWidget->setCurrentIndex(activeTab);
+
+            // 延迟恢复所有标签页的滚动位置
+            QTimer::singleShot(200, this, [this, scrollPositions]() {
+                for (int i = 0; i < scrollPositions.size() && i < m_tabs.size(); ++i) {
+                    m_tabs[i].editor->verticalScrollBar()->setValue(scrollPositions[i].first);
+                    m_tabs[i].preview->verticalScrollBar()->setValue(scrollPositions[i].second);
+                }
+            });
+            return;
+        }
+    }
+
+    newTab();
 }
 
 void MainWindow::openFile(const QString& path)
@@ -474,6 +591,23 @@ void MainWindow::saveSettings()
     s.setValue("view/lineSpacing", m_lineSpacingFactor);
     s.setValue("view/darkTheme", m_darkThemeAct ? m_darkThemeAct->isChecked() : false);
     s.setValue("window/geometry", saveGeometry());
+
+    // 会话恢复
+    s.setValue("session/restoreLastFile", m_restoreSessionAct ? m_restoreSessionAct->isChecked() : true);
+    s.setValue("session/activeTab", m_tabWidget->currentIndex());
+
+    // 保存所有标签页
+    s.beginWriteArray("session/tabs");
+    int written = 0;
+    for (int i = 0; i < m_tabs.size(); ++i) {
+        QString fp = m_tabs[i].editor->document()->filePath();
+        if (fp.isEmpty()) continue; // 跳过未保存的空文档
+        s.setArrayIndex(written++);
+        s.setValue("file", fp);
+        s.setValue("editorScroll", m_tabs[i].editor->verticalScrollBar()->value());
+        s.setValue("previewScroll", m_tabs[i].preview->verticalScrollBar()->value());
+    }
+    s.endArray();
 }
 
 void MainWindow::loadSettings()
@@ -494,6 +628,10 @@ void MainWindow::loadSettings()
     // 自动换行
     bool wordWrap = s.value("view/wordWrap", true).toBool();
     m_wordWrapAct->setChecked(wordWrap);
+
+    // 会话恢复选项
+    if (m_restoreSessionAct)
+        m_restoreSessionAct->setChecked(s.value("session/restoreLastFile", true).toBool());
 
     // 行间距
     m_lineSpacingFactor = s.value("view/lineSpacing", 1.0).toDouble();

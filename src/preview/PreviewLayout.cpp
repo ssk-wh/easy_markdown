@@ -31,6 +31,14 @@ void PreviewLayout::setFont(const QFont& baseFont)
     m_lineHeight = fm.height() * 1.5;
 }
 
+void PreviewLayout::updateMetrics(QPaintDevice* device)
+{
+    QFontMetricsF fm(m_baseFont, device);
+    m_lineHeight = fm.height() * 1.5;
+    QFontMetricsF fmCode(m_monoFont, device);
+    m_codeLineHeight = fmCode.height() * 1.4;
+}
+
 void PreviewLayout::setTheme(const Theme& theme)
 {
     m_theme = theme;
