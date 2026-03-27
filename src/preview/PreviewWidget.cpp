@@ -2,6 +2,8 @@
 #include "PreviewLayout.h"
 #include "PreviewPainter.h"
 #include "ImageCache.h"
+#include "TocPanel.h"
+#include "MarkdownAst.h"
 
 #include <QPainter>
 #include <QScrollBar>
@@ -33,6 +35,10 @@ PreviewWidget::PreviewWidget(QWidget* parent)
     viewport()->setCursor(Qt::IBeamCursor);
     viewport()->setMouseTracking(true);
     setFocusPolicy(Qt::ClickFocus);
+
+    m_tocPanel = new TocPanel(viewport());
+    connect(m_tocPanel, &TocPanel::headingClicked,
+            this, &PreviewWidget::scrollToSourceLine);
 }
 
 PreviewWidget::~PreviewWidget()
@@ -61,6 +67,7 @@ void PreviewWidget::updateAst(std::shared_ptr<AstNode> root)
     m_selStart = m_selEnd = -1;
 
     updateScrollBars();
+    updateTocEntries();
     viewport()->update();
 }
 
@@ -106,6 +113,7 @@ void PreviewWidget::resizeEvent(QResizeEvent* event)
 {
     QAbstractScrollArea::resizeEvent(event);
     rebuildLayout();
+    m_tocPanel->reposition();
 }
 
 void PreviewWidget::scrollContentsBy(int /*dx*/, int /*dy*/)
@@ -138,6 +146,7 @@ void PreviewWidget::setTheme(const Theme& theme)
     m_theme = theme;
     m_painter->setTheme(theme);
     m_layout->setTheme(theme);
+    m_tocPanel->setTheme(theme);
 
     // 重建 layout 以更新 InlineRun 中的主题色
     if (m_currentAst) {
@@ -282,6 +291,35 @@ void PreviewWidget::copySelection()
 
     QString sel = m_plainText.mid(start, end - start);
     QApplication::clipboard()->setText(sel);
+}
+
+void PreviewWidget::updateTocEntries()
+{
+    QVector<TocEntry> entries;
+    if (m_currentAst) {
+        // 递归提取节点内所有文本
+        std::function<void(const AstNode*, QString&)> extractText = [&](const AstNode* n, QString& out) {
+            if (!n->literal.isEmpty())
+                out += n->literal;
+            for (const auto& c : n->children)
+                extractText(c.get(), out);
+        };
+
+        std::function<void(const AstNode*)> collect = [&](const AstNode* node) {
+            if (node->type == AstNodeType::Heading && node->headingLevel >= 1) {
+                TocEntry entry;
+                entry.level = node->headingLevel;
+                entry.sourceLine = node->startLine;
+                extractText(node, entry.title);
+                if (!entry.title.isEmpty())
+                    entries.append(entry);
+            }
+            for (const auto& child : node->children)
+                collect(child.get());
+        };
+        collect(m_currentAst.get());
+    }
+    m_tocPanel->setEntries(entries);
 }
 
 QString PreviewWidget::extractPlainText() const

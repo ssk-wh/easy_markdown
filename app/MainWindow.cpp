@@ -23,6 +23,7 @@
 #include <QScrollBar>
 #include <QTimer>
 #include <QApplication>
+#include <QTabBar>
 
 MainWindow::MainWindow(QWidget* parent)
     : QMainWindow(parent)
@@ -42,6 +43,12 @@ MainWindow::MainWindow(QWidget* parent)
             this, &MainWindow::onCloseTab);
     connect(m_tabWidget, &QTabWidget::currentChanged,
             this, &MainWindow::onTabChanged);
+    // 拖拽重排 tab 时同步 m_tabs 顺序
+    connect(m_tabWidget->tabBar(), &QTabBar::tabMoved,
+            this, [this](int from, int to) {
+        if (from >= 0 && from < m_tabs.size() && to >= 0 && to < m_tabs.size())
+            m_tabs.move(from, to);
+    });
 
     setupMenuBar();
     setupDragDrop();
@@ -107,15 +114,22 @@ void MainWindow::setupMenuBar()
     QActionGroup* themeGroup = new QActionGroup(this);
     themeGroup->setExclusive(true);
 
+    m_followSystemThemeAct = viewMenu->addAction(tr("Follow System"));
+    m_followSystemThemeAct->setCheckable(true);
+    m_followSystemThemeAct->setChecked(true);
+    themeGroup->addAction(m_followSystemThemeAct);
+
     m_lightThemeAct = viewMenu->addAction(tr("Light Theme"));
     m_lightThemeAct->setCheckable(true);
-    m_lightThemeAct->setChecked(true);
     themeGroup->addAction(m_lightThemeAct);
 
     m_darkThemeAct = viewMenu->addAction(tr("Dark Theme"));
     m_darkThemeAct->setCheckable(true);
     themeGroup->addAction(m_darkThemeAct);
 
+    connect(m_followSystemThemeAct, &QAction::triggered, this, [this]() {
+        applySystemTheme();
+    });
     connect(m_lightThemeAct, &QAction::triggered, this, [this]() {
         applyTheme(Theme::light());
     });
@@ -399,6 +413,23 @@ void MainWindow::updateRecentFilesMenu()
     m_recentMenu->addAction(tr("Clear"), m_recentFiles, &RecentFiles::clear);
 }
 
+bool MainWindow::isSystemDarkMode() const
+{
+#ifdef _WIN32
+    QSettings reg("HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize",
+                  QSettings::NativeFormat);
+    return reg.value("AppsUseLightTheme", 1).toInt() == 0;
+#else
+    QPalette pal = QApplication::palette();
+    return pal.color(QPalette::Window).lightness() < 128;
+#endif
+}
+
+void MainWindow::applySystemTheme()
+{
+    applyTheme(isSystemDarkMode() ? Theme::dark() : Theme::light());
+}
+
 void MainWindow::applyTheme(const Theme& theme)
 {
     m_currentTheme = theme;
@@ -589,7 +620,11 @@ void MainWindow::saveSettings()
     QSettings s;
     s.setValue("view/wordWrap", m_wordWrapAct ? m_wordWrapAct->isChecked() : true);
     s.setValue("view/lineSpacing", m_lineSpacingFactor);
-    s.setValue("view/darkTheme", m_darkThemeAct ? m_darkThemeAct->isChecked() : false);
+    // 主题：follow_system / light / dark
+    QString themeMode = "follow_system";
+    if (m_lightThemeAct && m_lightThemeAct->isChecked()) themeMode = "light";
+    else if (m_darkThemeAct && m_darkThemeAct->isChecked()) themeMode = "dark";
+    s.setValue("view/themeMode", themeMode);
     s.setValue("window/geometry", saveGeometry());
 
     // 会话恢复
@@ -619,10 +654,16 @@ void MainWindow::loadSettings()
         restoreGeometry(s.value("window/geometry").toByteArray());
 
     // 主题
-    bool dark = s.value("view/darkTheme", false).toBool();
-    if (dark) {
+    QString themeMode = s.value("view/themeMode", "follow_system").toString();
+    if (themeMode == "light") {
+        m_lightThemeAct->setChecked(true);
+        applyTheme(Theme::light());
+    } else if (themeMode == "dark") {
         m_darkThemeAct->setChecked(true);
         applyTheme(Theme::dark());
+    } else {
+        m_followSystemThemeAct->setChecked(true);
+        applySystemTheme();
     }
 
     // 自动换行

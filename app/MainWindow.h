@@ -57,6 +57,7 @@ private:
     // 持久化的视图设置
     QAction* m_restoreSessionAct = nullptr;
     QAction* m_wordWrapAct = nullptr;
+    QAction* m_followSystemThemeAct = nullptr;
     QAction* m_lightThemeAct = nullptr;
     QAction* m_darkThemeAct = nullptr;
     QVector<QAction*> m_spacingActions;
@@ -71,6 +72,8 @@ private:
     void updateTabTitle(int index);
     void updateRecentFilesMenu();
     void applyTheme(const Theme& theme);
+    void applySystemTheme();
+    bool isSystemDarkMode() const;
     TabData* currentTab();
     bool maybeSave(int index);
 };

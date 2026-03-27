@@ -41,21 +41,30 @@ if not defined VCVARS (
 echo [1/3] Setting up MSVC environment...
 call "%VCVARS%" x64 >nul 2>&1
 
-REM ---- Find Qt5 ----
-set QT_CMAKE_OPT=
-if defined Qt5_DIR (
-    echo       Qt5: %Qt5_DIR%
-) else (
-    for %%D in (C D) do (
-        for /d %%Q in ("%%D:\Qt\Qt5*" "%%D:\Qt\5*") do (
-            if not defined QT_CMAKE_OPT (
-                for /d %%A in ("%%Q\*msvc*_64") do (
-                    set "QT_CMAKE_OPT=-DCMAKE_PREFIX_PATH=%%A"
-                    echo       Qt5: %%A
-                )
-            )
+REM ---- Find Qt5 (prefer 5.12.9) ----
+set QT_DIR=
+if defined Qt5_DIR set "QT_DIR=%Qt5_DIR%"
+if defined QT_DIR goto qt_found
+for %%D in (C D E) do (
+    if not defined QT_DIR if exist "%%D:\Qt\Qt5.12.9\5.12.9\msvc2017_64\bin\Qt5Core.dll" set "QT_DIR=%%D:\Qt\Qt5.12.9\5.12.9\msvc2017_64"
+)
+if defined QT_DIR goto qt_found
+for %%D in (C D E) do (
+    for /d %%Q in ("%%D:\Qt\Qt5*") do (
+        if not defined QT_DIR for /d %%V in ("%%Q\5*") do (
+            if not defined QT_DIR for /d %%A in ("%%V\msvc*_64") do set "QT_DIR=%%A"
         )
     )
+    for /d %%V in ("%%D:\Qt\5*") do (
+        if not defined QT_DIR for /d %%A in ("%%V\msvc*_64") do set "QT_DIR=%%A"
+    )
+)
+:qt_found
+if defined QT_DIR (
+    set "QT_CMAKE_OPT=-DCMAKE_PREFIX_PATH=%QT_DIR%"
+    echo       Qt5: %QT_DIR%
+) else (
+    set QT_CMAKE_OPT=
 )
 
 REM ---- Configure ----

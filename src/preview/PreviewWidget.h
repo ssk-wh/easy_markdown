@@ -8,6 +8,7 @@ class AstNode;
 class PreviewLayout;
 class PreviewPainter;
 class ImageCache;
+class TocPanel;
 
 class PreviewWidget : public QAbstractScrollArea {
     Q_OBJECT
@@ -56,4 +57,8 @@ private:
     int m_selEnd = -1;
     bool m_selecting = false;
     qreal m_lastDevicePixelRatio = 0;
+
+    // 目录面板
+    TocPanel* m_tocPanel = nullptr;
+    void updateTocEntries();
 };
