@@ -52,14 +52,127 @@ simple_markdown/
 │   ├── parser/             # Markdown 解析（cmark-gfm 封装、AST、ParseScheduler）
 │   ├── preview/            # 自绘预览（PreviewWidget、布局、绘制、图片缓存、代码块渲染）
 │   └── sync/               # 编辑器-预览滚动同步
-├── tests/                  # 单元测试（Google Test）
 ├── 3rdparty/               # 第三方库（cmark-gfm、googletest）
 ├── docs/                   # 项目文档
 │   ├── requirements.md     # 需求文档
 │   ├── architecture.md     # 架构文档
 │   └── build.md            # 构建说明
-└── CMakeLists.txt
+├── installer/              # 打包配置
+│   └── dist/               # 打包产物（.exe、DLL 等）
+├── resources/              # 资源文件（图标、样式表等）
+├── tools/                  # 工具脚本
+├── debian/                 # Debian 包配置
+├── .github/                # GitHub Actions 工作流配置
+├── .claude/                # Claude Code 本地配置
+└── .superpowers/           # Claude Code superpowers 配置
 ```
+
+## 文件说明
+
+### 根目录文件
+
+#### 编译和打包
+
+| 文件 | 说明 |
+|------|------|
+| `CMakeLists.txt` | CMake 构建配置（依赖、源文件、链接库） |
+| `build_on_win.bat` | Windows 一键编译脚本（发布版本；自动复制 Qt DLL） |
+| `build_on_linux.sh` | Linux 一键编译脚本 |
+| `build_pack_on_win.bat` | Windows 编译+打包脚本（生成 .exe 和 .nsi） |
+| `collect_dist.py` | 收集编译产物和依赖库到 `installer/dist/`（NSIS 打包前必须执行） |
+| `copy_qt_dlls.py` | 自动复制 Qt 运行时库到编译目录 |
+| `SimpleMarkdown.nsi` | NSIS 安装包脚本（定义安装流程、快捷方式、卸载逻辑） |
+
+#### 配置文件
+
+| 文件 | 说明 |
+|------|------|
+| `.nsis-config.json` | NSIS 打包配置（版本号、输出路径等） |
+| `.gitignore` | Git 忽略规则（编译产物、临时文件等） |
+| `.gitmodules` | Git 子模块配置（3rdparty 库） |
+| `.claudeignore` | Claude Code 忽略规则（避免扫描构建产物、依赖库） |
+
+#### 文档
+
+| 文件 | 说明 |
+|------|------|
+| `README.md` | 项目总览（功能、构建、技术栈） |
+| `CHANGELOG.md` | 版本变更日志 |
+| `CLAUDE.md` | 开发指南（DPI 适配、坐标系统、打包规范、已知问题） |
+
+### 核心目录
+
+#### `src/` - 源代码
+
+- **core/** - 核心数据结构和管理
+  - PieceTable：高效文本数据结构
+  - Document：文档模型
+  - UndoStack：撤销/重做栈
+  - Selection：文本选区
+  - Theme：主题配置
+
+- **editor/** - 编辑器模块
+  - EditorWidget：文本编辑窗口
+  - EditorLayout：编辑器布局计算（行、列、光标位置）
+  - EditorPainter：基于 QPainter 的编辑器渲染
+  - SyntaxHighlighter：Markdown 语法高亮
+  - SearchBar：搜索替换面板
+
+- **parser/** - Markdown 解析
+  - MarkdownParser：cmark-gfm 的 C++ 包装
+  - AST 节点定义（Block、Inline）
+  - ParseScheduler：后台解析调度器
+
+- **preview/** - 预览模块
+  - PreviewWidget：预览窗口
+  - PreviewLayout：预览布局计算（块高度、坐标）
+  - PreviewPainter：基于 QPainter 的预览渲染
+  - ImageCache：图片缓存管理
+
+- **sync/** - 滚动同步
+  - EditorPreviewSync：编辑器-预览位置映射
+
+#### `app/` - 应用入口
+- main.cpp：应用入口
+- MainWindow：主窗口（多标签页、菜单栏、布局管理）
+
+#### `3rdparty/` - 第三方库
+- **cmark-gfm/** - GitHub Flavored Markdown 解析器
+- **googletest/** - 单元测试框架
+
+#### `docs/` - 文档
+- requirements.md：需求规格说明
+- architecture.md：架构设计文档
+- build.md：详细构建步骤
+
+#### `installer/` - 打包
+- collect_dist.py：依赖收集脚本
+- SimpleMarkdown.nsi：NSIS 脚本
+- dist/：打包产物目录
+  - SimpleMarkdown.exe：应用可执行文件
+  - *.dll：Qt 和系统依赖库
+  - platforms/qwindows.dll：Qt 平台插件
+
+#### `resources/` - 资源文件
+- 应用图标、样式表、配置文件
+
+#### `tools/` - 工具脚本
+- 构建辅助工具、测试脚本
+
+#### `debian/` - Linux 打包
+- Debian/Ubuntu 包配置文件
+
+### 配置目录
+
+#### `.github/` - GitHub Actions
+- 持续集成工作流（编译、测试、发布）
+
+#### `.claude/` - Claude Code 本地配置
+- task.md：项目任务列表（待办/进行中/已完成）
+- 其他本地开发配置
+
+#### `.superpowers/` - Claude Code superpowers
+- 自定义开发工作流和脚本配置
 
 ## 构建
 
