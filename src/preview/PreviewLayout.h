@@ -88,4 +88,5 @@ private:
     qreal m_viewportWidth = 600.0;
     qreal m_lineHeight = 24.0;
     qreal m_codeLineHeight = 20.0;
+    QPaintDevice* m_device = nullptr;  // [高 DPI 修复] 用于高度估计中的字体度量
 };

@@ -16,6 +16,17 @@ struct TextSegment {
     QFont font;        // 段所用字体
 };
 
+// [测试模式] 渲染块信息，用于自动化测试验证
+#ifdef ENABLE_TEST_MODE
+struct BlockInfo {
+    QString type;          // "heading", "paragraph", "code_block", "list_item", "table", "quote", "hr"
+    int x, y, width, height;  // 屏幕坐标（已减 scrollY）
+    QString content;       // 块内容摘要
+    int headingLevel = 0;  // 标题级别（仅标题块）
+    int listLevel = 0;     // 列表级别（仅列表块）
+};
+#endif
+
 class PreviewPainter {
 public:
     PreviewPainter();
@@ -35,6 +46,12 @@ public:
     // 标记高亮
     void setHighlights(const QVector<QPair<int,int>>& highlights);
 
+    // [测试模式] 获取记录的块信息，并输出到 JSON 文件
+#ifdef ENABLE_TEST_MODE
+    void saveBlocksToJson(int viewportWidth, int viewportHeight) const;
+    const QVector<BlockInfo>& blockInfos() const { return m_blockInfos; }
+#endif
+
 private:
     void paintBlock(QPainter* p, const LayoutBlock& block,
                     qreal offsetX, qreal offsetY,
@@ -51,4 +68,8 @@ private:
     int m_selStart = -1;
     int m_selEnd = -1;
     QVector<QPair<int,int>> m_highlights;  // 标记高亮范围 (start, end)
+
+#ifdef ENABLE_TEST_MODE
+    mutable QVector<BlockInfo> m_blockInfos;  // 记录的块信息（用于测试验证）
+#endif
 };

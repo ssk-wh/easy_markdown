@@ -8,6 +8,9 @@ set EXPECTED_GENERATOR=NMake Makefiles
 set FORCE_CLEAN=0
 
 REM ---- Parse arguments ----
+set CMAKE_OPTS=
+
+REM First argument: debug/release/clean
 if "%~1"=="debug"   set BUILD_TYPE=Debug
 if "%~1"=="release" set BUILD_TYPE=Release
 if "%~1"=="clean" (
@@ -19,7 +22,17 @@ if "%~1"=="clean" (
     exit /b 0
 )
 if "%~1"=="--clean" set FORCE_CLEAN=1
-if "%~2"=="--clean" set FORCE_CLEAN=1
+
+REM Check if second argument is "--" for cmake options
+if "%~2"=="--" (
+    setlocal enabledelayedexpansion
+    if not "%~3"=="" set "CMAKE_OPTS=%~3"
+    if not "%~4"=="" set "CMAKE_OPTS=!CMAKE_OPTS! %~4"
+    if not "%~5"=="" set "CMAKE_OPTS=!CMAKE_OPTS! %~5"
+    if not "%~6"=="" set "CMAKE_OPTS=!CMAKE_OPTS! %~6"
+    if not "%~7"=="" set "CMAKE_OPTS=!CMAKE_OPTS! %~7"
+    if not "%~8"=="" set "CMAKE_OPTS=!CMAKE_OPTS! %~8"
+)
 
 echo ================================================
 echo   SimpleMarkdown Build [%BUILD_TYPE%]
@@ -81,51 +94,25 @@ if defined QT_DIR (
 )
 echo.
 
-REM ---- Validate or clean CMake cache ----
-echo [2/4] Checking CMake cache...
-set NEED_CONFIGURE=0
-
-if not exist %BUILD_DIR%\CMakeCache.txt (
-    echo       No cache found. Will configure.
-    set NEED_CONFIGURE=1
-) else (
-    if !FORCE_CLEAN! equ 1 (
-        echo       Force clean requested. Removing old cache.
-        del /q %BUILD_DIR%\CMakeCache.txt >nul 2>&1
-        rmdir /s /q %BUILD_DIR%\CMakeFiles >nul 2>&1
-        set NEED_CONFIGURE=1
-    ) else (
-        REM Check if generator matches
-        findstr /C:"CMAKE_GENERATOR:INTERNAL=%EXPECTED_GENERATOR%" %BUILD_DIR%\CMakeCache.txt >nul 2>&1
-        if errorlevel 1 (
-            echo       WARNING: Cache uses wrong generator. Cleaning...
-            del /q %BUILD_DIR%\CMakeCache.txt >nul 2>&1
-            rmdir /s /q %BUILD_DIR%\CMakeFiles >nul 2>&1
-            set NEED_CONFIGURE=1
-        ) else (
-            echo       Cache is valid. Reusing.
-        )
-    )
+REM ---- CMake configure ----
+echo [2/4] CMake configure...
+if exist %BUILD_DIR%\CMakeCache.txt (
+    del /q %BUILD_DIR%\CMakeCache.txt >nul 2>&1
 )
-echo.
-
-REM ---- Configure if needed ----
-if !NEED_CONFIGURE! equ 1 (
-    echo [3/4] CMake configure...
-    cmake -S . -B %BUILD_DIR% -G "%EXPECTED_GENERATOR%" -DCMAKE_BUILD_TYPE=%BUILD_TYPE% %QT_CMAKE_OPT%
-    if errorlevel 1 (
-        echo [ERROR] CMake configure failed.
-        echo         Make sure Qt5 is installed. Set Qt5_DIR or CMAKE_PREFIX_PATH if needed.
-        echo         Use 'build_on_win.bat clean' to reset, then try again.
-        exit /b 1
-    )
-) else (
-    echo [3/4] Skipping CMake configure (cache valid).
+if exist %BUILD_DIR%\CMakeFiles (
+    rmdir /s /q %BUILD_DIR%\CMakeFiles >nul 2>&1
+)
+cmake -S . -B %BUILD_DIR% -G "%EXPECTED_GENERATOR%" -DCMAKE_BUILD_TYPE=%BUILD_TYPE% %QT_CMAKE_OPT% %CMAKE_OPTS%
+if errorlevel 1 (
+    echo [ERROR] CMake configure failed.
+    exit /b 1
 )
 echo.
 
 REM ---- Build ----
-echo [4/4] Building...
+echo [3/4] Building...
+
+REM ---- Build ----
 cmake --build %BUILD_DIR%
 if errorlevel 1 (
     echo [ERROR] Build failed.

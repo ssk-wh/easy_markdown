@@ -97,6 +97,7 @@ Section "!$(^Name)" SecMain
     SetOutPath "$INSTDIR"
     File "dist\${APP_EXE}"
     File "dist\*.dll"
+    File "..\CHANGELOG.md"
 
     SetOutPath "$INSTDIR\platforms"
     File "dist\platforms\*.dll"
@@ -183,6 +184,7 @@ Section "Uninstall"
 
     Delete "$INSTDIR\${APP_EXE}"
     Delete "$INSTDIR\*.dll"
+    Delete "$INSTDIR\CHANGELOG.md"
     Delete "$INSTDIR\Uninstall.exe"
 
     RMDir /r "$INSTDIR\platforms"

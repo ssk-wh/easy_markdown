@@ -9,6 +9,15 @@ if(MSVC)
     add_compile_options(/utf-8)
 endif()
 
+# [测试模式] 编译选项：自动化测试输出渲染块坐标
+option(ENABLE_TEST_MODE "Enable test mode for rendering block coordinates output" ON)
+if(ENABLE_TEST_MODE)
+    add_compile_definitions(ENABLE_TEST_MODE)
+    message(STATUS "Test mode enabled: Application will output render_blocks.json")
+else()
+    message(STATUS "Test mode disabled: Normal production build")
+endif()
+
 find_package(Qt5 REQUIRED COMPONENTS Core Widgets Network)
 
 option(CMARK_TESTS "" OFF)

@@ -1,0 +1,119 @@
+<h2>整体风格方向</h2>
+<p class="subtitle">选择一个你喜欢的设计方向，后续配色、字体、间距都会基于此展开</p>
+
+<div class="cards">
+  <!-- Option A: VS Code style -->
+  <div class="card" data-choice="a" onclick="toggleSelect(this)">
+    <div class="card-image" style="padding:0;overflow:hidden;">
+      <div style="display:flex;height:280px;font-family:'Segoe UI',sans-serif;font-size:12px;">
+        <!-- Editor side -->
+        <div style="flex:1;background:#1e1e1e;display:flex;flex-direction:column;">
+          <div style="background:#252526;padding:6px 16px;display:flex;gap:8px;border-bottom:1px solid #1e1e1e;">
+            <span style="background:#1e1e1e;color:#fff;padding:4px 12px;border-radius:4px 4px 0 0;font-size:11px;">README.md</span>
+            <span style="color:#888;padding:4px 12px;font-size:11px;">notes.md</span>
+          </div>
+          <div style="flex:1;padding:12px 16px;color:#d4d4d4;line-height:1.8;">
+            <div><span style="color:#858585;margin-right:16px;">1</span><span style="color:#569cd6;font-weight:bold;"># Hello World</span></div>
+            <div><span style="color:#858585;margin-right:16px;">2</span></div>
+            <div style="background:rgba(255,255,255,0.04);border-left:2px solid #569cd6;padding-left:14px;">
+              <span style="color:#858585;margin-right:16px;">3</span>A <span style="font-weight:bold;">lightweight</span> editor
+            </div>
+            <div><span style="color:#858585;margin-right:16px;">4</span></div>
+            <div><span style="color:#858585;margin-right:16px;">5</span><span style="color:#ce9178;">`code`</span> inline</div>
+          </div>
+        </div>
+        <!-- Splitter -->
+        <div style="width:1px;background:#333;"></div>
+        <!-- Preview side -->
+        <div style="flex:1;background:#1e1e1e;padding:20px 24px;color:#d4d4d4;overflow:hidden;">
+          <div style="font-size:22px;font-weight:700;color:#fff;margin-bottom:8px;padding-bottom:8px;border-bottom:1px solid #333;">Hello World</div>
+          <p style="line-height:1.7;margin:8px 0;">A <strong>lightweight</strong> editor</p>
+          <p style="margin:8px 0;"><code style="background:#2d2d2d;padding:2px 6px;border-radius:3px;color:#ce9178;font-size:11px;">code</code> inline</p>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>A. VS Code 风格</h3>
+      <p>深色优先，紧凑布局，程序员熟悉的界面语言。强调功能性和信息密度。</p>
+      <div class="pros-cons">
+        <div class="pros"><h4>特点</h4><ul><li>开发者最熟悉的视觉语言</li><li>深色主题体验极佳</li><li>紧凑高效</li></ul></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Option B: Typora/Notion clean style -->
+  <div class="card" data-choice="b" onclick="toggleSelect(this)">
+    <div class="card-image" style="padding:0;overflow:hidden;">
+      <div style="display:flex;height:280px;font-family:'Segoe UI',sans-serif;font-size:12px;">
+        <!-- Editor side -->
+        <div style="flex:1;background:#fafafa;display:flex;flex-direction:column;">
+          <div style="background:#fff;padding:6px 16px;display:flex;gap:8px;border-bottom:1px solid #f0f0f0;">
+            <span style="background:#f0f0f0;color:#333;padding:4px 14px;border-radius:6px;font-size:11px;font-weight:500;">README.md</span>
+            <span style="color:#aaa;padding:4px 14px;font-size:11px;">notes.md</span>
+          </div>
+          <div style="flex:1;padding:20px 28px;color:#37352f;line-height:2.0;">
+            <div><span style="color:#c0c0c0;margin-right:20px;font-size:11px;">1</span><span style="color:#2e7d32;font-weight:600;font-size:15px;"># Hello World</span></div>
+            <div><span style="color:#c0c0c0;margin-right:20px;font-size:11px;">2</span></div>
+            <div><span style="color:#c0c0c0;margin-right:20px;font-size:11px;">3</span>A <span style="font-weight:600;">lightweight</span> editor</div>
+            <div><span style="color:#c0c0c0;margin-right:20px;font-size:11px;">4</span></div>
+            <div><span style="color:#c0c0c0;margin-right:20px;font-size:11px;">5</span><span style="color:#c7254e;background:#f9f2f4;padding:1px 5px;border-radius:3px;font-size:11px;">code</span> inline</div>
+          </div>
+        </div>
+        <!-- Splitter -->
+        <div style="width:1px;background:#eee;"></div>
+        <!-- Preview side -->
+        <div style="flex:1;background:#fff;padding:28px 32px;color:#37352f;overflow:hidden;">
+          <div style="font-size:24px;font-weight:700;color:#1a1a1a;margin-bottom:12px;padding-bottom:10px;border-bottom:1px solid #eee;">Hello World</div>
+          <p style="line-height:1.8;margin:10px 0;color:#37352f;">A <strong>lightweight</strong> editor</p>
+          <p style="margin:10px 0;"><code style="background:#f5f5f5;padding:2px 8px;border-radius:4px;color:#c7254e;font-size:11px;border:1px solid #e8e8e8;">code</code> inline</p>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>B. 简洁书写风格</h3>
+      <p>受 Typora/Notion 启发，大量留白，柔和色调，让内容成为焦点。适合长时间写作。</p>
+      <div class="pros-cons">
+        <div class="pros"><h4>特点</h4><ul><li>干净舒适，适合写作</li><li>大行距，呼吸感强</li><li>轻量无干扰</li></ul></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Option C: Modern hybrid -->
+  <div class="card" data-choice="c" onclick="toggleSelect(this)">
+    <div class="card-image" style="padding:0;overflow:hidden;">
+      <div style="display:flex;height:280px;font-family:'Segoe UI',sans-serif;font-size:12px;">
+        <!-- Editor side -->
+        <div style="flex:1;background:#fbfbfd;display:flex;flex-direction:column;">
+          <div style="background:#fff;padding:8px 16px;display:flex;gap:4px;border-bottom:1px solid #e8eaed;align-items:center;">
+            <span style="background:#e8f0fe;color:#1a73e8;padding:5px 14px;border-radius:8px;font-size:11px;font-weight:500;">README.md</span>
+            <span style="color:#999;padding:5px 14px;font-size:11px;">notes.md</span>
+          </div>
+          <div style="flex:1;padding:16px 24px;color:#202124;line-height:1.9;">
+            <div><span style="color:#bbb;margin-right:18px;font-size:11px;">1</span><span style="color:#1a73e8;font-weight:600;font-size:14px;"># Hello World</span></div>
+            <div><span style="color:#bbb;margin-right:18px;font-size:11px;">2</span></div>
+            <div style="background:rgba(26,115,232,0.04);border-radius:4px;padding:0 4px;">
+              <span style="color:#bbb;margin-right:18px;font-size:11px;">3</span>A <span style="font-weight:600;">lightweight</span> editor
+            </div>
+            <div><span style="color:#bbb;margin-right:18px;font-size:11px;">4</span></div>
+            <div><span style="color:#bbb;margin-right:18px;font-size:11px;">5</span><span style="color:#d93025;background:#fce8e6;padding:1px 6px;border-radius:4px;font-size:11px;">code</span> inline</div>
+          </div>
+        </div>
+        <!-- Splitter -->
+        <div style="width:1px;background:#e8eaed;"></div>
+        <!-- Preview side -->
+        <div style="flex:1;background:#fff;padding:24px 28px;color:#202124;overflow:hidden;">
+          <div style="font-size:22px;font-weight:700;color:#202124;margin-bottom:10px;padding-bottom:8px;border-bottom:2px solid #1a73e8;">Hello World</div>
+          <p style="line-height:1.75;margin:10px 0;">A <strong>lightweight</strong> editor</p>
+          <p style="margin:10px 0;"><code style="background:#f1f3f4;padding:3px 8px;border-radius:6px;color:#d93025;font-size:11px;">code</code> inline</p>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>C. Material / Google 风格</h3>
+      <p>Google Material Design 语言，圆角元素，品牌色点缀，现代感与专业感并重。</p>
+      <div class="pros-cons">
+        <div class="pros"><h4>特点</h4><ul><li>现代感强，辨识度高</li><li>圆角 + 柔和阴影</li><li>品牌色为标题/代码增色</li></ul></div>
+      </div>
+    </div>
+  </div>
+</div>

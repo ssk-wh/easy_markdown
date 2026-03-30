@@ -4,14 +4,11 @@
   "version": "0.1.0",
   "nsiScript": "installer/SimpleMarkdown.nsi",
   "build": {
-    "command": "build_on_win.bat",
     "outputDir": "build/app",
     "exe": "SimpleMarkdown.exe"
   },
   "dist": {
-    "dir": "installer/dist",
-    "qtPlugins": ["platforms", "imageformats", "styles"],
-    "extraFiles": []
+    "dir": "installer/dist"
   },
   "output": "installer/SimpleMarkdown-0.1.0-Setup.exe"
 }

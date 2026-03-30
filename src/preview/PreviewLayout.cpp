@@ -11,10 +11,14 @@ PreviewLayout::PreviewLayout()
     m_monoFont = QFont("Consolas", 9);
     m_monoFont.setStyleHint(QFont::Monospace);
 
-    QFontMetricsF fm(m_baseFont);
-    m_lineHeight = fm.height() * 1.5;
-    QFontMetricsF fmCode(m_monoFont);
-    m_codeLineHeight = fmCode.height() * 1.4;
+    // [高 DPI 修复] 不在构造函数中计算行高
+    // 原因：构造函数中没有 device 参数，只能得到逻辑像素
+    // 当 updateMetrics(device) 被调用时，需要根据实际 DPI 重新计算
+    // 否则 DPI 改变时，初始值与 updateMetrics 值会使用不同基准，导致高度不一致
+    //
+    // 使用默认值，会在 updateMetrics 中被正确初始化
+    m_lineHeight = 24.0;    // 临时值，会被 updateMetrics 覆盖
+    m_codeLineHeight = 20.0; // 临时值，会被 updateMetrics 覆盖
 }
 
 PreviewLayout::~PreviewLayout() = default;
@@ -50,11 +54,14 @@ void PreviewLayout::updateMetrics(QPaintDevice* device)
     //   - 布局和绘制都必须使用相同的度量系统
     //   - 通过 viewport()->devicePixelRatioF() 获取当前 DPI 缩放比例
     //   - 在 updateMetrics 中显式传入 device 参数，确保行高计算使用正确的 DPI
-    //   - 所有涉及像素级别的 QFontMetricsF 都应该带 device 参数
+    //   - 所有涉及像素级别的 QFontMetricsF 都应该带 device 参数（包括 estimateParagraphHeight）
     //
     // 相关代码位置：
     //   - PreviewPainter.cpp 第 96 行：代码块渲染时也使用 device 参数
+    //   - PreviewLayout.cpp 高度估计：estimateParagraphHeight 也使用 m_device
     //   - PreviewWidget.cpp：在 resizeEvent、paintEvent 等地方调用 updateMetrics
+
+    m_device = device;  // [高 DPI 修复] 保存 device 用于高度估计
 
     QFontMetricsF fm(m_baseFont, device);
     m_lineHeight = fm.height() * 1.5;
@@ -374,14 +381,21 @@ qreal PreviewLayout::estimateParagraphHeight(const std::vector<InlineRun>& runs,
     if (runs.empty()) return m_lineHeight;
 
     qreal totalWidth = 0;
-    // [高 DPI 修复] 高度估计使用统一的 m_lineHeight，保证与 updateMetrics 的一致性
-    // 原因：
-    //   - m_lineHeight 在 updateMetrics 中已根据 device DPI 调整
-    //   - 不应该在这里基于 device 创建新的 QFontMetricsF，否则高 DPI 屏上会不一致
+    // [高 DPI 修复] 高度估计中的 maxRunHeight 必须与 m_lineHeight 使用同一个度量系统
+    // 关键：m_lineHeight 在 updateMetrics 中根据 device DPI 计算，
+    //       所以 estimateParagraphHeight 中的 maxRunHeight 也必须使用同一个 device
     //
-    // 改进：考虑混合字体大小，但使用逻辑像素进行相对比较
-    //   - 避免在 DPI 改变时高度波动
-    //   - 仍然考虑某些特大字体（如标题中的粗体）
+    // 修复前的问题：
+    //   - updateMetrics(device) 计算的 m_lineHeight 使用物理像素度量
+    //   - estimateParagraphHeight 中的 maxRunHeight 用的逻辑像素度量
+    //   - DPI 切换时（B→A），比较 maxRunHeight > m_lineHeight * 0.8 变得无效
+    //   - 导致高度估计不足，块重合
+    //
+    // 修复方案：
+    //   - estimateParagraphHeight 中也使用 m_device 参数创建 QFontMetricsF
+    //   - 这样 maxRunHeight 与 m_lineHeight 使用相同的度量单位
+    //   - DPI 切换时两者会同步调整，比较结果正确
+
     qreal lineHeight = m_lineHeight;
     int newlineCount = 0;
     qreal maxRunHeight = 0.0;
@@ -391,7 +405,14 @@ qreal PreviewLayout::estimateParagraphHeight(const std::vector<InlineRun>& runs,
             newlineCount++;
             continue;
         }
-        QFontMetricsF fm(run.font);  // 逻辑像素（无 device 参数）
+        // [高 DPI 修复] 必须使用与 m_lineHeight 相同的度量系统！
+        // 上面注释（行394-397）已明确说明需要使用 m_device 参数
+        // 如果这里用逻辑像素而 m_lineHeight 用物理像素，DPI 切换时会导致高度估计不足
+        // 原因：
+        //   - updateMetrics 中 m_lineHeight = fm.height() * 1.5（物理像素）
+        //   - 这里如果用逻辑像素的 fm.height()，DPI 改变时两者单位变得不一致
+        //   - 比较 maxRunHeight > m_lineHeight * 0.8 失效，导致块重合
+        QFontMetricsF fm(run.font, m_device);  // [高 DPI 修复] 必须与 m_lineHeight 使用相同度量系统
         totalWidth += fm.horizontalAdvance(run.text);
 
         // 记录最大的字体高度，用于混合字体情况下的调整
@@ -399,8 +420,7 @@ qreal PreviewLayout::estimateParagraphHeight(const std::vector<InlineRun>& runs,
     }
 
     // 如果最大字体高度明显大于基础行高，增加估计高度
-    // 这保证了混合大小字体的高度足够，同时避免 DPI 问题
-    // （因为 maxRunHeight 和 m_lineHeight 都在同一个 DPI 基准上）
+    // 现在 maxRunHeight 和 m_lineHeight 使用相同的 DPI 度量，比较有效
     if (maxRunHeight > m_lineHeight * 0.8) {
         lineHeight = maxRunHeight * 1.5;
     }

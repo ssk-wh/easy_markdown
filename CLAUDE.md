@@ -104,6 +104,41 @@ for (const auto& run : runs) {
 - [ ] 在 DPI 改变时（resizeEvent、updateMetrics）同步重新计算
 - [ ] 在 1x、1.25x、1.5x DPI 屏幕都验证过
 
+### 初始化一致性陷阱（必读）
+
+**关键教训**：构造函数中的初始化与 updateMetrics 中的重新计算**必须使用相同的度量基准**。
+
+**问题场景**：
+```cpp
+// ✗ 错误：构造函数中无 device 参数 → 逻辑像素
+PreviewLayout::PreviewLayout() {
+    QFontMetricsF fm(font);  // 逻辑像素
+    m_height = fm.height() * 1.4;  // = 22.4px (逻辑)
+}
+
+// ✗ updateMetrics 中有 device 参数 → 物理像素
+void updateMetrics(QPaintDevice* device) {
+    QFontMetricsF fm(font, device);  // 物理像素
+    m_height = fm.height() * 1.4;  // = 33.6px (1.5x DPI)
+}
+
+// 后果：DPI 切换时 m_height 从 33.6px 变成 22.4px，下降 33%
+```
+
+**修复方案**：延迟所有涉及 DPI 的初始化到 updateMetrics
+```cpp
+// ✓ 正确：构造函数只设置临时值
+PreviewLayout::PreviewLayout() {
+    m_height = 20.0;  // 临时值，会被 updateMetrics 覆盖
+}
+
+// ✓ updateMetrics 中使用实际 device 计算
+void updateMetrics(QPaintDevice* device) {
+    QFontMetricsF fm(font, device);
+    m_height = fm.height() * 1.4;  // 正确的物理像素值
+}
+```
+
 ---
 
 ## 坐标系统设计原则
@@ -232,6 +267,51 @@ qreal segW = fm.horizontalAdvance(run.text) + hPad * 2;
 | CMake cache 过期 | 删除 `build/CMakeCache.txt` 后重建 |
 | 编译找不到 Qt | 检查 `CMakeCache.txt` 中的 `Qt5_DIR` 路径 |
 | 安装包大小异常 | 运行 `collect_dist.py` 检查是否包含了 debug DLL |
+| 安装包无法启动 | 检查 exe 时间戳（见下方打包规范） |
+
+### 打包规范和问题诊断
+
+**关键教训**：打包时使用了旧的编译产物（exe 时间戳为过去的日期）会导致安装包包含过时代码，应用无法启动
+
+**编译 → 打包的完整流程**：
+
+```
+1. 代码修改
+   ↓
+2. 编译：build_on_win.bat release
+   ✓ 检查：build\app\SimpleMarkdown.exe 时间戳 = 当前日期时间
+   ✓ 如果时间戳是旧日期，说明之前编译失败，需要重新编译
+   ↓
+3. 收集依赖：python installer\collect_dist.py
+   ✓ 自动 copy 最新的 exe 到 dist/
+   ✓ 检查：installer\dist\SimpleMarkdown.exe 时间戳应与上面一致
+   ↓
+4. 打包：makensis installer\SimpleMarkdown.nsi
+   ↓
+5. 验证：运行 installer\dist\SimpleMarkdown.exe 测试启动
+   ✓ 应该能正常启动应用界面
+```
+
+**版本号管理**：
+- 修改代码后应在 `.nsis-config.json` 中更新 `version` 字段
+- 同时更新 `CHANGELOG.md`
+- NSIS 脚本会自动使用配置中的版本号生成安装包名
+
+**诊断无法启动问题**：
+
+```batch
+REM 检查 exe 时间戳
+for /F %%A in ('powershell -Command "(Get-Item build\app\SimpleMarkdown.exe).LastWriteTime.ToString()"') do echo Build exe: %%A
+for /F %%A in ('powershell -Command "(Get-Item installer\dist\SimpleMarkdown.exe).LastWriteTime.ToString()"') do echo Dist exe: %%A
+
+REM 如果时间戳不一致或都很旧，需要重新编译：
+build_on_win.bat clean
+build_on_win.bat release
+python installer\collect_dist.py
+
+REM 然后测试
+installer\dist\SimpleMarkdown.exe
+```
 
 ---
 

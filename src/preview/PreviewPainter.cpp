@@ -1,6 +1,9 @@
 #include "PreviewPainter.h"
 
 #include <QFontMetricsF>
+#include <QFile>
+#include <QTextStream>
+#include <QStandardPaths>
 
 PreviewPainter::PreviewPainter()
     : m_theme(Theme::light())
@@ -39,12 +42,30 @@ void PreviewPainter::paint(QPainter* painter, const LayoutBlock& root,
     m_textSegments.clear();
     m_charCounter = 0;
 
+#ifdef ENABLE_TEST_MODE
+    m_blockInfos.clear();
+
+    // [测试模式调试] 输出调试信息
+    QString debugPath = QStandardPaths::writableLocation(QStandardPaths::TempLocation) + "/render_blocks_debug.txt";
+    QFile debugFile(debugPath);
+    if (debugFile.open(QIODevice::WriteOnly | QIODevice::Text | QIODevice::Append)) {
+        QTextStream stream(&debugFile);
+        stream << QString("paint() called: viewport=%1x%2\n")
+                  .arg((int)viewportWidth).arg((int)viewportHeight);
+        debugFile.close();
+    }
+#endif
+
     painter->setRenderHint(QPainter::Antialiasing, true);
     painter->setRenderHint(QPainter::TextAntialiasing, true);
 
     for (const auto& child : root.children) {
         paintBlock(painter, child, 0, 0, scrollY, viewportHeight, viewportWidth);
     }
+
+#ifdef ENABLE_TEST_MODE
+    saveBlocksToJson((int)viewportWidth, (int)viewportHeight);
+#endif
 }
 
 void PreviewPainter::paintBlock(QPainter* p, const LayoutBlock& block,
@@ -64,6 +85,33 @@ void PreviewPainter::paintBlock(QPainter* p, const LayoutBlock& block,
     // Translate to viewport coordinates
     qreal drawX = absX;
     qreal drawY = absY - scrollY;
+
+#ifdef ENABLE_TEST_MODE
+    // [测试模式] 记录块信息供自动化测试验证
+    BlockInfo blockInfo;
+    blockInfo.x = (int)drawX;
+    blockInfo.y = (int)drawY;
+    blockInfo.width = (int)block.bounds.width();
+    blockInfo.height = (int)block.bounds.height();
+    blockInfo.headingLevel = block.headingLevel;
+    blockInfo.listLevel = 0;  // LayoutBlock 没有 listLevel，仅用于兼容 BlockInfo
+
+    // 确定块类型名称
+    switch (block.type) {
+    case LayoutBlock::Paragraph: blockInfo.type = "paragraph"; break;
+    case LayoutBlock::Heading: blockInfo.type = "heading"; break;
+    case LayoutBlock::CodeBlock: blockInfo.type = "code_block"; break;
+    case LayoutBlock::HtmlBlock: blockInfo.type = "html_block"; break;
+    case LayoutBlock::BlockQuote: blockInfo.type = "blockquote"; break;
+    case LayoutBlock::List: blockInfo.type = "list"; break;
+    case LayoutBlock::ListItem: blockInfo.type = "list_item"; break;
+    case LayoutBlock::Table: blockInfo.type = "table"; break;
+    case LayoutBlock::Image: blockInfo.type = "image"; break;
+    case LayoutBlock::ThematicBreak: blockInfo.type = "thematic_break"; break;
+    default: blockInfo.type = "unknown"; break;
+    }
+    m_blockInfos.append(blockInfo);
+#endif
 
     switch (block.type) {
     case LayoutBlock::Paragraph: {
@@ -457,3 +505,68 @@ void PreviewPainter::countBlockChars(const LayoutBlock& block)
         countBlockChars(child);
     }
 }
+
+#ifdef ENABLE_TEST_MODE
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QJsonArray>
+#include <QFile>
+#include <QStandardPaths>
+#include <QDateTime>
+
+void PreviewPainter::saveBlocksToJson(int viewportWidth, int viewportHeight) const
+{
+    // [测试模式调试] 输出调试信息到临时文件
+    QString debugPath = QStandardPaths::writableLocation(QStandardPaths::TempLocation) + "/render_blocks_debug.txt";
+    QFile debugFile(debugPath);
+    if (debugFile.open(QIODevice::WriteOnly | QIODevice::Text | QIODevice::Append)) {
+        QTextStream stream(&debugFile);
+        stream << QString("saveBlocksToJson called: blocks=%1, viewport=%2x%3\n")
+                  .arg(m_blockInfos.size()).arg(viewportWidth).arg(viewportHeight);
+        debugFile.close();
+    }
+
+    if (m_blockInfos.isEmpty()) {
+        return;  // 没有块信息，不需要保存
+    }
+
+    QJsonArray blocksArray;
+    for (const auto& blockInfo : m_blockInfos) {
+        QJsonObject blockObj;
+        blockObj["type"] = blockInfo.type;
+        blockObj["x"] = blockInfo.x;
+        blockObj["y"] = blockInfo.y;
+        blockObj["width"] = blockInfo.width;
+        blockObj["height"] = blockInfo.height;
+        if (blockInfo.headingLevel > 0) {
+            blockObj["heading_level"] = blockInfo.headingLevel;
+        }
+        if (blockInfo.listLevel > 0) {
+            blockObj["list_level"] = blockInfo.listLevel;
+        }
+        blocksArray.append(blockObj);
+    }
+
+    QJsonObject rootObj;
+    rootObj["timestamp"] = QDateTime::currentDateTimeUtc().toString(Qt::ISODate);
+    rootObj["viewport_width"] = viewportWidth;
+    rootObj["viewport_height"] = viewportHeight;
+    rootObj["blocks"] = blocksArray;
+
+    QJsonDocument doc(rootObj);
+
+    // 保存到应用临时目录下
+    QString outputPath;
+#ifdef Q_OS_WIN
+    outputPath = QStandardPaths::writableLocation(QStandardPaths::TempLocation) + "/render_blocks.json";
+#else
+    outputPath = QStandardPaths::writableLocation(QStandardPaths::TempLocation) + "/render_blocks.json";
+#endif
+
+    QFile file(outputPath);
+    if (file.open(QIODevice::WriteOnly | QIODevice::Text)) {
+        file.write(doc.toJson());
+        file.close();
+    }
+}
+#endif
