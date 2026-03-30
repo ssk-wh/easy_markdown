@@ -2,10 +2,12 @@
 
 ## 待办
 
-- [ ] 编译并验证列表序号修复 — PreviewPainter.cpp
-  - 问题根因：ddf6290 中的修复错误地重复应用了 ListItem.bounds.x()
-  - 修复方案：回到 bd910e7 的逻辑（bulletX = drawX），但保留 device 参数
-  - 需要编译后验证排列是否正确对齐
+- [ ] 编译应用并验证列表对齐修复
+  - 提交：43d1c78 修正了 ddf6290 的错误
+  - 根本原因：重复应用 ListItem.bounds.x()，导致序号 vs 内容相差 44px
+  - 现在改回：bulletX = drawX，paintBlock(p, child, absX, itemAbsY, ...)
+  - 期望结果：序号和内容对齐（相差 24px，正常的缩进）
+  - 验证步骤：编译后运行列表测试，截图对比
 
 ## 进行中
 
