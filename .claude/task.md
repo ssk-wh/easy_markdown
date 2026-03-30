@@ -2,6 +2,11 @@
 
 ## 待办
 
+- [ ] 改进编译流程 - 自动复制 Qt DLL 到 build/app（沉淀经验）
+  - 根本原因：NMake 生成的 exe 不会自动复制 DLL 依赖，需要手动设置 PATH 或复制文件
+  - 解��方案：修改 build_on_win.bat 或 CMakeLists.txt 自动调用 copy_qt_dlls.py
+  - 参考：copy_qt_dlls.py 已创建，演示了如何从 CMake 缓存中找到 Qt 目录并复制 DLL
+
 ## 进行中
 
 ## 待验证（基于 CLAUDE.md 的已解决问题）

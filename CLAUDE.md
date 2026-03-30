@@ -364,6 +364,14 @@ Fixes: #123
 - [x] 打开文件时窗口未提升（2026-03-30 修复）
 - [x] 列表序号与文本基线不对齐（2026-03-30 修复 - 坐标系统统一）
 - [x] 高 DPI 屏上行间距不均匀（2026-03-30 修复 - 高度估计一致性）
+- [x] BlockQuote 和 List 容器块坐标传递不一致（2026-03-30 修复）
+  - 根本原因：paintBlock 递归时只传递 Y 偏移，未考虑容器块的 X 偏移
+  - 症状：嵌套块（如引用内的列表）渲染位置错误；列表序号在 X=0，内容在 X=24
+  - 修复方案（4073b22）：
+    * BlockQuote case：添加 `childAbsX = absX + child.bounds.x()`
+    * List case：添加 `itemAbsX = absX + child.bounds.x()`
+    * Table case 已正确实现
+  - 原因分析：布局阶段对容器内的子块应用 moveLeft(offset)，导致 bounds.x() ≠ 0，但渲染时未加上这个偏移
 
 ### 待观察
 
