@@ -3,6 +3,7 @@
 #include <QWidget>
 #include <QVector>
 #include <QString>
+#include <QSet>
 #include "Theme.h"
 
 class QPushButton;
@@ -38,6 +39,7 @@ public:
     void setEntries(const QVector<TocEntry>& entries);
     void setTheme(const Theme& theme);
     void reposition();
+    void setHighlightedEntries(const QSet<int>& indices);
 
 signals:
     void headingClicked(int sourceLine);
@@ -57,4 +59,5 @@ private:
     QVector<TocEntry> m_entries;
     Theme m_theme;
     bool m_panelVisible = false;
+    QSet<int> m_highlightedEntries;
 };

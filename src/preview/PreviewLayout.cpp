@@ -374,23 +374,35 @@ qreal PreviewLayout::estimateParagraphHeight(const std::vector<InlineRun>& runs,
     if (runs.empty()) return m_lineHeight;
 
     qreal totalWidth = 0;
-    // [高 DPI 修复] 高度估计必须使用 m_lineHeight，保持与 updateMetrics 的一致性
+    // [高 DPI 修复] 高度估计使用统一的 m_lineHeight，保证与 updateMetrics 的一致性
     // 原因：
-    //   - m_lineHeight 在 updateMetrics 中已经根据 device DPI 调整
-    //   - 这里不应该基于每个 run 重新计算行高，因为没有 device 信息
-    //   - 否则高 DPI 屏上会导致估计高度与实际高度不匹配
-    // 注意：这样做会放弃对某些混合字体大小的优化，但能保证 DPI 一致性
+    //   - m_lineHeight 在 updateMetrics 中已根据 device DPI 调整
+    //   - 不应该在这里基于 device 创建新的 QFontMetricsF，否则高 DPI 屏上会不一致
+    //
+    // 改进：考虑混合字体大小，但使用逻辑像素进行相对比较
+    //   - 避免在 DPI 改变时高度波动
+    //   - 仍然考虑某些特大字体（如标题中的粗体）
     qreal lineHeight = m_lineHeight;
     int newlineCount = 0;
+    qreal maxRunHeight = 0.0;
 
     for (const auto& run : runs) {
         if (run.text == "\n") {
             newlineCount++;
             continue;
         }
-        QFontMetricsF fm(run.font);
+        QFontMetricsF fm(run.font);  // 逻辑像素（无 device 参数）
         totalWidth += fm.horizontalAdvance(run.text);
-        // 不再根据 run 的字体重新计算 lineHeight，确保使用统一的 m_lineHeight
+
+        // 记录最大的字体高度，用于混合字体情况下的调整
+        maxRunHeight = qMax(maxRunHeight, fm.height());
+    }
+
+    // 如果最大字体高度明显大于基础行高，增加估计高度
+    // 这保证了混合大小字体的高度足够，同时避免 DPI 问题
+    // （因为 maxRunHeight 和 m_lineHeight 都在同一个 DPI 基准上）
+    if (maxRunHeight > m_lineHeight * 0.8) {
+        lineHeight = maxRunHeight * 1.5;
     }
 
     int wrappedLines = qMax(1, static_cast<int>(qCeil(totalWidth / qMax(maxWidth, 1.0))));

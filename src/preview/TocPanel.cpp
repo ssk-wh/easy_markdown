@@ -70,6 +70,13 @@ void TocPanel::setEntries(const QVector<TocEntry>& entries)
         buildList();
 }
 
+void TocPanel::setHighlightedEntries(const QSet<int>& indices)
+{
+    m_highlightedEntries = indices;
+    if (m_panelVisible)
+        buildList();
+}
+
 void TocPanel::setTheme(const Theme& theme)
 {
     m_theme = theme;
@@ -169,16 +176,22 @@ void TocPanel::buildList()
         int fontSize = entry.level == 1 ? 12 : 11;
         QColor itemFg = entry.level <= 2 ? fg : subFg;
 
+        // 检查是否是标记条目
+        QString normalBg = "transparent";
+        if (m_highlightedEntries.contains(i)) {
+            normalBg = m_theme.previewHighlightToc.name(QColor::HexArgb);
+        }
+
         btn->setStyleSheet(QString(
             "QPushButton {"
             "  padding: 5px 8px 5px %1px;"
             "  color: %2; font-size: %3px;"
-            "  border: none; border-radius: 3px; background: transparent;"
+            "  border: none; border-radius: 3px; background: %6;"
             "  text-align: left;"
             "}"
             "QPushButton:hover { background: %4; color: %5; }"
         ).arg(8 + indent).arg(itemFg.name()).arg(fontSize)
-         .arg(hoverBg.name(), hoverFg.name()));
+         .arg(hoverBg.name(), hoverFg.name(), normalBg));
 
         int sourceLine = entry.sourceLine;
         connect(btn, &QPushButton::clicked, this, [this, sourceLine]() {

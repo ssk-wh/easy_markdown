@@ -2,6 +2,8 @@
 
 #include <QAbstractScrollArea>
 #include <memory>
+#include <QPair>
+#include <QVector>
 #include "Theme.h"
 
 class AstNode;
@@ -43,6 +45,10 @@ private:
     void extractBlockText(const struct LayoutBlock& block, QString& out) const;
     int textIndexAtPoint(const QPointF& point) const;
     void copySelection();
+    void addHighlight();
+    void clearHighlights();
+    void updateTocHighlights();
+    void buildHeadingCharOffsets();
 
     Theme m_theme;
     PreviewLayout* m_layout = nullptr;
@@ -61,4 +67,8 @@ private:
     // 目录面板
     TocPanel* m_tocPanel = nullptr;
     void updateTocEntries();
+
+    // 标记高亮
+    QVector<QPair<int,int>> m_highlights;              // (start, end) 字符范围
+    QVector<int> m_headingCharOffsets;                 // 每个标题的起始字符位置（与 TOC 条目一一对应）
 };

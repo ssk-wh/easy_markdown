@@ -48,6 +48,8 @@ struct Theme {
     QColor previewImagePlaceholderBg = QColor("#F0F0F0");
     QColor previewImagePlaceholderBorder = QColor("#CCCCCC");
     QColor previewImagePlaceholderText = QColor("#999999");
+    QColor previewHighlight = QColor(255, 235, 59, 180);     // 标记高亮（浅色）
+    QColor previewHighlightToc = QColor(255, 235, 59, 120);  // TOC标记（浅色）
 
     static Theme light();
     static Theme dark();

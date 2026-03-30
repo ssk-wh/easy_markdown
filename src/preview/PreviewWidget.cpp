@@ -416,10 +416,11 @@ void PreviewWidget::extractBlockText(const LayoutBlock& block, QString& out) con
 }
 
 // 在段内使用字体度量逐字精确定位字符索引
-static int hitTestSegment(const TextSegment& seg, qreal relX)
+// device 参数必须传入，以确保高 DPI 下的度量与绘制时一致
+static int hitTestSegment(const TextSegment& seg, qreal relX, QPaintDevice* device)
 {
     if (seg.text.isEmpty()) return seg.charStart;
-    QFontMetricsF fm(seg.font);
+    QFontMetricsF fm(seg.font, device);  // 使用 device 参数确保度量一致
     for (int i = 0; i < seg.text.length(); ++i) {
         qreal w = fm.horizontalAdvance(seg.text.left(i + 1));
         if (relX < w) {
@@ -436,12 +437,15 @@ int PreviewWidget::textIndexAtPoint(const QPointF& point) const
     if (segments.isEmpty())
         return 0;
 
+    // 获取 device 以确保高 DPI 下的度量一致性
+    QPaintDevice* device = viewport();
+
     int closest = 0;
     qreal closestDist = std::numeric_limits<qreal>::max();
 
     for (const auto& seg : segments) {
         if (seg.rect.contains(point)) {
-            return hitTestSegment(seg, point.x() - seg.rect.x());
+            return hitTestSegment(seg, point.x() - seg.rect.x(), device);
         }
 
         // 计算点到矩形的 2D 距离（解决表格单元格间隙定位问题）
@@ -464,7 +468,7 @@ int PreviewWidget::textIndexAtPoint(const QPointF& point) const
             else if (point.x() <= seg.rect.left())
                 closest = seg.charStart;
             else
-                closest = hitTestSegment(seg, point.x() - seg.rect.x());
+                closest = hitTestSegment(seg, point.x() - seg.rect.x(), device);
         }
     }
 

@@ -6,6 +6,7 @@
 #include <QPainter>
 #include <QVector>
 #include <QRectF>
+#include <QPair>
 
 struct TextSegment {
     QRectF rect;       // 屏幕坐标（相对于 viewport，已减 scrollY）
@@ -31,6 +32,9 @@ public:
     // 选区绘制
     void setSelection(int selStart, int selEnd);
 
+    // 标记高亮
+    void setHighlights(const QVector<QPair<int,int>>& highlights);
+
 private:
     void paintBlock(QPainter* p, const LayoutBlock& block,
                     qreal offsetX, qreal offsetY,
@@ -46,4 +50,5 @@ private:
     int m_charCounter = 0;  // 绘制期间的字符计数器
     int m_selStart = -1;
     int m_selEnd = -1;
+    QVector<QPair<int,int>> m_highlights;  // 标记高亮范围 (start, end)
 };

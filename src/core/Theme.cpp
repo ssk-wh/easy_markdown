@@ -54,6 +54,8 @@ Theme Theme::dark() {
     t.previewImagePlaceholderBg = QColor("#2D2D2D");
     t.previewImagePlaceholderBorder = QColor("#444444");
     t.previewImagePlaceholderText = QColor("#808080");
+    t.previewHighlight = QColor(255, 167, 38, 120);        // 橙黄色
+    t.previewHighlightToc = QColor(180, 120, 0, 150);      // 深金黄
 
     return t;
 }
