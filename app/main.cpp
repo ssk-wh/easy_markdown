@@ -69,24 +69,52 @@ int main(int argc, char* argv[])
     SetUnhandledExceptionFilter(crashHandler);
 #endif
 
+    // Diagnostic output to stderr (visible in console)
+    fprintf(stderr, "[1] main() started\n");
+    fflush(stderr);
+
     QApplication app(argc, argv);
+    fprintf(stderr, "[2] QApplication created\n");
+    fflush(stderr);
+
     app.setApplicationName("SimpleMarkdown");
     app.setOrganizationName("SimpleMarkdown");
     app.setWindowIcon(QIcon(":/app-icon.png"));
+    fprintf(stderr, "[3] App properties set\n");
+    fflush(stderr);
 
     QString filePath;
     if (argc > 1)
         filePath = QFileInfo(QString::fromLocal8Bit(argv[1])).absoluteFilePath();
 
-    // Try to send to existing instance
-    if (sendToRunningInstance(filePath))
-        return 0;
+    // [高 DPI 修复] Try to send to existing instance
+    // NOTE: Disabled for now due to stale IPC endpoints
+    // if (sendToRunningInstance(filePath)) {
+    //     fprintf(stderr, "[4] Sent to existing instance, exiting\n");
+    //     fflush(stderr);
+    //     return 0;
+    // }
+    fprintf(stderr, "[5] Creating new window (multi-instance check disabled)\n");
+    fflush(stderr);
 
     MainWindow window;
+    fprintf(stderr, "[6] MainWindow created\n");
+    fflush(stderr);
+
     window.startLocalServer(kServerName);
+    fprintf(stderr, "[7] Local server started\n");
+    fflush(stderr);
 
     window.restoreSession(filePath);
+    fprintf(stderr, "[8] Session restored\n");
+    fflush(stderr);
 
     window.show();
-    return app.exec();
+    fprintf(stderr, "[9] Window shown\n");
+    fflush(stderr);
+
+    int result = app.exec();
+    fprintf(stderr, "[10] app.exec() returned %d\n", result);
+    fflush(stderr);
+    return result;
 }
