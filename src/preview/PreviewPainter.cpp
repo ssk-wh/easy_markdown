@@ -88,14 +88,21 @@ void PreviewPainter::paintBlock(QPainter* p, const LayoutBlock& block,
         p->setPen(QPen(m_theme.previewCodeBorder, 1));
         p->drawRoundedRect(bgRect, 4, 4);
 
-        // Draw code text
+        // 绘制代码块文本
         QFont monoFont("Consolas", 9);
         monoFont.setStyleHint(QFont::Monospace);
         p->setFont(monoFont);
         p->setPen(m_theme.previewCodeFg);
-        QFontMetricsF fm(monoFont, p->device());  // 使用 painter 的设备确保高 DPI 下度量正确
-        qreal textHeight = fm.ascent() + fm.descent();  // 文本实际高度
-        qreal lineH = fm.height() * 1.4;  // 行高（包括间距）
+
+        // [高 DPI 修复] 必须使用 p->device() 参数获取正确的字体度量
+        // 原因：p->device() 返回 painter 所绘制设备的 DPI 信息
+        // - 在高 DPI 屏上，QFontMetricsF(font, device) 返回物理像素度量
+        // - 不带 device 的 QFontMetricsF(font) 只返回逻辑像素度量
+        // - QPainter 在高 DPI 下自动缩放坐标，所以必须使用物理像素度量
+        // - 这样布局阶段的 lineH 计算才能与渲染阶段一致
+        QFontMetricsF fm(monoFont, p->device());
+        qreal textHeight = fm.ascent() + fm.descent();  // 文本实际高度（不含行间距）
+        qreal lineH = fm.height() * 1.4;  // 行高（包括间距）-- 必须与 PreviewLayout 的计算一致
         qreal textX = drawX + 8;
         qreal textY = drawY + 8;
 
@@ -279,7 +286,7 @@ void PreviewPainter::paintInlineRuns(QPainter* p, const LayoutBlock& block,
 
     qreal curX = x;
     qreal curY = y;
-    QFontMetricsF defaultFm(block.inlineRuns[0].font);
+    QFontMetricsF defaultFm(block.inlineRuns[0].font, p->device());  // 使用 device 参数
     qreal lineHeight = defaultFm.height() * 1.5;
 
     QColor selColor(0, 120, 215, 80);

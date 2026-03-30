@@ -322,11 +322,17 @@ void MainWindow::restoreSession(const QString& requestedFile)
 
 void MainWindow::openFile(const QString& path)
 {
-    // Check if already open in a tab
+    // 检查文件是否已在某个标签页打开
     for (int i = 0; i < m_tabs.size(); ++i) {
         if (m_tabs[i].editor->document()->filePath() == QFileInfo(path).absoluteFilePath()) {
             m_tabWidget->setCurrentIndex(i);
-            // 如果文件已打开，切换到该标签页后提升窗口
+
+            // [修复] 如果文件已打开，切换到该标签页后必须提升窗口
+            // 场景：用户在浏览器中打开 markdown 文件时，应用加载文件但窗口被其他应用遮挡
+            // 解决方案：通过以下三个步骤确保窗口被置于最前：
+            // 1. setWindowState - 恢复最小化状态并设置活跃状态
+            // 2. raise() - 在 Z 序中将窗口提升到最前
+            // 3. activateWindow() - 确保窗口获得键盘焦点
             setWindowState((windowState() & ~Qt::WindowMinimized) | Qt::WindowActive);
             raise();
             activateWindow();
@@ -334,6 +340,7 @@ void MainWindow::openFile(const QString& path)
         }
     }
 
+    // 创建新标签页并加载文件
     TabData tab = createTab();
     int index = m_tabWidget->addTab(tab.splitter, QFileInfo(path).fileName());
     m_tabs.append(tab);
@@ -345,7 +352,8 @@ void MainWindow::openFile(const QString& path)
     m_recentFiles->addFile(path);
     updateTabTitle(index);
 
-    // 加载新文件后提升窗口，确保用户能看到
+    // [修复] 加载新文件后必须提升窗口，确保用户能看到
+    // 这特别重要，因为从文件管理器、浏览器等外部应用打开时，本应用可能在后台
     setWindowState((windowState() & ~Qt::WindowMinimized) | Qt::WindowActive);
     raise();
     activateWindow();

@@ -33,7 +33,29 @@ void PreviewLayout::setFont(const QFont& baseFont)
 
 void PreviewLayout::updateMetrics(QPaintDevice* device)
 {
-    // 在高 DPI 下，必须使用 device 参数确保字体度量与渲染一致
+    // [重要修复] 高 DPI 字体度量同步
+    //
+    // 问题背景：
+    //   - 在高 DPI 屏幕（1.25x、1.5x）上，布局阶段计算的行高与实际渲染的行高不一致
+    //   - 导致代码块下方出现多余的空白区域
+    //   - 问题只在 DPI 切换（从 1x 屏移到高 DPI 屏）时出现
+    //
+    // 根本原因：
+    //   - QFontMetricsF(font) 返回逻辑像素的字体度量
+    //   - QFontMetricsF(font, device) 返回基于设备 DPI 的物理像素度量
+    //   - QPainter 在高 DPI 下会自动缩放坐标，但布局的行高计算如果用逻辑像素，
+    //     就会与 QPainter 的物理像素坐标系不匹配，导致高度偏差
+    //
+    // 解决方案：
+    //   - 布局和绘制都必须使用相同的度量系统
+    //   - 通过 viewport()->devicePixelRatioF() 获取当前 DPI 缩放比例
+    //   - 在 updateMetrics 中显式传入 device 参数，确保行高计算使用正确的 DPI
+    //   - 所有涉及像素级别的 QFontMetricsF 都应该带 device 参数
+    //
+    // 相关代码位置：
+    //   - PreviewPainter.cpp 第 96 行：代码块渲染时也使用 device 参数
+    //   - PreviewWidget.cpp：在 resizeEvent、paintEvent 等地方调用 updateMetrics
+
     QFontMetricsF fm(m_baseFont, device);
     m_lineHeight = fm.height() * 1.5;
     QFontMetricsF fmCode(m_monoFont, device);
