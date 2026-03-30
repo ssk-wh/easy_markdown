@@ -1,6 +1,7 @@
 #include "PreviewPainter.h"
 
 #include <QFontMetricsF>
+#include <QDebug>
 
 PreviewPainter::PreviewPainter()
     : m_theme(Theme::light())
@@ -340,6 +341,18 @@ void PreviewPainter::paintInlineRuns(QPainter* p, const LayoutBlock& block,
             // 文本范围 Y：从 curY 到 curY + fm.height()
             // 背景、选区高亮必须使用一致的高度，避免 DPI 切换时产生空白
             qreal textHeight = fm.height();  // 文本实际高度
+
+            // DEBUG：输出 backtick 的宽度
+            if (hasBg && (seg.contains("QFuture") || seg.contains("Future"))) {
+                qDebug() << "[BACKTICK DEBUG] seg=" << seg
+                         << "segW=" << segW
+                         << "fm.horizontalAdvance(seg)=" << fm.horizontalAdvance(seg)
+                         << "curX=" << curX
+                         << "textHeight=" << textHeight
+                         << "fm.height()=" << fm.height()
+                         << "DPR=" << p->device()->devicePixelRatioF();
+            }
+
             if (hasBg) {
                 p->fillRect(QRectF(curX, curY, segW, textHeight), run.bgColor);
             }

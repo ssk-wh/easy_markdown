@@ -58,6 +58,13 @@ void PreviewWidget::updateAst(std::shared_ptr<AstNode> root)
 {
     m_currentAst = std::move(root);
 
+    // 初始化 DPI 度量（重要：在布局计算前同步，避免高 DPI 初始化错误）
+    qreal currentDpr = viewport()->devicePixelRatioF();
+    if (m_lastDevicePixelRatio <= 0) {
+        m_lastDevicePixelRatio = currentDpr;
+        m_layout->updateMetrics(viewport());
+    }
+
     qreal contentWidth = m_wordWrap ? (viewport()->width() - 40) : 10000;
     if (contentWidth < 100) contentWidth = 100;
 
@@ -116,6 +123,14 @@ void PreviewWidget::paintEvent(QPaintEvent* /*event*/)
 void PreviewWidget::resizeEvent(QResizeEvent* event)
 {
     QAbstractScrollArea::resizeEvent(event);
+
+    // 同步 DPI 度量，确保高 DPI 初始化正确
+    qreal currentDpr = viewport()->devicePixelRatioF();
+    if (!qFuzzyCompare(currentDpr, m_lastDevicePixelRatio)) {
+        m_lastDevicePixelRatio = currentDpr;
+        m_layout->updateMetrics(viewport());
+    }
+
     rebuildLayout();
     m_tocPanel->reposition();
 }
