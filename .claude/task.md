@@ -2,6 +2,11 @@
 
 ## 待办
 
+- [ ] 编译并验证列表序号修复 — PreviewPainter.cpp
+  - 问题根因：ddf6290 中的修复错误地重复应用了 ListItem.bounds.x()
+  - 修复方案：回到 bd910e7 的逻辑（bulletX = drawX），但保留 device 参数
+  - 需要编译后验证排列是否正确对齐
+
 ## 进行中
 
 ## 待验证（基于 CLAUDE.md 的已解决问题）

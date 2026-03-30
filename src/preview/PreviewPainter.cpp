@@ -219,28 +219,22 @@ void PreviewPainter::paintBlock(QPainter* p, const LayoutBlock& block,
         for (const auto& child : block.children) {
             qreal itemAbsY = absY + child.bounds.y();
             qreal itemDrawY = itemAbsY - scrollY;
-            // [修复] 列表项内容已经被 moveLeft(indent) 移动过了
-            // 所以序号的 x 坐标应该也考虑这个偏移，确保与内容对齐
-            qreal itemAbsX = absX + child.bounds.x();  // 包含列表项的缩进偏移
-            qreal bulletX = itemAbsX - 20;  // 序号在内容左边 20px 处
+            qreal bulletX = drawX;
 
-            // [修复] 使用 device 参数确保高 DPI 下字体度量正确
             QFont baseFont("Segoe UI", 10);
             p->setFont(baseFont);
             p->setPen(m_theme.previewFg);
-            QFontMetricsF fm(baseFont, p->device());  // [高 DPI 修复] 添加 device 参数
+            QFontMetricsF fm(baseFont, p->device());
 
             if (block.ordered) {
                 QString num = QString::number(block.listStart + itemIndex) + ".";
                 p->drawText(QPointF(bulletX, itemDrawY + fm.ascent()), num);
             } else {
-                // Unicode bullet
                 p->drawText(QPointF(bulletX + 4, itemDrawY + fm.ascent()),
                             QStringLiteral("\u2022"));
             }
 
-            // Paint child block contents - 传入正确的项目绝对坐标（包含缩进）
-            paintBlock(p, child, itemAbsX, itemAbsY, scrollY, viewportHeight, viewportWidth);
+            paintBlock(p, child, absX, itemAbsY, scrollY, viewportHeight, viewportWidth);
             itemIndex++;
         }
         break;
