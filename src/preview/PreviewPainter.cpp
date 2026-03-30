@@ -219,15 +219,16 @@ void PreviewPainter::paintBlock(QPainter* p, const LayoutBlock& block,
         for (const auto& child : block.children) {
             qreal itemAbsY = absY + child.bounds.y();
             qreal itemDrawY = itemAbsY - scrollY;
-            qreal bulletX = drawX;
+            // [修复] 列表项内容已经被 moveLeft(indent) 移动过了
+            // 所以序号的 x 坐标应该也考虑这个偏移，确保与内容对齐
+            qreal itemAbsX = absX + child.bounds.x();  // 包含列表项的缩进偏移
+            qreal bulletX = itemAbsX - 20;  // 序号在内容左边 20px 处
 
-            // 修复：序号应该与列表项内容对齐，使用列表项的绝对 y 坐标
-            // 原因：ListItem 块的绝对坐标应该是 absY + child.bounds.y()
-            // 而不是沿用列表块的 absY，这样才能保证序号和内容的基线一致
+            // [修复] 使用 device 参数确保高 DPI 下字体度量正确
             QFont baseFont("Segoe UI", 10);
             p->setFont(baseFont);
             p->setPen(m_theme.previewFg);
-            QFontMetricsF fm(baseFont);
+            QFontMetricsF fm(baseFont, p->device());  // [高 DPI 修复] 添加 device 参数
 
             if (block.ordered) {
                 QString num = QString::number(block.listStart + itemIndex) + ".";
@@ -238,8 +239,8 @@ void PreviewPainter::paintBlock(QPainter* p, const LayoutBlock& block,
                             QStringLiteral("\u2022"));
             }
 
-            // Paint child block contents - 传入正确的项目绝对 y 坐标
-            paintBlock(p, child, absX, itemAbsY, scrollY, viewportHeight, viewportWidth);
+            // Paint child block contents - 传入正确的项目绝对坐标（包含缩进）
+            paintBlock(p, child, itemAbsX, itemAbsY, scrollY, viewportHeight, viewportWidth);
             itemIndex++;
         }
         break;
