@@ -184,11 +184,16 @@ LayoutBlock PreviewLayout::layoutBlock(const AstNode* node, qreal maxWidth)
     case AstNodeType::Item: {
         block.type = LayoutBlock::ListItem;
         qreal y = 0;
+        bool isFirst = true;
         for (const auto& child : node->children) {
             LayoutBlock childBlock = layoutBlock(child.get(), maxWidth);
             childBlock.bounds.moveTop(y);
-            y += childBlock.bounds.height() + 4.0;
+            // [列表对齐修复] 第一个子块与 bullet point 同基线，不添加上方间距
+            // 只有后续子块之间需要间距
+            qreal spacing = isFirst ? 0.0 : 4.0;
+            y += childBlock.bounds.height() + spacing;
             block.children.push_back(std::move(childBlock));
+            isFirst = false;
         }
         block.bounds = QRectF(0, 0, maxWidth, qMax(y, m_lineHeight));
         break;
