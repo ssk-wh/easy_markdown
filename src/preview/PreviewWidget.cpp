@@ -98,11 +98,10 @@ void PreviewWidget::paintEvent(QPaintEvent* /*event*/)
 
     if (!m_currentAst) return;
 
-    // 检测 DPI 变化（切换屏幕时用新设备度量重建布局）
-    qreal currentDpr = viewport()->devicePixelRatioF();
-    if (!qFuzzyCompare(currentDpr, m_lastDevicePixelRatio)) {
-        m_lastDevicePixelRatio = currentDpr;
-        m_layout->updateMetrics(viewport());
+    // 每次 paintEvent 都用 painter.device() 同步度量
+    // 直接检测字体度量是否变化（比 DPR 比较更可靠，能捕获跨屏不同物理 DPI 的情况）
+    if (m_layout->updateMetrics(painter.device())) {
+        m_lastDevicePixelRatio = viewport()->devicePixelRatioF();
         rebuildLayout();
     }
 

@@ -43,16 +43,15 @@ void PreviewPainter::paint(QPainter* painter, const LayoutBlock& root,
     m_charCounter = 0;
 
 #ifdef ENABLE_TEST_MODE
-    m_blockInfos.clear();
-
-    // [测试模式调试] 输出调试信息
-    QString debugPath = QStandardPaths::writableLocation(QStandardPaths::TempLocation) + "/render_blocks_debug.txt";
-    QFile debugFile(debugPath);
-    if (debugFile.open(QIODevice::WriteOnly | QIODevice::Text | QIODevice::Append)) {
-        QTextStream stream(&debugFile);
-        stream << QString("paint() called: viewport=%1x%2\n")
-                  .arg((int)viewportWidth).arg((int)viewportHeight);
-        debugFile.close();
+    // [测试模式] 从 LayoutBlock 树构建完整的 BlockInfo 渲染树
+    m_rootBlockInfo = BlockInfo();
+    m_rootBlockInfo.type = "document";
+    m_rootBlockInfo.x = 0;
+    m_rootBlockInfo.y = 0;
+    m_rootBlockInfo.width = (int)viewportWidth;
+    m_rootBlockInfo.height = (int)root.bounds.height();
+    for (const auto& child : root.children) {
+        m_rootBlockInfo.children.append(buildBlockInfo(child, 0, -scrollY));
     }
 #endif
 
@@ -86,32 +85,7 @@ void PreviewPainter::paintBlock(QPainter* p, const LayoutBlock& block,
     qreal drawX = absX;
     qreal drawY = absY - scrollY;
 
-#ifdef ENABLE_TEST_MODE
-    // [测试模式] 记录块信息供自动化测试验证
-    BlockInfo blockInfo;
-    blockInfo.x = (int)drawX;
-    blockInfo.y = (int)drawY;
-    blockInfo.width = (int)block.bounds.width();
-    blockInfo.height = (int)block.bounds.height();
-    blockInfo.headingLevel = block.headingLevel;
-    blockInfo.listLevel = 0;  // LayoutBlock 没有 listLevel，仅用于兼容 BlockInfo
-
-    // 确定块类型名称
-    switch (block.type) {
-    case LayoutBlock::Paragraph: blockInfo.type = "paragraph"; break;
-    case LayoutBlock::Heading: blockInfo.type = "heading"; break;
-    case LayoutBlock::CodeBlock: blockInfo.type = "code_block"; break;
-    case LayoutBlock::HtmlBlock: blockInfo.type = "html_block"; break;
-    case LayoutBlock::BlockQuote: blockInfo.type = "blockquote"; break;
-    case LayoutBlock::List: blockInfo.type = "list"; break;
-    case LayoutBlock::ListItem: blockInfo.type = "list_item"; break;
-    case LayoutBlock::Table: blockInfo.type = "table"; break;
-    case LayoutBlock::Image: blockInfo.type = "image"; break;
-    case LayoutBlock::ThematicBreak: blockInfo.type = "thematic_break"; break;
-    default: blockInfo.type = "unknown"; break;
-    }
-    m_blockInfos.append(blockInfo);
-#endif
+    // (BlockInfo 现在在 paint() 中通过 buildBlockInfo 递归构建，不再在此处收集)
 
     switch (block.type) {
     case LayoutBlock::Paragraph: {
@@ -207,21 +181,19 @@ void PreviewPainter::paintBlock(QPainter* p, const LayoutBlock& block,
         // Left bar
         p->fillRect(QRectF(drawX, drawY, 3, block.bounds.height()), m_theme.previewBlockQuoteBorder);
 
-        // Children - 传入正确的子块绝对坐标（包括 X 偏移）
+        // Children - 传入父块绝对坐标，子块通过自身 bounds 定位
         for (const auto& child : block.children) {
-            qreal childAbsX = absX + child.bounds.x();
-            qreal childAbsY = absY + child.bounds.y();
-            paintBlock(p, child, childAbsX, childAbsY, scrollY, viewportHeight, viewportWidth);
+            paintBlock(p, child, absX, absY, scrollY, viewportHeight, viewportWidth);
         }
         break;
     }
     case LayoutBlock::List: {
         int itemIndex = 0;
         for (const auto& child : block.children) {
-            qreal itemAbsX = absX + child.bounds.x();  // [坐标系统统一] 列表项 X 偏移（缩进）
             qreal itemAbsY = absY + child.bounds.y();
             qreal itemDrawY = itemAbsY - scrollY;
-            qreal bulletX = itemAbsX;  // 序号与内容使用同一 X 坐标系统
+            // 序号/圆点画在 List 左边缘（absX），内容在 absX + child.bounds.x()
+            qreal bulletX = absX;
 
             QFont baseFont("Segoe UI", 10);
             p->setFont(baseFont);
@@ -236,7 +208,8 @@ void PreviewPainter::paintBlock(QPainter* p, const LayoutBlock& block,
                             QStringLiteral("\u2022"));
             }
 
-            paintBlock(p, child, itemAbsX, itemAbsY, scrollY, viewportHeight, viewportWidth);
+            // 传入父块绝对坐标，子块通过自身 bounds 定位（避免双倍偏移）
+            paintBlock(p, child, absX, absY, scrollY, viewportHeight, viewportWidth);
             itemIndex++;
         }
         break;
@@ -511,58 +484,236 @@ void PreviewPainter::countBlockChars(const LayoutBlock& block)
 #include <QStandardPaths>
 #include <QDateTime>
 
+// 从 LayoutBlock 递归构建 BlockInfo 树
+BlockInfo PreviewPainter::buildBlockInfo(const LayoutBlock& block, qreal offsetX, qreal offsetY)
+{
+    BlockInfo info;
+
+    // 坐标（视口坐标）
+    qreal drawX = offsetX + block.bounds.x();
+    qreal drawY = offsetY + block.bounds.y();
+    info.x = (int)drawX;
+    info.y = (int)drawY;
+    info.width = (int)block.bounds.width();
+    info.height = (int)block.bounds.height();
+
+    // 类型
+    switch (block.type) {
+    case LayoutBlock::Paragraph:    info.type = "paragraph"; break;
+    case LayoutBlock::Heading:      info.type = "heading"; break;
+    case LayoutBlock::CodeBlock:    info.type = "code_block"; break;
+    case LayoutBlock::HtmlBlock:    info.type = "html_block"; break;
+    case LayoutBlock::BlockQuote:   info.type = "blockquote"; break;
+    case LayoutBlock::List:         info.type = "list"; break;
+    case LayoutBlock::ListItem:     info.type = "list_item"; break;
+    case LayoutBlock::Table:        info.type = "table"; break;
+    case LayoutBlock::TableRow:     info.type = "table_row"; break;
+    case LayoutBlock::TableCell:    info.type = "table_cell"; break;
+    case LayoutBlock::Image:        info.type = "image"; break;
+    case LayoutBlock::ThematicBreak: info.type = "thematic_break"; break;
+    default:                        info.type = "unknown"; break;
+    }
+
+    // 源码行号
+    info.sourceStart = block.sourceStartLine;
+    info.sourceEnd = block.sourceEndLine;
+
+    // 标题
+    info.headingLevel = block.headingLevel;
+
+    // 列表属性
+    info.ordered = block.ordered;
+    info.listStart = block.listStart;
+
+    // 代码块语言
+    info.codeLanguage = block.language;
+
+    // 文本内容：从 inlineRuns 拼接，或取 codeText
+    if (!block.inlineRuns.empty()) {
+        QString text;
+        for (const auto& run : block.inlineRuns) {
+            text += run.text;
+        }
+        info.contentText = text.left(200);
+
+        // 主字体信息（取第一个非换行 run）
+        for (const auto& run : block.inlineRuns) {
+            if (run.text != "\n") {
+                info.fontFamily = run.font.family();
+                info.fontSize = run.font.pointSizeF();
+                info.fontWeight = run.font.weight();
+                break;
+            }
+        }
+
+        // 行内元素详情
+        for (const auto& run : block.inlineRuns) {
+            if (run.text == "\n") continue;
+            InlineRunInfo ri;
+            ri.text = run.text;
+            ri.fontFamily = run.font.family();
+            ri.fontSize = run.font.pointSizeF();
+            ri.fontWeight = run.font.weight();
+            ri.color = run.color.name();
+            if (run.bgColor.isValid() && run.bgColor != Qt::transparent) {
+                ri.bgColor = run.bgColor.name();
+            }
+            ri.isLink = !run.linkUrl.isEmpty();
+            ri.isStrikethrough = run.isStrikethrough;
+            info.inlineRuns.append(ri);
+        }
+    } else if (!block.codeText.isEmpty()) {
+        info.contentText = block.codeText.left(200);
+    }
+
+    // 递归子块 —— 所有块类型统一：传入父块绝对坐标，子块通过自身 bounds 定位
+    // 这与修复后的 paintBlock 行为一致（不预加 child 偏移，避免双倍偏移）
+    if (block.type == LayoutBlock::Table) {
+        // Table 在 paintBlock 中内联处理 row/cell，不递归调用 paintBlock
+        // 这里直接构造 row/cell 的 BlockInfo，用 paintBlock 相同的坐标计算
+        for (const auto& row : block.children) {
+            BlockInfo rowInfo;
+            rowInfo.type = "table_row";
+            // paintBlock 中: rowAbsY = absY + row.bounds.y()
+            // 这里 drawY 就是 table 的视口 Y（= absY - scrollY），row.bounds.y() 是行相对偏移
+            rowInfo.x = (int)drawX;
+            rowInfo.y = (int)(drawY + row.bounds.y());
+            rowInfo.width = info.width;
+            rowInfo.height = (int)row.bounds.height();
+
+            for (const auto& cell : row.children) {
+                BlockInfo cellInfo;
+                cellInfo.type = "table_cell";
+                cellInfo.x = (int)(drawX + cell.bounds.x());  // absX + cell 相对偏移
+                cellInfo.y = rowInfo.y;  // 单元格 Y = 行 Y
+                cellInfo.width = (int)cell.bounds.width();
+                cellInfo.height = (int)row.bounds.height();
+                cellInfo.sourceStart = cell.sourceStartLine;
+                cellInfo.sourceEnd = cell.sourceEndLine;
+                // 单元格的行内元素
+                if (!cell.inlineRuns.empty()) {
+                    QString text;
+                    for (const auto& run : cell.inlineRuns) text += run.text;
+                    cellInfo.contentText = text.left(200);
+                    for (const auto& run : cell.inlineRuns) {
+                        if (run.text == "\n") continue;
+                        cellInfo.fontFamily = run.font.family();
+                        cellInfo.fontSize = run.font.pointSizeF();
+                        cellInfo.fontWeight = run.font.weight();
+                        break;
+                    }
+                }
+                rowInfo.children.append(cellInfo);
+            }
+            info.children.append(rowInfo);
+        }
+    } else if (block.type == LayoutBlock::List) {
+        // List: 为每个 ListItem 记录 bullet/number 的绘制坐标
+        // paintBlock 中: bulletX = absX (List 左边缘), bulletY = absY + child.bounds.y()
+        int itemIdx = 0;
+        for (const auto& child : block.children) {
+            BlockInfo childInfo = buildBlockInfo(child, drawX, drawY);
+            // bullet 坐标（与 paintBlock 中 List 分支保持一致）
+            childInfo.bulletX = (int)drawX;  // List 左边缘
+            childInfo.bulletY = childInfo.y;  // ListItem 的 Y 坐标
+            // bullet 宽度估算
+            if (block.ordered) {
+                QString num = QString::number(block.listStart + itemIdx) + ".";
+                childInfo.bulletWidth = num.length() * 8;  // 粗略估算
+            } else {
+                childInfo.bulletWidth = 12;  // "•" 宽度
+            }
+            info.children.append(childInfo);
+            itemIdx++;
+        }
+    } else {
+        // 所有其他块类型：统一传入父块绝对坐标
+        for (const auto& child : block.children) {
+            info.children.append(buildBlockInfo(child, drawX, drawY));
+        }
+    }
+
+    return info;
+}
+
+// BlockInfo → QJsonObject（递归）
+QJsonObject PreviewPainter::blockInfoToJson(const BlockInfo& info)
+{
+    QJsonObject obj;
+    obj["type"] = info.type;
+    obj["x"] = info.x;
+    obj["y"] = info.y;
+    obj["width"] = info.width;
+    obj["height"] = info.height;
+
+    if (!info.contentText.isEmpty())
+        obj["content"] = info.contentText;
+    if (info.sourceStart >= 0)
+        obj["source_start"] = info.sourceStart;
+    if (info.sourceEnd >= 0)
+        obj["source_end"] = info.sourceEnd;
+    if (info.headingLevel > 0)
+        obj["heading_level"] = info.headingLevel;
+    if (!info.fontFamily.isEmpty()) {
+        obj["font_family"] = info.fontFamily;
+        obj["font_size"] = info.fontSize;
+        obj["font_weight"] = info.fontWeight;
+    }
+    if (info.type == "list") {
+        obj["ordered"] = info.ordered;
+        obj["list_start"] = info.listStart;
+    }
+    if (!info.codeLanguage.isEmpty())
+        obj["code_language"] = info.codeLanguage;
+    if (info.bulletX >= 0) {
+        obj["bullet_x"] = info.bulletX;
+        obj["bullet_y"] = info.bulletY;
+        obj["bullet_width"] = info.bulletWidth;
+    }
+
+    // 行内元素
+    if (!info.inlineRuns.isEmpty()) {
+        QJsonArray runsArray;
+        for (const auto& ri : info.inlineRuns) {
+            QJsonObject ro;
+            ro["text"] = ri.text;
+            ro["font_size"] = ri.fontSize;
+            ro["font_weight"] = ri.fontWeight;
+            if (!ri.color.isEmpty()) ro["color"] = ri.color;
+            if (!ri.bgColor.isEmpty()) ro["bg_color"] = ri.bgColor;
+            if (ri.isLink) ro["is_link"] = true;
+            if (ri.isStrikethrough) ro["is_strikethrough"] = true;
+            runsArray.append(ro);
+        }
+        obj["inline_runs"] = runsArray;
+    }
+
+    // 递归子块
+    if (!info.children.isEmpty()) {
+        QJsonArray childrenArray;
+        for (const auto& child : info.children) {
+            childrenArray.append(blockInfoToJson(child));
+        }
+        obj["children"] = childrenArray;
+    }
+
+    return obj;
+}
+
 void PreviewPainter::saveBlocksToJson(int viewportWidth, int viewportHeight) const
 {
-    // [测试模式调试] 输出调试信息到临时文件
-    QString debugPath = QStandardPaths::writableLocation(QStandardPaths::TempLocation) + "/render_blocks_debug.txt";
-    QFile debugFile(debugPath);
-    if (debugFile.open(QIODevice::WriteOnly | QIODevice::Text | QIODevice::Append)) {
-        QTextStream stream(&debugFile);
-        stream << QString("saveBlocksToJson called: blocks=%1, viewport=%2x%3\n")
-                  .arg(m_blockInfos.size()).arg(viewportWidth).arg(viewportHeight);
-        debugFile.close();
-    }
-
-    if (m_blockInfos.isEmpty()) {
-        return;  // 没有块信息，不需要保存
-    }
-
-    QJsonArray blocksArray;
-    for (const auto& blockInfo : m_blockInfos) {
-        QJsonObject blockObj;
-        blockObj["type"] = blockInfo.type;
-        blockObj["x"] = blockInfo.x;
-        blockObj["y"] = blockInfo.y;
-        blockObj["width"] = blockInfo.width;
-        blockObj["height"] = blockInfo.height;
-        if (blockInfo.headingLevel > 0) {
-            blockObj["heading_level"] = blockInfo.headingLevel;
-        }
-        if (blockInfo.listLevel > 0) {
-            blockObj["list_level"] = blockInfo.listLevel;
-        }
-        blocksArray.append(blockObj);
-    }
+    if (m_rootBlockInfo.children.isEmpty()) return;
 
     QJsonObject rootObj;
     rootObj["timestamp"] = QDateTime::currentDateTimeUtc().toString(Qt::ISODate);
     rootObj["viewport_width"] = viewportWidth;
     rootObj["viewport_height"] = viewportHeight;
-    rootObj["blocks"] = blocksArray;
+    rootObj["blocks"] = blockInfoToJson(m_rootBlockInfo)["children"].toArray();
 
-    QJsonDocument doc(rootObj);
-
-    // 保存到应用临时目录下
-    QString outputPath;
-#ifdef Q_OS_WIN
-    outputPath = QStandardPaths::writableLocation(QStandardPaths::TempLocation) + "/render_blocks.json";
-#else
-    outputPath = QStandardPaths::writableLocation(QStandardPaths::TempLocation) + "/render_blocks.json";
-#endif
-
+    QString outputPath = QStandardPaths::writableLocation(QStandardPaths::TempLocation) + "/render_blocks.json";
     QFile file(outputPath);
     if (file.open(QIODevice::WriteOnly | QIODevice::Text)) {
-        file.write(doc.toJson());
+        file.write(QJsonDocument(rootObj).toJson());
         file.close();
     }
 }

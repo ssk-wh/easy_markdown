@@ -16,14 +16,37 @@ struct TextSegment {
     QFont font;        // 段所用字体
 };
 
-// [测试模式] 渲染块信息，用于自动化测试验证
+// [测试模式] 行内元素信息
 #ifdef ENABLE_TEST_MODE
+struct InlineRunInfo {
+    QString text;
+    QString fontFamily;
+    double fontSize = 0;
+    int fontWeight = 0;       // 400=normal, 700=bold
+    QString color;            // "#rrggbb"
+    QString bgColor;          // "#rrggbb" or empty
+    bool isLink = false;
+    bool isStrikethrough = false;
+};
+
+// [测试模式] 渲染块信息，用于自动化测试验证
 struct BlockInfo {
-    QString type;          // "heading", "paragraph", "code_block", "list_item", "table", "quote", "hr"
-    int x, y, width, height;  // 屏幕坐标（已减 scrollY）
-    QString content;       // 块内容摘要
-    int headingLevel = 0;  // 标题级别（仅标题块）
-    int listLevel = 0;     // 列表级别（仅列表块）
+    QString type;                    // "heading", "paragraph", "code_block", etc.
+    int x, y, width, height;        // 屏幕坐标（已减 scrollY）
+    QString contentText;             // 块文本内容（前200字符）
+    int sourceStart = -1;            // 源 markdown 起始行
+    int sourceEnd = -1;              // 源 markdown 结束行
+    int headingLevel = 0;            // 标题级别（仅标题块）
+    QString fontFamily;              // 主字体名称
+    double fontSize = 0;             // 主字体大小 pt
+    int fontWeight = 0;              // 主字体粗细
+    bool ordered = false;            // 是否有序列表
+    int listStart = 1;               // 列表起始编号
+    int bulletX = -1, bulletY = -1;  // 序号/圆点绘制位置（仅 list_item）
+    int bulletWidth = 0;             // 序号/圆点宽度
+    QString codeLanguage;            // 代码块语言
+    QVector<InlineRunInfo> inlineRuns; // 行内元素
+    QVector<BlockInfo> children;     // 子块（递归）
 };
 #endif
 
@@ -49,7 +72,7 @@ public:
     // [测试模式] 获取记录的块信息，并输出到 JSON 文件
 #ifdef ENABLE_TEST_MODE
     void saveBlocksToJson(int viewportWidth, int viewportHeight) const;
-    const QVector<BlockInfo>& blockInfos() const { return m_blockInfos; }
+    const BlockInfo& rootBlockInfo() const { return m_rootBlockInfo; }
 #endif
 
 private:
@@ -70,6 +93,8 @@ private:
     QVector<QPair<int,int>> m_highlights;  // 标记高亮范围 (start, end)
 
 #ifdef ENABLE_TEST_MODE
-    mutable QVector<BlockInfo> m_blockInfos;  // 记录的块信息（用于测试验证）
+    mutable BlockInfo m_rootBlockInfo;  // 递归渲染树（用于测试验证）
+    static BlockInfo buildBlockInfo(const LayoutBlock& block, qreal drawX, qreal drawY);
+    static QJsonObject blockInfoToJson(const BlockInfo& info);
 #endif
 };

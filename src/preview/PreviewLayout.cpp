@@ -35,38 +35,23 @@ void PreviewLayout::setFont(const QFont& baseFont)
     m_lineHeight = fm.height() * 1.5;
 }
 
-void PreviewLayout::updateMetrics(QPaintDevice* device)
+bool PreviewLayout::updateMetrics(QPaintDevice* device)
 {
-    // [重要修复] 高 DPI 字体度量同步
-    //
-    // 问题背景：
-    //   - 在高 DPI 屏幕（1.25x、1.5x）上，布局阶段计算的行高与实际渲染的行高不一致
-    //   - 导致代码块下方出现多余的空白区域
-    //   - 问题只在 DPI 切换（从 1x 屏移到高 DPI 屏）时出现
-    //
-    // 根本原因：
-    //   - QFontMetricsF(font) 返回逻辑像素的字体度量
-    //   - QFontMetricsF(font, device) 返回基于设备 DPI 的物理像素度量
-    //   - QPainter 在高 DPI 下会自动缩放坐标，但布局的行高计算如果用逻辑像素，
-    //     就会与 QPainter 的物理像素坐标系不匹配，导致高度偏差
-    //
-    // 解决方案：
-    //   - 布局和绘制都必须使用相同的度量系统
-    //   - 通过 viewport()->devicePixelRatioF() 获取当前 DPI 缩放比例
-    //   - 在 updateMetrics 中显式传入 device 参数，确保行高计算使用正确的 DPI
-    //   - 所有涉及像素级别的 QFontMetricsF 都应该带 device 参数（包括 estimateParagraphHeight）
-    //
-    // 相关代码位置：
-    //   - PreviewPainter.cpp 第 96 行：代码块渲染时也使用 device 参数
-    //   - PreviewLayout.cpp 高度估计：estimateParagraphHeight 也使用 m_device
-    //   - PreviewWidget.cpp：在 resizeEvent、paintEvent 等地方调用 updateMetrics
-
-    m_device = device;  // [高 DPI 修复] 保存 device 用于高度估计
-
+    // 基于 device 的实际字体度量计算行高
+    // 返回 true 表示度量值发生了变化，需要重建布局
     QFontMetricsF fm(m_baseFont, device);
-    m_lineHeight = fm.height() * 1.5;
+    qreal newLineHeight = fm.height() * 1.5;
     QFontMetricsF fmCode(m_monoFont, device);
-    m_codeLineHeight = fmCode.height() * 1.4;
+    qreal newCodeLineHeight = fmCode.height() * 1.4;
+
+    bool changed = !qFuzzyCompare(newLineHeight, m_lineHeight)
+                || !qFuzzyCompare(newCodeLineHeight, m_codeLineHeight);
+
+    m_device = device;
+    m_lineHeight = newLineHeight;
+    m_codeLineHeight = newCodeLineHeight;
+
+    return changed;
 }
 
 void PreviewLayout::setTheme(const Theme& theme)

@@ -24,6 +24,9 @@ Thumbs.db
 *.pdb
 *.ilk
 
+# Temp (测试脚本/临时数据)
+tmp/
+
 # Stackdump
 *.stackdump
 

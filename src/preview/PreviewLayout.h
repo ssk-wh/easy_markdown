@@ -65,7 +65,7 @@ public:
 
     void setViewportWidth(qreal width);
     void setFont(const QFont& baseFont);
-    void updateMetrics(QPaintDevice* device);
+    bool updateMetrics(QPaintDevice* device);  // 返回 true 表示度量有变化
     void setTheme(const Theme& theme);
     void buildFromAst(const std::shared_ptr<AstNode>& root);
     qreal totalHeight() const;
