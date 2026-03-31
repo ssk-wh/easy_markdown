@@ -26,6 +26,12 @@
 #include <QApplication>
 #include <QTabBar>
 
+#ifdef _WIN32
+#include <windows.h>
+#include <dwmapi.h>
+#pragma comment(lib, "dwmapi.lib")
+#endif
+
 MainWindow::MainWindow(QWidget* parent)
     : QMainWindow(parent)
 {
@@ -506,23 +512,60 @@ void MainWindow::applyTheme(const Theme& theme)
             "QMenuBar::item:selected { background: #3c3f41; }"
             "QMenu { background: #2b2b2b; color: #ccc; border: 1px solid #555; }"
             "QMenu::item:selected { background: #3c3f41; }"
-            "QMenu::separator { background: #555; height: 1px; }"
+            "QMenu::separator { background: #555; height: 1px; margin: 4px 8px; }"
             "QTabWidget::pane { border: none; }"
             "QTabBar { background: #2b2b2b; }"
             "QTabBar::tab { background: #2b2b2b; color: #aaa; padding: 6px 12px; border: none; border-bottom: 2px solid transparent; }"
             "QTabBar::tab:selected { color: #fff; border-bottom: 2px solid #4a9eff; }"
             "QTabBar::tab:hover { color: #ddd; background: #353535; }"
             "QTabBar::close-button { image: url(none); }"
-            "QScrollBar:vertical { background: #2b2b2b; width: 10px; }"
-            "QScrollBar::handle:vertical { background: #555; border-radius: 4px; min-height: 20px; }"
+            // 分割线（编辑区与预览区之间）
+            "QSplitter::handle { background: #3c3f41; }"
+            "QSplitter::handle:horizontal { width: 2px; }"
+            "QSplitter::handle:vertical { height: 2px; }"
+            // 滚动条
+            "QScrollBar:vertical { background: transparent; width: 8px; margin: 2px; }"
+            "QScrollBar::handle:vertical { background: rgba(255,255,255,40); border-radius: 3px; min-height: 30px; }"
+            "QScrollBar::handle:vertical:hover { background: rgba(255,255,255,80); }"
             "QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { height: 0; }"
-            "QScrollBar:horizontal { background: #2b2b2b; height: 10px; }"
-            "QScrollBar::handle:horizontal { background: #555; border-radius: 4px; min-width: 20px; }"
+            "QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical { background: transparent; }"
+            "QScrollBar:horizontal { background: transparent; height: 8px; margin: 2px; }"
+            "QScrollBar::handle:horizontal { background: rgba(255,255,255,40); border-radius: 3px; min-width: 30px; }"
+            "QScrollBar::handle:horizontal:hover { background: rgba(255,255,255,80); }"
             "QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal { width: 0; }"
+            "QScrollBar::add-page:horizontal, QScrollBar::sub-page:horizontal { background: transparent; }"
         ));
     } else {
-        setStyleSheet(QString());  // 恢复系统默认
+        // 浅色模式也设置统一风格（不用系统默认）
+        setStyleSheet(QStringLiteral(
+            "QTabWidget::pane { border: none; }"
+            "QTabBar { background: #f0f0f0; }"
+            "QTabBar::tab { background: #f0f0f0; color: #666; padding: 6px 12px; border: none; border-bottom: 2px solid transparent; }"
+            "QTabBar::tab:selected { color: #333; border-bottom: 2px solid #0078d4; background: #fff; }"
+            "QTabBar::tab:hover { color: #333; background: #e8e8e8; }"
+            "QTabBar::close-button { image: url(none); }"
+            // 分割线
+            "QSplitter::handle { background: #e0e0e0; }"
+            "QSplitter::handle:horizontal { width: 1px; }"
+            "QSplitter::handle:vertical { height: 1px; }"
+            // 滚动条
+            "QScrollBar:vertical { background: transparent; width: 8px; margin: 2px; }"
+            "QScrollBar::handle:vertical { background: rgba(0,0,0,40); border-radius: 3px; min-height: 30px; }"
+            "QScrollBar::handle:vertical:hover { background: rgba(0,0,0,80); }"
+            "QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { height: 0; }"
+            "QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical { background: transparent; }"
+            "QScrollBar:horizontal { background: transparent; height: 8px; margin: 2px; }"
+            "QScrollBar::handle:horizontal { background: rgba(0,0,0,40); border-radius: 3px; min-width: 30px; }"
+            "QScrollBar::handle:horizontal:hover { background: rgba(0,0,0,80); }"
+            "QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal { width: 0; }"
+            "QScrollBar::add-page:horizontal, QScrollBar::sub-page:horizontal { background: transparent; }"
+        ));
     }
+
+    // Windows 深色标题栏
+#ifdef _WIN32
+    setDarkTitleBar(theme.isDark);
+#endif
 }
 
 MainWindow::TabData* MainWindow::currentTab()
@@ -782,3 +825,15 @@ void MainWindow::loadSettings()
         tab.preview->setWordWrap(wordWrap);
     }
 }
+
+#ifdef _WIN32
+void MainWindow::setDarkTitleBar(bool dark)
+{
+    // Windows 10 1809+ / Windows 11: 使用 DWMWA_USE_IMMERSIVE_DARK_MODE
+    HWND hwnd = reinterpret_cast<HWND>(winId());
+    BOOL useDark = dark ? TRUE : FALSE;
+    // DWMWA_USE_IMMERSIVE_DARK_MODE = 20 (Windows 10 20H1+)
+    // 旧值 19 用于 Windows 10 1809-1903
+    ::DwmSetWindowAttribute(hwnd, 20, &useDark, sizeof(useDark));
+}
+#endif

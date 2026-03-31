@@ -65,8 +65,11 @@ private:
     qreal m_lineSpacingFactor = 1.0;
 
     void saveSettings();
-    void saveSessionLater();  // 延迟保存会话（debounce 1秒）
+    void saveSessionLater();
     void loadSettings();
+#ifdef _WIN32
+    void setDarkTitleBar(bool dark);
+#endif
     QTimer m_saveSessionTimer;
 
     void setupMenuBar();
