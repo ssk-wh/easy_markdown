@@ -10,6 +10,7 @@ class PreviewWidget;
 class ParseScheduler;
 class ScrollSync;
 class RecentFiles;
+class TocPanel;
 class QSplitter;
 class QMenu;
 class QActionGroup;
@@ -26,6 +27,7 @@ public:
     void startLocalServer(const char* serverName);
 
 protected:
+    void showEvent(QShowEvent* event) override;
     void dragEnterEvent(QDragEnterEvent* event) override;
     void dropEvent(QDropEvent* event) override;
     void closeEvent(QCloseEvent* event) override;
@@ -48,6 +50,8 @@ private:
     };
 
     QTabWidget* m_tabWidget;
+    QSplitter* m_mainSplitter = nullptr;
+    TocPanel* m_tocPanel = nullptr;
     QVector<TabData> m_tabs;
     RecentFiles* m_recentFiles;
     QMenu* m_recentMenu = nullptr;
@@ -71,6 +75,8 @@ private:
     void setDarkTitleBar(bool dark);
 #endif
     QTimer m_saveSessionTimer;
+    QByteArray m_pendingSplitterState;
+    bool m_splitterInitialized = false;
 
     void setupMenuBar();
     void setupDragDrop();

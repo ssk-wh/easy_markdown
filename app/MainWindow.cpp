@@ -3,6 +3,7 @@
 #include "PreviewWidget.h"
 #include "ParseScheduler.h"
 #include "ScrollSync.h"
+#include "TocPanel.h"
 #include "Document.h"
 #include "RecentFiles.h"
 #include "ChangelogDialog.h"
@@ -15,6 +16,7 @@
 #include <QDragEnterEvent>
 #include <QDropEvent>
 #include <QCloseEvent>
+#include <QShowEvent>
 #include <QFileInfo>
 #include <QShortcut>
 #include <QActionGroup>
@@ -45,7 +47,24 @@ MainWindow::MainWindow(QWidget* parent)
     m_tabWidget->setMovable(true);
     m_tabWidget->setDocumentMode(true);
     m_tabWidget->tabBar()->setDrawBase(false);
-    setCentralWidget(m_tabWidget);
+
+    m_tocPanel = new TocPanel(this);
+    m_tocPanel->setMinimumWidth(160);
+
+    m_mainSplitter = new QSplitter(Qt::Horizontal, this);
+    m_mainSplitter->addWidget(m_tabWidget);
+    m_mainSplitter->addWidget(m_tocPanel);
+    m_mainSplitter->setStretchFactor(0, 1);  // tabWidget 拉伸
+    m_mainSplitter->setStretchFactor(1, 0);  // tocPanel 固定宽度
+    m_mainSplitter->setCollapsible(1, false);  // 防止 TOC 面板被折叠
+    setCentralWidget(m_mainSplitter);
+
+    // TocPanel 点击 → 跳转到当前 tab 的 preview 对应位置
+    connect(m_tocPanel, &TocPanel::headingClicked, this, [this](int sourceLine) {
+        auto* tab = currentTab();
+        if (tab)
+            tab->preview->scrollToSourceLine(sourceLine);
+    });
 
     connect(m_tabWidget, &QTabWidget::tabCloseRequested,
             this, &MainWindow::onCloseTab);
@@ -432,6 +451,21 @@ MainWindow::TabData MainWindow::createTab()
     if (!qFuzzyCompare(m_lineSpacingFactor, 1.0))
         tab.editor->setLineSpacing(m_lineSpacingFactor);
 
+    // TOC 信号：仅当此 tab 是当前活跃 tab 时更新全局 TocPanel
+    connect(tab.preview, &PreviewWidget::tocEntriesChanged,
+            this, [this, preview = tab.preview](const QVector<TocEntry>& entries) {
+        if (currentTab() && currentTab()->preview == preview)
+            m_tocPanel->setEntries(entries);
+    });
+    connect(tab.preview, &PreviewWidget::tocHighlightChanged,
+            this, [this, preview = tab.preview](const QSet<int>& indices) {
+        if (currentTab() && currentTab()->preview == preview)
+            m_tocPanel->setHighlightedEntries(indices);
+    });
+
+    // TocPanel 点击 → 当前 tab 的 preview 跳转
+    // （在 MainWindow 构造中统一连接一次即可，不需要每个 tab 连接）
+
     // Track modifications for tab title
     connect(tab.editor->document(), &Document::modifiedChanged,
             this, [this](bool) {
@@ -507,6 +541,7 @@ void MainWindow::applyTheme(const Theme& theme)
         tab.editor->setTheme(theme);
         tab.preview->setTheme(theme);
     }
+    m_tocPanel->setTheme(theme);
 
     // 主窗口 UI 元素跟随深色/浅色主题（含菜单栏、右键菜单、对话框）
     if (theme.isDark) {
@@ -706,6 +741,15 @@ void MainWindow::onCloseTab(int index)
 void MainWindow::onTabChanged(int index)
 {
     updateTabTitle(index);
+
+    // 切换 tab 时更新 TOC 面板
+    if (index >= 0 && index < m_tabs.size()) {
+        auto* preview = m_tabs[index].preview;
+        m_tocPanel->setEntries(preview->tocEntries());
+        m_tocPanel->setHighlightedEntries(preview->tocHighlightedIndices());
+    } else {
+        m_tocPanel->setEntries({});
+    }
 }
 
 // -- Drag & Drop --
@@ -731,6 +775,21 @@ void MainWindow::dropEvent(QDropEvent* event)
         QString path = url.toLocalFile();
         if (!path.isEmpty())
             openFile(path);
+    }
+}
+
+void MainWindow::showEvent(QShowEvent* event)
+{
+    QMainWindow::showEvent(event);
+    if (!m_splitterInitialized) {
+        m_splitterInitialized = true;
+        if (!m_pendingSplitterState.isEmpty()) {
+            m_mainSplitter->restoreState(m_pendingSplitterState);
+        } else {
+            int totalW = m_mainSplitter->width();
+            m_mainSplitter->setSizes({totalW - 220, 220});
+        }
+        m_pendingSplitterState.clear();
     }
 }
 
@@ -790,6 +849,7 @@ void MainWindow::saveSettings()
     else if (m_darkThemeAct && m_darkThemeAct->isChecked()) themeMode = "dark";
     s.setValue("view/themeMode", themeMode);
     s.setValue("window/geometry", saveGeometry());
+    s.setValue("window/mainSplitter", m_mainSplitter->saveState());
 
     // 会话恢复
     s.setValue("session/restoreLastFile", m_restoreSessionAct ? m_restoreSessionAct->isChecked() : true);
@@ -816,6 +876,9 @@ void MainWindow::loadSettings()
     // 窗口位置
     if (s.contains("window/geometry"))
         restoreGeometry(s.value("window/geometry").toByteArray());
+
+    // 主分割器（编辑/预览 | TOC）状态在 showEvent 中恢复（需窗口已显示）
+    m_pendingSplitterState = s.value("window/mainSplitter").toByteArray();
 
     // 主题
     QString themeMode = s.value("view/themeMode", "follow_system").toString();

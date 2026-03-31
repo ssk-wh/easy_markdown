@@ -4,13 +4,14 @@
 #include <memory>
 #include <QPair>
 #include <QVector>
+#include <QSet>
 #include "Theme.h"
 
 class AstNode;
 class PreviewLayout;
 class PreviewPainter;
 class ImageCache;
-class TocPanel;
+struct TocEntry;
 
 class PreviewWidget : public QAbstractScrollArea {
     Q_OBJECT
@@ -24,8 +25,15 @@ public:
     void setWordWrap(bool enabled);
     bool wordWrap() const { return m_wordWrap; }
 
+    const QVector<TocEntry>& tocEntries() const { return m_tocEntries; }
+    const QSet<int>& tocHighlightedIndices() const { return m_tocHighlighted; }
+
 public slots:
     void updateAst(std::shared_ptr<AstNode> root);
+
+signals:
+    void tocEntriesChanged(const QVector<TocEntry>& entries);
+    void tocHighlightChanged(const QSet<int>& indices);
 
 protected:
     void paintEvent(QPaintEvent* event) override;
@@ -49,6 +57,7 @@ private:
     void clearHighlights();
     void updateTocHighlights();
     void buildHeadingCharOffsets();
+    void updateTocEntries();
 
     Theme m_theme;
     PreviewLayout* m_layout = nullptr;
@@ -64,11 +73,11 @@ private:
     bool m_selecting = false;
     qreal m_lastDevicePixelRatio = 0;
 
-    // 目录面板
-    TocPanel* m_tocPanel = nullptr;
-    void updateTocEntries();
+    // TOC 数据（发信号给外部 TocPanel）
+    QVector<TocEntry> m_tocEntries;
+    QSet<int> m_tocHighlighted;
 
     // 标记高亮
-    QVector<QPair<int,int>> m_highlights;              // (start, end) 字符范围
-    QVector<int> m_headingCharOffsets;                 // 每个标题的起始字符位置（与 TOC 条目一一对应）
+    QVector<QPair<int,int>> m_highlights;
+    QVector<int> m_headingCharOffsets;
 };

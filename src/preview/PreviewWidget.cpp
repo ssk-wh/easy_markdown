@@ -2,7 +2,7 @@
 #include "PreviewLayout.h"
 #include "PreviewPainter.h"
 #include "ImageCache.h"
-#include "TocPanel.h"
+#include "TocPanel.h"  // for TocEntry
 #include "MarkdownAst.h"
 
 #include <QPainter>
@@ -37,9 +37,6 @@ PreviewWidget::PreviewWidget(QWidget* parent)
     viewport()->setMouseTracking(true);
     setFocusPolicy(Qt::ClickFocus);
 
-    m_tocPanel = new TocPanel(viewport());
-    connect(m_tocPanel, &TocPanel::headingClicked,
-            this, &PreviewWidget::scrollToSourceLine);
 }
 
 PreviewWidget::~PreviewWidget()
@@ -131,7 +128,6 @@ void PreviewWidget::resizeEvent(QResizeEvent* event)
     }
 
     rebuildLayout();
-    m_tocPanel->reposition();
 }
 
 void PreviewWidget::scrollContentsBy(int /*dx*/, int /*dy*/)
@@ -164,8 +160,6 @@ void PreviewWidget::setTheme(const Theme& theme)
     m_theme = theme;
     m_painter->setTheme(theme);
     m_layout->setTheme(theme);
-    m_tocPanel->setTheme(theme);
-
     // 重建 layout 以更新 InlineRun 中的主题色
     if (m_currentAst) {
         m_layout->buildFromAst(m_currentAst);
@@ -377,7 +371,8 @@ void PreviewWidget::updateTocEntries()
         };
         collect(m_currentAst.get());
     }
-    m_tocPanel->setEntries(entries);
+    m_tocEntries = entries;
+    emit tocEntriesChanged(entries);
 }
 
 QString PreviewWidget::extractPlainText() const
@@ -498,7 +493,8 @@ void PreviewWidget::addHighlight()
 void PreviewWidget::clearHighlights()
 {
     m_highlights.clear();
-    m_tocPanel->setHighlightedEntries({});
+    m_tocHighlighted.clear();
+    emit tocHighlightChanged(m_tocHighlighted);
     viewport()->update();
 }
 
@@ -525,7 +521,8 @@ void PreviewWidget::updateTocHighlights()
         }
     }
 
-    m_tocPanel->setHighlightedEntries(highlighted);
+    m_tocHighlighted = highlighted;
+    emit tocHighlightChanged(highlighted);
 }
 
 void PreviewWidget::buildHeadingCharOffsets()
