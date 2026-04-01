@@ -32,5 +32,5 @@ echo "[2/2] Building (-j$JOBS)..."
 cmake --build "$BUILD_DIR" -j "$JOBS"
 
 echo "================================================"
-echo "  Build succeeded: $BUILD_DIR/app/SimpleMarkdown"
+echo "  Build succeeded: $BUILD_DIR/src/app/SimpleMarkdown"
 echo "================================================"

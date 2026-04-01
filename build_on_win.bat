@@ -60,7 +60,7 @@ if not defined VCVARS (
     exit /b 1
 )
 
-echo [1/4] Setting up MSVC environment...
+echo [1/3] Setting up MSVC environment...
 call "%VCVARS%" x64 >nul 2>&1
 if errorlevel 1 (
     echo [ERROR] Failed to set up MSVC environment.
@@ -95,7 +95,7 @@ if defined QT_DIR (
 echo.
 
 REM ---- CMake configure ----
-echo [2/4] CMake configure...
+echo [2/3] CMake configure...
 if exist %BUILD_DIR%\CMakeCache.txt (
     del /q %BUILD_DIR%\CMakeCache.txt >nul 2>&1
 )
@@ -110,7 +110,7 @@ if errorlevel 1 (
 echo.
 
 REM ---- Build ----
-echo [3/4] Building...
+echo [3/3] Building...
 
 REM ---- Build ----
 cmake --build %BUILD_DIR%
@@ -121,30 +121,15 @@ if errorlevel 1 (
 echo.
 
 REM ---- Verify output ----
-if exist %BUILD_DIR%\app\SimpleMarkdown.exe (
-    for %%A in (%BUILD_DIR%\app\SimpleMarkdown.exe) do set EXE_SIZE=%%~zA
+if exist %BUILD_DIR%\src\app\SimpleMarkdown.exe (
+    for %%A in (%BUILD_DIR%\src\app\SimpleMarkdown.exe) do set EXE_SIZE=%%~zA
     echo ================================================
-    echo   Build succeeded: %BUILD_DIR%\app\SimpleMarkdown.exe
+    echo   Build succeeded: %BUILD_DIR%\src\app\SimpleMarkdown.exe
     echo   Size: !EXE_SIZE! bytes
     echo ================================================
-
-    REM ---- Copy Qt DLLs for running locally ----
-    echo.
-    echo [4/4] Copying Qt dependencies...
-    if exist copy_qt_dlls.py (
-        python copy_qt_dlls.py %BUILD_DIR%\app
-        if errorlevel 1 (
-            echo [WARN] Failed to copy Qt DLLs, but build succeeded
-        )
-    ) else (
-        echo [WARN] copy_qt_dlls.py not found, skipping DLL copy
-    )
-
     exit /b 0
 ) else (
     echo [ERROR] Build completed but executable not found!
-    echo         Expected: %BUILD_DIR%\app\SimpleMarkdown.exe
-    echo         Debug: Checking build directory...
-    dir /B %BUILD_DIR% 2>nul | findstr /V "^$"
+    echo         Expected: %BUILD_DIR%\src\app\SimpleMarkdown.exe
     exit /b 1
 )

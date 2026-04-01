@@ -2,5 +2,9 @@
     <qresource prefix="/">
         <file alias="app-icon.svg">app-icon.svg</file>
         <file alias="app-icon.png">app-icon.png</file>
+        <file alias="tab-close-light.png">tab-close-light.png</file>
+        <file alias="tab-close-light-hover.png">tab-close-light-hover.png</file>
+        <file alias="tab-close-dark.png">tab-close-dark.png</file>
+        <file alias="tab-close-dark-hover.png">tab-close-dark-hover.png</file>
     </qresource>
 </RCC>

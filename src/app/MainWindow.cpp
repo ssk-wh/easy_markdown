@@ -27,6 +27,8 @@
 #include <QTimer>
 #include <QApplication>
 #include <QTabBar>
+#include <QToolButton>
+#include <QPainter>
 
 #ifdef _WIN32
 #include <windows.h>
@@ -110,11 +112,18 @@ MainWindow::MainWindow(QWidget* parent)
     m_saveSessionTimer.setInterval(1000);
     connect(&m_saveSessionTimer, &QTimer::timeout, this, &MainWindow::saveSettings);
 
+    // 监控文件外部修改
+    connect(&m_fileWatcher, &QFileSystemWatcher::fileChanged,
+            this, &MainWindow::onFileChangedExternally);
+
     setupMenuBar();
     // 强制 menuBar 使用样式表绘制，避免原生样式画底部分隔线
     menuBar()->setAttribute(Qt::WA_StyledBackground, true);
     setupDragDrop();
     loadSettings();
+
+    // 安装全局事件过滤器，用于为弹窗设置深色标题栏
+    qApp->installEventFilter(this);
 }
 
 void MainWindow::setupMenuBar()
@@ -281,6 +290,7 @@ void MainWindow::newTab()
     TabData tab = createTab();
     int index = m_tabWidget->addTab(tab.splitter, tr("Untitled"));
     m_tabs.append(tab);
+    setTabCloseButton(index);
     m_tabWidget->setCurrentIndex(index);
 
     // Insert sample text for new empty tabs
@@ -406,6 +416,7 @@ void MainWindow::openFile(const QString& path)
     TabData tab = createTab();
     int index = m_tabWidget->addTab(tab.splitter, QFileInfo(path).fileName());
     m_tabs.append(tab);
+    setTabCloseButton(index);
     m_tabWidget->setCurrentIndex(index);
 
     tab.editor->document()->loadFromFile(path);
@@ -413,6 +424,7 @@ void MainWindow::openFile(const QString& path)
 
     m_recentFiles->addFile(path);
     updateTabTitle(index);
+    watchFile(QFileInfo(path).absoluteFilePath());
 
     // [修复] 加载新文件后必须提升窗口，确保用户能看到
     setWindowState((windowState() & ~Qt::WindowMinimized) | Qt::WindowActive);
@@ -490,7 +502,7 @@ void MainWindow::updateTabTitle(int index)
         title = QFileInfo(doc->filePath()).fileName();
     }
     if (doc->isModified())
-        title += " *";
+        title = "* " + title;
 
     m_tabWidget->setTabText(index, title);
     m_tabWidget->setTabToolTip(index, doc->filePath().isEmpty() ? tr("Untitled") : QFileInfo(doc->filePath()).absoluteFilePath());
@@ -509,7 +521,7 @@ void MainWindow::updateRecentFilesMenu()
         return;
     }
     for (const QString& file : files) {
-        m_recentMenu->addAction(QFileInfo(file).fileName(), [this, file]() {
+        m_recentMenu->addAction(QDir::toNativeSeparators(file), [this, file]() {
             openFile(file);
         });
     }
@@ -563,7 +575,6 @@ void MainWindow::applyTheme(const Theme& theme)
             "QTabBar::tab { background: #2b2b2b; color: #aaa; padding: 6px 12px; border: none; border-bottom: 2px solid transparent; }"
             "QTabBar::tab:selected { color: #fff; border-bottom: 2px solid #4a9eff; }"
             "QTabBar::tab:hover { color: #ddd; background: #353535; }"
-            "QTabBar::close-button { image: url(none); }"
             // 分割线
             "QSplitter::handle { background: #3c3f41; }"
             "QSplitter::handle:horizontal { width: 2px; }"
@@ -606,7 +617,6 @@ void MainWindow::applyTheme(const Theme& theme)
             "QTabBar::tab { background: #f0f0f0; color: #666; padding: 6px 12px; border: none; border-bottom: 2px solid transparent; }"
             "QTabBar::tab:selected { color: #333; border-bottom: 2px solid #0078d4; background: #fff; }"
             "QTabBar::tab:hover { color: #333; background: #e8e8e8; }"
-            "QTabBar::close-button { image: url(none); }"
             // 分割线
             "QSplitter::handle { background: #e0e0e0; }"
             "QSplitter::handle:horizontal { width: 1px; }"
@@ -624,6 +634,8 @@ void MainWindow::applyTheme(const Theme& theme)
             "QScrollBar::add-page:horizontal, QScrollBar::sub-page:horizontal { background: transparent; }"
         ));
     }
+
+    updateAllTabCloseButtons();
 
     // Windows 深色标题栏
 #ifdef _WIN32
@@ -667,7 +679,9 @@ bool MainWindow::maybeSave(int index)
                 return false;
             doc->saveToFile(path);
         } else {
+            unwatchFile(doc->filePath());
             doc->saveToFile();
+            // 关闭 tab 时不需要重新监控（tab 即将被移除）
         }
         return true;
     } else if (ret == QMessageBox::Discard) {
@@ -701,8 +715,12 @@ void MainWindow::onSaveFile()
     if (doc->filePath().isEmpty()) {
         onSaveFileAs();
     } else {
+        QString fp = doc->filePath();
+        unwatchFile(fp);
         doc->saveToFile();
         updateTabTitle(m_tabWidget->currentIndex());
+        // 延迟重新监控，避免捕获自身保存产生的文件变更事件
+        QTimer::singleShot(500, this, [this, fp]() { watchFile(fp); });
     }
 }
 
@@ -711,12 +729,17 @@ void MainWindow::onSaveFileAs()
     auto* tab = currentTab();
     if (!tab) return;
 
+    QString oldPath = tab->editor->document()->filePath();
     QString path = QFileDialog::getSaveFileName(
         this, tr("Save File As"), QString(),
         tr("Markdown Files (*.md *.markdown);;All Files (*)"));
     if (path.isEmpty()) return;
 
+    if (!oldPath.isEmpty())
+        unwatchFile(oldPath);
     tab->editor->document()->saveToFile(path);
+    QString absFp = QFileInfo(path).absoluteFilePath();
+    QTimer::singleShot(500, this, [this, absFp]() { watchFile(absFp); });
     m_recentFiles->addFile(path);
     updateTabTitle(m_tabWidget->currentIndex());
 }
@@ -725,6 +748,11 @@ void MainWindow::onCloseTab(int index)
 {
     if (!maybeSave(index))
         return;
+
+    // 取消文件监控
+    QString fp = m_tabs[index].editor->document()->filePath();
+    if (!fp.isEmpty())
+        unwatchFile(fp);
 
     // Remove tab data
     m_tabs[index].splitter->deleteLater();
@@ -776,6 +804,22 @@ void MainWindow::dropEvent(QDropEvent* event)
         if (!path.isEmpty())
             openFile(path);
     }
+}
+
+bool MainWindow::eventFilter(QObject* obj, QEvent* event)
+{
+#ifdef _WIN32
+    // 为所有弹窗（QDialog、QMessageBox 等）自动设置深色标题栏
+    if (event->type() == QEvent::Show) {
+        QWidget* w = qobject_cast<QWidget*>(obj);
+        if (w && w->isWindow() && w != this) {
+            HWND hwnd = reinterpret_cast<HWND>(w->winId());
+            BOOL useDark = m_currentTheme.isDark ? TRUE : FALSE;
+            ::DwmSetWindowAttribute(hwnd, 20, &useDark, sizeof(useDark));
+        }
+    }
+#endif
+    return QMainWindow::eventFilter(obj, event);
 }
 
 void MainWindow::showEvent(QShowEvent* event)
@@ -914,6 +958,115 @@ void MainWindow::loadSettings()
         tab.editor->setLineSpacing(m_lineSpacingFactor);
         tab.editor->setWordWrap(wordWrap);
         tab.preview->setWordWrap(wordWrap);
+    }
+}
+
+static QIcon makeCloseIcon(const QColor& normal, const QColor& hover)
+{
+    auto drawX = [](int size, const QColor& color) {
+        qreal dpr = qApp->devicePixelRatio();
+        int px = qRound(size * dpr);
+        QPixmap pm(px, px);
+        pm.setDevicePixelRatio(dpr);
+        pm.fill(Qt::transparent);
+        QPainter p(&pm);
+        p.setRenderHint(QPainter::Antialiasing);
+        QPen pen(color, 1.5);
+        pen.setCapStyle(Qt::RoundCap);
+        p.setPen(pen);
+        qreal m = size * 0.3;
+        p.drawLine(QPointF(m, m), QPointF(size - m, size - m));
+        p.drawLine(QPointF(size - m, m), QPointF(m, size - m));
+        return pm;
+    };
+    QIcon icon;
+    icon.addPixmap(drawX(14, normal), QIcon::Normal);
+    icon.addPixmap(drawX(14, hover), QIcon::Active);
+    return icon;
+}
+
+void MainWindow::setTabCloseButton(int index)
+{
+    auto* btn = new QToolButton();
+    btn->setAutoRaise(true);
+    btn->setCursor(Qt::ArrowCursor);
+    btn->setToolTip(tr("Close"));
+
+    QColor normal = m_currentTheme.isDark ? QColor(136, 136, 136) : QColor(153, 153, 153);
+    QColor hover  = m_currentTheme.isDark ? QColor(255, 255, 255) : QColor(51, 51, 51);
+    btn->setIcon(makeCloseIcon(normal, hover));
+    btn->setIconSize(QSize(14, 14));
+    btn->setFixedSize(18, 18);
+
+    QString hoverBg = m_currentTheme.isDark
+        ? "rgba(255,255,255,20)" : "rgba(0,0,0,15)";
+    btn->setStyleSheet(QString(
+        "QToolButton { border: none; background: transparent; border-radius: 3px; }"
+        "QToolButton:hover { background: %1; }"
+    ).arg(hoverBg));
+
+    connect(btn, &QToolButton::clicked, this, [this, btn]() {
+        // 通过按钮找到对应的 tab 索引
+        for (int i = 0; i < m_tabWidget->count(); ++i) {
+            if (m_tabWidget->tabBar()->tabButton(i, QTabBar::RightSide) == btn) {
+                onCloseTab(i);
+                return;
+            }
+        }
+    });
+
+    m_tabWidget->tabBar()->setTabButton(index, QTabBar::RightSide, btn);
+}
+
+void MainWindow::updateAllTabCloseButtons()
+{
+    for (int i = 0; i < m_tabWidget->count(); ++i)
+        setTabCloseButton(i);
+}
+
+void MainWindow::watchFile(const QString& path)
+{
+    if (!path.isEmpty() && !m_fileWatcher.files().contains(path))
+        m_fileWatcher.addPath(path);
+}
+
+void MainWindow::unwatchFile(const QString& path)
+{
+    if (!path.isEmpty() && m_fileWatcher.files().contains(path))
+        m_fileWatcher.removePath(path);
+}
+
+void MainWindow::onFileChangedExternally(const QString& path)
+{
+    // 找到对应的 tab
+    int tabIndex = -1;
+    for (int i = 0; i < m_tabs.size(); ++i) {
+        if (m_tabs[i].editor->document()->filePath() == path) {
+            tabIndex = i;
+            break;
+        }
+    }
+    if (tabIndex < 0)
+        return;
+
+    // 文件可能被删除，检查是否还存在
+    if (!QFileInfo::exists(path))
+        return;
+
+    // 重新添加监控（某些系统修改后会自动移除）
+    watchFile(path);
+
+    QString name = QFileInfo(path).fileName();
+    QMessageBox::StandardButton ret = QMessageBox::question(
+        this, tr("File Changed"),
+        tr("\"%1\" has been modified by another program.\n\n"
+           "Do you want to reload it?").arg(name),
+        QMessageBox::Yes | QMessageBox::No);
+
+    if (ret == QMessageBox::Yes) {
+        m_tabs[tabIndex].editor->document()->loadFromFile(path);
+        m_tabs[tabIndex].scheduler->parseNow();
+        updateTabTitle(tabIndex);
     }
 }
 

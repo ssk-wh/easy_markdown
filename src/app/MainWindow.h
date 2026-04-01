@@ -3,6 +3,7 @@
 #include <QTabWidget>
 #include <QVector>
 #include <QTimer>
+#include <QFileSystemWatcher>
 #include "Theme.h"
 
 class EditorWidget;
@@ -27,6 +28,7 @@ public:
     void startLocalServer(const char* serverName);
 
 protected:
+    bool eventFilter(QObject* obj, QEvent* event) override;
     void showEvent(QShowEvent* event) override;
     void dragEnterEvent(QDragEnterEvent* event) override;
     void dropEvent(QDropEvent* event) override;
@@ -78,10 +80,17 @@ private:
     QByteArray m_pendingSplitterState;
     bool m_splitterInitialized = false;
 
+    QFileSystemWatcher m_fileWatcher;
+    void watchFile(const QString& path);
+    void unwatchFile(const QString& path);
+    void onFileChangedExternally(const QString& path);
+
     void setupMenuBar();
     void setupDragDrop();
     TabData createTab();
     void updateTabTitle(int index);
+    void setTabCloseButton(int index);
+    void updateAllTabCloseButtons();
     void updateRecentFilesMenu();
     void applyTheme(const Theme& theme);
     void applySystemTheme();

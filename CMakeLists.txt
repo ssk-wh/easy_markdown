@@ -30,8 +30,6 @@ add_subdirectory(3rdparty/googletest)
 
 add_subdirectory(src)
 
-add_subdirectory(app)
-
 # Tests have been removed from the repository
 # enable_testing()
 # add_subdirectory(tests)
