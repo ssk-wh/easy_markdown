@@ -254,11 +254,19 @@ qreal segW = fm.horizontalAdvance(run.text) + hPad * 2;
 
 ## 编译与打包
 
-### 构建脚本
+### 构建与打包
 
-- **编译：** `./build_on_win.bat release`
-- **收集依赖：** `python installer/collect_dist.py`
-- **打包：** `/nsis-pack D:/...installer/SimpleMarkdown.nsi`
+**Windows:**
+```
+build_on_win.bat release    # 编译
+pack_on_win.bat             # 收集依赖 + NSIS 打包
+```
+
+**Linux:**
+```
+./build_on_linux.sh release  # 编译
+./pack_on_linux.sh           # 生成 debian changelog + 构建 deb 包
+```
 
 ### 常见问题
 
@@ -279,7 +287,7 @@ qreal segW = fm.horizontalAdvance(run.text) + hPad * 2;
 1. 代码修改
    ↓
 2. 编译：build_on_win.bat release
-   ✓ 检查：build\app\SimpleMarkdown.exe 时间戳 = 当前日期时间
+   ✓ 检查：build\src\app\SimpleMarkdown.exe 时间戳 = 当前日期时间
    ✓ 如果时间戳是旧日期，说明之前编译失败，需要重新编译
    ↓
 3. 收集依赖：python installer\collect_dist.py
@@ -301,7 +309,7 @@ qreal segW = fm.horizontalAdvance(run.text) + hPad * 2;
 
 ```batch
 REM 检查 exe 时间戳
-for /F %%A in ('powershell -Command "(Get-Item build\app\SimpleMarkdown.exe).LastWriteTime.ToString()"') do echo Build exe: %%A
+for /F %%A in ('powershell -Command "(Get-Item build\src\app\SimpleMarkdown.exe).LastWriteTime.ToString()"') do echo Build exe: %%A
 for /F %%A in ('powershell -Command "(Get-Item installer\dist\SimpleMarkdown.exe).LastWriteTime.ToString()"') do echo Dist exe: %%A
 
 REM 如果时间戳不一致或都很旧，需要重新编译：
