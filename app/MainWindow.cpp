@@ -88,7 +88,7 @@ MainWindow::MainWindow(QWidget* parent)
             this, [this](const QPoint& pos) {
         int idx = m_tabWidget->tabBar()->tabAt(pos);
         if (idx < 0) return;
-        QMenu menu;
+        QMenu menu(this);
         menu.addAction(tr("Close"), [this, idx]() { onCloseTab(idx); });
         menu.addAction(tr("Close Others"), [this, idx]() {
             for (int i = m_tabs.size() - 1; i >= 0; --i)
