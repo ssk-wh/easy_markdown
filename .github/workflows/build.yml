@@ -86,7 +86,7 @@ jobs:
           Copy-Item "build/src/app/Release/SimpleMarkdown.exe" "$dist/"
 
           # Copy Qt DLLs
-          foreach ($dll in @("Qt5Core","Qt5Gui","Qt5Widgets","Qt5Network","Qt5Svg")) {
+          foreach ($dll in @("Qt5Core","Qt5Gui","Qt5Widgets","Qt5Network","Qt5Svg","Qt5PrintSupport")) {
             $path = "$qtBin/$dll.dll"
             if (Test-Path $path) { Copy-Item $path "$dist/" }
           }
