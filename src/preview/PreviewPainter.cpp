@@ -1,4 +1,5 @@
 #include "PreviewPainter.h"
+#include "CodeBlockRenderer.h"
 
 #include <QFontMetricsF>
 #include <QFile>
@@ -128,15 +129,18 @@ void PreviewPainter::paintBlock(QPainter* p, const LayoutBlock& block,
         qreal textX = drawX + 8;
         qreal textY = drawY + 8;
 
-        const QStringList lines = block.codeText.split('\n');
-        for (int li = 0; li < lines.size(); ++li) {
-            const auto& line = lines[li];
+        // 语法高亮渲染
+        CodeBlockRenderer renderer;
+        auto hlLines = renderer.highlight(block.codeText, block.language, m_theme.isDark);
+        const QStringList rawLines = block.codeText.split('\n');
+
+        for (int li = 0; li < (int)hlLines.size(); ++li) {
             // 跳过 split 产生的尾部空元素，与 extractBlockText 保持一致
-            if (li == lines.size() - 1 && line.isEmpty())
+            const QString& line = (li < rawLines.size()) ? rawLines[li] : QString();
+            if (li == (int)hlLines.size() - 1 && line.isEmpty())
                 break;
 
             qreal w = fm.horizontalAdvance(line);
-            // segRect 用于鼠标点击定位，必须与选区高亮矩形高度一致
             QRectF segRect(textX, textY, w, textHeight);
 
             int segStart = m_charCounter;
@@ -154,7 +158,7 @@ void PreviewPainter::paintBlock(QPainter* p, const LayoutBlock& block,
                 }
             }
 
-            // 选区高亮 - 使用文本实际高度而不是行高
+            // 选区高亮
             if (m_selStart >= 0 && m_selEnd > m_selStart) {
                 int hlStart = qMax(segStart, m_selStart);
                 int hlEnd = qMin(segEnd, m_selEnd);
@@ -167,8 +171,24 @@ void PreviewPainter::paintBlock(QPainter* p, const LayoutBlock& block,
             }
 
             recordSegment(segRect, m_charCounter, line.length(), line, monoFont);
-            p->drawText(QPointF(textX, textY + fm.ascent()), line);
-            m_charCounter += line.length() + 1; // +1 for '\n'
+
+            // 按语法高亮段绘制文本
+            qreal segX = textX;
+            for (const auto& seg : hlLines[li]) {
+                p->setPen(seg.color);
+                if (seg.bold) {
+                    QFont boldFont = monoFont;
+                    boldFont.setBold(true);
+                    p->setFont(boldFont);
+                    p->drawText(QPointF(segX, textY + fm.ascent()), seg.text);
+                    p->setFont(monoFont);
+                } else {
+                    p->drawText(QPointF(segX, textY + fm.ascent()), seg.text);
+                }
+                segX += fm.horizontalAdvance(seg.text);
+            }
+
+            m_charCounter += line.length() + 1;
             textY += lineH;
         }
         break;

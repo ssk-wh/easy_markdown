@@ -83,7 +83,7 @@ jobs:
           Write-Host "Qt plugins: $qtPlugins"
 
           # Copy exe
-          Copy-Item "build/app/Release/SimpleMarkdown.exe" "$dist/"
+          Copy-Item "build/src/app/Release/SimpleMarkdown.exe" "$dist/"
 
           # Copy Qt DLLs
           foreach ($dll in @("Qt5Core","Qt5Gui","Qt5Widgets","Qt5Network","Qt5Svg")) {

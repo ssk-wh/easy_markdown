@@ -1,5 +1,14 @@
 cmake_minimum_required(VERSION 3.16)
-project(SimpleMarkdown VERSION 0.1.0 LANGUAGES C CXX)
+
+# 从 CHANGELOG.md 自动提取版本号
+file(READ "${CMAKE_SOURCE_DIR}/CHANGELOG.md" _changelog)
+string(REGEX MATCH "\\[([0-9]+\\.[0-9]+\\.[0-9]+)\\]" _ "${_changelog}")
+set(_ver "${CMAKE_MATCH_1}")
+if(NOT _ver)
+    set(_ver "0.0.0")
+endif()
+
+project(SimpleMarkdown VERSION ${_ver} LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -18,7 +27,7 @@ else()
     message(STATUS "Test mode disabled: Normal production build")
 endif()
 
-find_package(Qt5 REQUIRED COMPONENTS Core Widgets Network)
+find_package(Qt5 REQUIRED COMPONENTS Core Widgets Network PrintSupport)
 
 option(CMARK_TESTS "" OFF)
 option(CMARK_SHARED "" OFF)

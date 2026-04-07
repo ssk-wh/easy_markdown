@@ -6,7 +6,9 @@
 
 ; ============== Basic Info ==============
 !define APP_NAME "SimpleMarkdown"
-!define APP_VERSION "0.1.0"
+!ifndef APP_VERSION
+    !define APP_VERSION "0.0.0"  ; fallback, pack_on_win.bat 会从 CHANGELOG.md 自动提取
+!endif
 !define APP_PUBLISHER "SimpleMarkdown"
 !define APP_EXE "SimpleMarkdown.exe"
 !define UNINSTALL_KEY "Software\Microsoft\Windows\CurrentVersion\Uninstall\${APP_NAME}"

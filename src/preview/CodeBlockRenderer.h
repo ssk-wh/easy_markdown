@@ -2,6 +2,7 @@
 
 #include <QString>
 #include <QColor>
+#include <QRegularExpression>
 #include <vector>
 
 class CodeBlockRenderer {
@@ -17,5 +18,21 @@ public:
     CodeBlockRenderer();
     ~CodeBlockRenderer();
 
-    std::vector<HighlightedLine> highlight(const QString& code, const QString& language);
+    std::vector<HighlightedLine> highlight(const QString& code, const QString& language, bool isDark);
+
+private:
+    enum TokenType { Default, Keyword, String, Comment, Number, Type, Preprocessor };
+
+    struct LangDef {
+        QRegularExpression keywords;
+        QRegularExpression types;
+        QRegularExpression singleComment;  // e.g. //
+        QString blockCommentStart;
+        QString blockCommentEnd;
+        bool hasPreprocessor = false;
+    };
+
+    LangDef getLangDef(const QString& language);
+    QColor colorForToken(TokenType type, bool isDark);
+    HighlightedLine tokenizeLine(const QString& line, const LangDef& def, bool isDark, bool& inBlockComment);
 };

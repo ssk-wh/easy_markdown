@@ -7,6 +7,8 @@
 #include "Document.h"
 #include "RecentFiles.h"
 #include "ChangelogDialog.h"
+#include "EditorLayout.h"
+#include "PreviewLayout.h"
 
 #include <QSplitter>
 #include <QMenuBar>
@@ -17,6 +19,7 @@
 #include <QDropEvent>
 #include <QCloseEvent>
 #include <QShowEvent>
+#include <QWheelEvent>
 #include <QFileInfo>
 #include <QShortcut>
 #include <QActionGroup>
@@ -29,6 +32,12 @@
 #include <QTabBar>
 #include <QToolButton>
 #include <QPainter>
+#include <QPrinter>
+#include <QPrintDialog>
+#include <QTextDocument>
+#include <QDir>
+#include <QPageSize>
+#include "MarkdownParser.h"
 
 #ifdef _WIN32
 #include <windows.h>
@@ -152,6 +161,12 @@ void MainWindow::setupMenuBar()
 
     fileMenu->addSeparator();
 
+    fileMenu->addAction(tr("Export HTML..."), this, &MainWindow::onExportHtml);
+    fileMenu->addAction(tr("Export PDF..."), this, &MainWindow::onExportPdf);
+    fileMenu->addAction(tr("Print..."), this, &MainWindow::onPrint, QKeySequence::Print);
+
+    fileMenu->addSeparator();
+
     fileMenu->addAction(tr("Exit"), this, &QWidget::close, QKeySequence::Quit);
 
     // -- Edit menu --
@@ -248,6 +263,12 @@ void MainWindow::setupMenuBar()
 
     viewMenu->addSeparator();
 
+    viewMenu->addAction(tr("Zoom In"), this, &MainWindow::zoomIn, QKeySequence(Qt::CTRL + Qt::Key_Equal));
+    viewMenu->addAction(tr("Zoom Out"), this, &MainWindow::zoomOut, QKeySequence(Qt::CTRL + Qt::Key_Minus));
+    viewMenu->addAction(tr("Reset Zoom"), this, &MainWindow::zoomReset, QKeySequence(Qt::CTRL + Qt::Key_0));
+
+    viewMenu->addSeparator();
+
     m_restoreSessionAct = viewMenu->addAction(tr("Restore Last File"));
     m_restoreSessionAct->setCheckable(true);
     m_restoreSessionAct->setChecked(true);
@@ -273,7 +294,7 @@ void MainWindow::setupMenuBar()
             "</table>"
             "<p>Source: <a href=\"https://github.com/ssk-wh/simple_markdown\">"
             "https://github.com/ssk-wh/simple_markdown</a></p>"
-        ).arg(QApplication::applicationVersion().isEmpty() ? "0.1.0" : QApplication::applicationVersion(),
+        ).arg(QApplication::applicationVersion(),
               QString(__DATE__),
               qVersion());
         QMessageBox::about(this, tr("About SimpleMarkdown"), about);
@@ -575,6 +596,10 @@ void MainWindow::applyTheme(const Theme& theme)
             "QTabBar::tab { background: #2b2b2b; color: #aaa; padding: 6px 12px; border: none; border-bottom: 2px solid transparent; }"
             "QTabBar::tab:selected { color: #fff; border-bottom: 2px solid #4a9eff; }"
             "QTabBar::tab:hover { color: #ddd; background: #353535; }"
+            // Tab 滚动按钮（tab 过多时出现的左右箭头）
+            "QTabBar::tear { width: 0; border: none; }"
+            "QTabBar QToolButton { background: #2b2b2b; border: none; color: #aaa; width: 20px; }"
+            "QTabBar QToolButton:hover { background: #353535; color: #fff; }"
             // 分割线
             "QSplitter::handle { background: #3c3f41; }"
             "QSplitter::handle:horizontal { width: 2px; }"
@@ -617,6 +642,10 @@ void MainWindow::applyTheme(const Theme& theme)
             "QTabBar::tab { background: #f0f0f0; color: #666; padding: 6px 12px; border: none; border-bottom: 2px solid transparent; }"
             "QTabBar::tab:selected { color: #333; border-bottom: 2px solid #0078d4; background: #fff; }"
             "QTabBar::tab:hover { color: #333; background: #e8e8e8; }"
+            // Tab 滚动按钮
+            "QTabBar::tear { width: 0; border: none; }"
+            "QTabBar QToolButton { background: #f0f0f0; border: none; color: #666; width: 20px; }"
+            "QTabBar QToolButton:hover { background: #e0e0e0; color: #333; }"
             // 分割线
             "QSplitter::handle { background: #e0e0e0; }"
             "QSplitter::handle:horizontal { width: 1px; }"
@@ -775,6 +804,10 @@ void MainWindow::onTabChanged(int index)
         auto* preview = m_tabs[index].preview;
         m_tocPanel->setEntries(preview->tocEntries());
         m_tocPanel->setHighlightedEntries(preview->tocHighlightedIndices());
+
+        // 切换到有待重载标记的 tab 时弹窗提示
+        if (m_tabs[index].pendingReload)
+            QTimer::singleShot(0, this, [this, index]() { promptReloadTab(index); });
     } else {
         m_tocPanel->setEntries({});
     }
@@ -808,6 +841,18 @@ void MainWindow::dropEvent(QDropEvent* event)
 
 bool MainWindow::eventFilter(QObject* obj, QEvent* event)
 {
+    // Ctrl+滚轮缩放字体
+    if (event->type() == QEvent::Wheel) {
+        auto* we = static_cast<QWheelEvent*>(event);
+        if (we->modifiers() & Qt::ControlModifier) {
+            if (we->angleDelta().y() > 0)
+                zoomIn();
+            else if (we->angleDelta().y() < 0)
+                zoomOut();
+            return true;
+        }
+    }
+
 #ifdef _WIN32
     // 为所有弹窗（QDialog、QMessageBox 等）自动设置深色标题栏
     if (event->type() == QEvent::Show) {
@@ -887,6 +932,7 @@ void MainWindow::saveSettings()
     QSettings s;
     s.setValue("view/wordWrap", m_wordWrapAct ? m_wordWrapAct->isChecked() : true);
     s.setValue("view/lineSpacing", m_lineSpacingFactor);
+    s.setValue("view/fontSizeDelta", m_fontSizeDelta);
     // 主题：follow_system / light / dark
     QString themeMode = "follow_system";
     if (m_lightThemeAct && m_lightThemeAct->isChecked()) themeMode = "light";
@@ -953,12 +999,19 @@ void MainWindow::loadSettings()
         if (qFuzzyCompare(spacings[i], m_lineSpacingFactor))
             m_spacingActions[i]->setChecked(true);
     }
+    // 字体缩放
+    m_fontSizeDelta = s.value("view/fontSizeDelta", 0).toInt();
+
     // 应用到已有标签页
     for (auto& tab : m_tabs) {
         tab.editor->setLineSpacing(m_lineSpacingFactor);
         tab.editor->setWordWrap(wordWrap);
         tab.preview->setWordWrap(wordWrap);
     }
+
+    // 应用字号（在标签页创建后）
+    if (m_fontSizeDelta != 0)
+        applyFontSize();
 }
 
 static QIcon makeCloseIcon(const QColor& normal, const QColor& hover)
@@ -1056,6 +1109,26 @@ void MainWindow::onFileChangedExternally(const QString& path)
     // 重新添加监控（某些系统修改后会自动移除）
     watchFile(path);
 
+    // 非当前 tab：标记待重载，切换时再弹窗
+    if (tabIndex != m_tabWidget->currentIndex()) {
+        m_tabs[tabIndex].pendingReload = true;
+        return;
+    }
+
+    promptReloadTab(tabIndex);
+}
+
+void MainWindow::promptReloadTab(int tabIndex)
+{
+    if (tabIndex < 0 || tabIndex >= m_tabs.size())
+        return;
+
+    m_tabs[tabIndex].pendingReload = false;
+
+    QString path = m_tabs[tabIndex].editor->document()->filePath();
+    if (path.isEmpty() || !QFileInfo::exists(path))
+        return;
+
     QString name = QFileInfo(path).fileName();
     QMessageBox::StandardButton ret = QMessageBox::question(
         this, tr("File Changed"),
@@ -1068,6 +1141,174 @@ void MainWindow::onFileChangedExternally(const QString& path)
         m_tabs[tabIndex].scheduler->parseNow();
         updateTabTitle(tabIndex);
     }
+}
+
+// ---- 字体缩放 ----
+
+void MainWindow::zoomIn()
+{
+    if (m_fontSizeDelta < 20) {
+        m_fontSizeDelta += 2;
+        applyFontSize();
+    }
+}
+
+void MainWindow::zoomOut()
+{
+    if (m_fontSizeDelta > -8) {
+        m_fontSizeDelta -= 2;
+        applyFontSize();
+    }
+}
+
+void MainWindow::zoomReset()
+{
+    m_fontSizeDelta = 0;
+    applyFontSize();
+}
+
+void MainWindow::applyFontSize()
+{
+    // 编辑器默认 12pt，预览默认 10pt
+    QFont editorFont("Courier New", 12 + m_fontSizeDelta);
+    editorFont.setStyleHint(QFont::Monospace);
+    QFont previewFont("Segoe UI", 10 + m_fontSizeDelta);
+
+    for (auto& tab : m_tabs) {
+        tab.editor->editorLayout()->setFont(editorFont);
+        tab.preview->previewLayout()->setFont(previewFont);
+        tab.preview->viewport()->update();
+        tab.editor->viewport()->update();
+    }
+    saveSessionLater();
+}
+
+// ---- 导出与打印 ----
+
+static const char* kHtmlTemplate = R"(<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>%1</title>
+<style>
+body { font-family: -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif; max-width: 900px; margin: 0 auto; padding: 2em; color: #333; line-height: 1.6; }
+h1, h2, h3, h4, h5, h6 { margin-top: 1.2em; margin-bottom: 0.4em; color: #111; }
+h1 { font-size: 2em; border-bottom: 1px solid #eee; padding-bottom: 0.3em; }
+h2 { font-size: 1.5em; border-bottom: 1px solid #eee; padding-bottom: 0.3em; }
+code { background: #f5f5f5; padding: 0.2em 0.4em; border-radius: 3px; font-size: 0.9em; }
+pre { background: #f5f5f5; padding: 1em; border-radius: 6px; white-space: pre-wrap; word-wrap: break-word; }
+pre code { background: none; padding: 0; }
+blockquote { margin: 0; padding: 0.5em 1em; border-left: 4px solid #ddd; color: #666; }
+table { border-collapse: collapse; width: 100%%; }
+th, td { border: 1px solid #ddd; padding: 8px 12px; text-align: left; }
+th { background: #f5f5f5; font-weight: 600; }
+img { max-width: 100%%; }
+a { color: #0366d6; }
+del { color: #999; }
+hr { border: none; border-top: 1px solid #eee; margin: 2em 0; }
+</style></head><body>
+%2
+</body></html>)";
+
+QString MainWindow::currentMarkdownToHtml()
+{
+    auto* tab = currentTab();
+    if (!tab) return {};
+
+    QString markdown = tab->editor->document()->text();
+    MarkdownParser parser;
+    return parser.renderHtml(markdown);
+}
+
+void MainWindow::onExportHtml()
+{
+    auto* tab = currentTab();
+    if (!tab) return;
+
+    QString body = currentMarkdownToHtml();
+    if (body.isEmpty()) return;
+
+    QString baseName = QFileInfo(tab->editor->document()->filePath()).completeBaseName();
+    if (baseName.isEmpty()) baseName = "untitled";
+
+    QString html = QString(kHtmlTemplate).arg(baseName.toHtmlEscaped(), body);
+
+    QString defaultPath = QFileInfo(tab->editor->document()->filePath()).absolutePath();
+    if (defaultPath.isEmpty()) defaultPath = QDir::homePath();
+
+    QString savePath = QFileDialog::getSaveFileName(
+        this, tr("Export HTML"), defaultPath + "/" + baseName + ".html",
+        tr("HTML Files (*.html)"));
+    if (savePath.isEmpty()) return;
+
+    QFile file(savePath);
+    if (file.open(QIODevice::WriteOnly | QIODevice::Text)) {
+        file.write(html.toUtf8());
+        file.close();
+    }
+}
+
+void MainWindow::onExportPdf()
+{
+    auto* tab = currentTab();
+    if (!tab) return;
+
+    QString body = currentMarkdownToHtml();
+    if (body.isEmpty()) return;
+
+    QString baseName = QFileInfo(tab->editor->document()->filePath()).completeBaseName();
+    if (baseName.isEmpty()) baseName = "untitled";
+
+    QString html = QString(kHtmlTemplate).arg(baseName.toHtmlEscaped(), body);
+
+    QString defaultPath = QFileInfo(tab->editor->document()->filePath()).absolutePath();
+    if (defaultPath.isEmpty()) defaultPath = QDir::homePath();
+
+    QString savePath = QFileDialog::getSaveFileName(
+        this, tr("Export PDF"), defaultPath + "/" + baseName + ".pdf",
+        tr("PDF Files (*.pdf)"));
+    if (savePath.isEmpty()) return;
+
+    QPrinter printer(QPrinter::HighResolution);
+    printer.setOutputFormat(QPrinter::PdfFormat);
+    printer.setOutputFileName(savePath);
+    printer.setPageSize(QPageSize(QPageSize::A4));
+    printer.setPageMargins(QMarginsF(15, 15, 15, 15), QPageLayout::Millimeter);
+
+    QTextDocument doc;
+    doc.setDefaultFont(QFont("Microsoft YaHei", 10));
+    doc.setHtml(html);
+    // pageRect() 返回设备像素(1200 DPI)，QTextDocument 使用 72 DPI 逻辑坐标
+    qreal scale = 72.0 / printer.resolution();
+    doc.setPageSize(QSizeF(printer.pageRect().width() * scale,
+                           printer.pageRect().height() * scale));
+    doc.print(&printer);
+}
+
+void MainWindow::onPrint()
+{
+    auto* tab = currentTab();
+    if (!tab) return;
+
+    QString body = currentMarkdownToHtml();
+    if (body.isEmpty()) return;
+
+    QString baseName = QFileInfo(tab->editor->document()->filePath()).completeBaseName();
+    if (baseName.isEmpty()) baseName = "untitled";
+
+    QString html = QString(kHtmlTemplate).arg(baseName.toHtmlEscaped(), body);
+
+    QPrinter printer(QPrinter::HighResolution);
+    printer.setPageSize(QPageSize(QPageSize::A4));
+
+    QPrintDialog dialog(&printer, this);
+    if (dialog.exec() != QDialog::Accepted) return;
+
+    QTextDocument doc;
+    doc.setDefaultFont(QFont("Microsoft YaHei", 10));
+    doc.setHtml(html);
+    // pageRect() 返回设备像素(1200 DPI)，QTextDocument 使用 72 DPI 逻辑坐标
+    qreal scale = 72.0 / printer.resolution();
+    doc.setPageSize(QSizeF(printer.pageRect().width() * scale,
+                           printer.pageRect().height() * scale));
+    doc.print(&printer);
 }
 
 #ifdef _WIN32

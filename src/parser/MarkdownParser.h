@@ -9,6 +9,7 @@ public:
     MarkdownParser();
     ~MarkdownParser();
     AstNodePtr parse(const QString& markdown);
+    QString renderHtml(const QString& markdown);
 
 private:
     AstNodePtr convertNode(cmark_node* node);

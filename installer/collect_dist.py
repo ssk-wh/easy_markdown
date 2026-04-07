@@ -4,7 +4,7 @@ SimpleMarkdown dist collection script.
 Collects exe, Qt dependencies, Qt plugins, and MSVC runtime into installer/dist.
 
 Usage: python collect_dist.py [build_dir]
-Default build_dir = ../build/app/Release
+Default build_dir = ../build/src/app/Release
 """
 
 import os
@@ -20,7 +20,7 @@ EXE_NAME = "SimpleMarkdown.exe"
 
 QT_DLLS = [
     "Qt5Core.dll", "Qt5Gui.dll", "Qt5Widgets.dll",
-    "Qt5Network.dll", "Qt5Svg.dll",
+    "Qt5Network.dll", "Qt5Svg.dll", "Qt5PrintSupport.dll",
 ]
 
 QT_PLUGINS = ["platforms", "imageformats", "styles"]
@@ -228,7 +228,7 @@ def collect(build_dir):
 
 
 if __name__ == "__main__":
-    build_dir = Path(sys.argv[1]) if len(sys.argv) > 1 else PROJECT_DIR / "build" / "app" / "Release"
+    build_dir = Path(sys.argv[1]) if len(sys.argv) > 1 else PROJECT_DIR / "build" / "src" / "app" / "Release"
     build_dir = build_dir.resolve()
 
     if not collect(build_dir):

@@ -80,6 +80,7 @@ int main(int argc, char* argv[])
 
     app.setApplicationName("SimpleMarkdown");
     app.setOrganizationName("SimpleMarkdown");
+    app.setApplicationVersion(APP_VERSION);
     app.setWindowIcon(QIcon(":/app-icon.png"));
     fprintf(stderr, "[3] App properties set\n");
     fflush(stderr);

@@ -31,6 +31,17 @@ echo ================================================
 echo   Step 2/2: Packing NSIS installer...
 echo ================================================
 
+REM Extract version from CHANGELOG.md (first ## [x.y.z] line)
+set "APP_VER="
+for /f "tokens=2 delims=[]" %%V in ('findstr /r "\[[0-9]*\.[0-9]*\.[0-9]*\]" CHANGELOG.md') do (
+    if not defined APP_VER set "APP_VER=%%V"
+)
+if not defined APP_VER (
+    echo [ERROR] Cannot extract version from CHANGELOG.md
+    exit /b 1
+)
+echo   Version: %APP_VER% ^(from CHANGELOG.md^)
+
 REM Determine NSIS path
 set "NSIS_EXE="
 if exist "C:\Program Files (x86)\NSIS\makensis.exe" (
@@ -48,7 +59,7 @@ echo   NSIS path: !NSIS_EXE!
 echo.
 
 cd installer
-"!NSIS_EXE!" SimpleMarkdown.nsi
+"!NSIS_EXE!" /DAPP_VERSION=%APP_VER% SimpleMarkdown.nsi
 if errorlevel 1 (
     echo [ERROR] NSIS packing failed!
     cd ..

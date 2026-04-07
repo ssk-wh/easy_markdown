@@ -7,13 +7,29 @@
 - [x] CHANGELOG.md 更新 + debian changelog 生成脚本
 - [x] 打包脚本重构：pack_on_win.bat + pack_on_linux.sh
 
-## P0 — 严重缺失
-- [ ] 导出功能 — 支持导出 PDF、HTML
-- [ ] 字体大小调节 — Ctrl+鼠标滚轮或菜单调节
-- [ ] 打印功能
+## 待用户确认（本次）
+- [x] NSIS 版本号自动从 CHANGELOG.md 提取，不再手动维护
+- [x] Tab 过多时滚动箭头样式适配深色/浅色主题
+- [x] About 界面版本号自动从 CHANGELOG.md 提取（CMake → compile definition → app）
+
+## 待用户确认（本次）续
+- [x] 外部修改检测：非当前 tab 被修改时延迟到切换时再弹窗
+
+## 待用户确认（本次）续续
+- [x] 导出 HTML — cmark-gfm 渲染 + CSS 模板
+- [x] 导出 PDF — HTML → QTextDocument → QPrinter
+- [x] 打印功能 — 复用 PDF 管线，Ctrl+P 快捷键
+
+## 待用户确认（本次）P0
+- [x] 字体大小调节 — Ctrl+滚轮/Ctrl+=/Ctrl+-/Ctrl+0，设置持久化
+
+## 待用户确认（本次）P1
+- [x] 预览区代码块语法高亮 — 支持 C/C++/Python/JS/TS/Java/Rust/Go/Bash/SQL/CSS/HTML/CMake
+
+## Bug
+- [x] 导出 PDF 时 wordwrap 设置无效，长行未自动换行 — ✅ 已完成，待用户确认
 
 ## P1 — 重要体验问题
-- [ ] 预览区代码块语法高亮
 - [ ] 查找替换增强 — 大小写敏感、正则、全词匹配
 - [ ] 长文件性能
 - [ ] 快捷键说明面板

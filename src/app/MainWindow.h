@@ -49,6 +49,7 @@ private:
         PreviewWidget* preview = nullptr;
         ParseScheduler* scheduler = nullptr;
         ScrollSync* scrollSync = nullptr;
+        bool pendingReload = false;  // 文件被外部修改，等切换到此 tab 时提示
     };
 
     QTabWidget* m_tabWidget;
@@ -84,9 +85,23 @@ private:
     void watchFile(const QString& path);
     void unwatchFile(const QString& path);
     void onFileChangedExternally(const QString& path);
+    void promptReloadTab(int tabIndex);
 
     void setupMenuBar();
     void setupDragDrop();
+
+    // 导出与打印
+    QString currentMarkdownToHtml();
+    void onExportHtml();
+    void onExportPdf();
+    void onPrint();
+
+    // 字体缩放
+    int m_fontSizeDelta = 0;  // 相对于默认字号的偏移
+    void zoomIn();
+    void zoomOut();
+    void zoomReset();
+    void applyFontSize();
     TabData createTab();
     void updateTabTitle(int index);
     void setTabCloseButton(int index);

@@ -93,6 +93,39 @@ AstNodePtr MarkdownParser::convertNode(cmark_node* node)
     return ast;
 }
 
+QString MarkdownParser::renderHtml(const QString& markdown)
+{
+    ensureExtensions();
+
+    QByteArray utf8 = markdown.toUtf8();
+    cmark_parser* parser = cmark_parser_new(CMARK_OPT_DEFAULT);
+
+    cmark_syntax_extension* tableExt = cmark_find_syntax_extension("table");
+    if (tableExt)
+        cmark_parser_attach_syntax_extension(parser, tableExt);
+
+    cmark_syntax_extension* strikeExt = cmark_find_syntax_extension("strikethrough");
+    if (strikeExt)
+        cmark_parser_attach_syntax_extension(parser, strikeExt);
+
+    cmark_syntax_extension* tasklistExt = cmark_find_syntax_extension("tasklist");
+    if (tasklistExt)
+        cmark_parser_attach_syntax_extension(parser, tasklistExt);
+
+    cmark_parser_feed(parser, utf8.data(), utf8.size());
+    cmark_node* doc = cmark_parser_finish(parser);
+
+    cmark_llist* extensions = cmark_parser_get_syntax_extensions(parser);
+    char* html = cmark_render_html(doc, CMARK_OPT_DEFAULT, extensions);
+    QString result = QString::fromUtf8(html);
+
+    free(html);
+    cmark_node_free(doc);
+    cmark_parser_free(parser);
+
+    return result;
+}
+
 AstNodeType MarkdownParser::mapNodeType(cmark_node* node)
 {
     int type = cmark_node_get_type(node);
