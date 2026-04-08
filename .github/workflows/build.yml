@@ -154,7 +154,14 @@ jobs:
       - name: Extract version
         id: version
         run: |
-          VERSION=$(sed -n 's/^[^(]*(\([^)]*\)).*/\1/p' debian/changelog | head -1)
+          if [[ "$GITHUB_REF" =~ ^refs/tags/v(.+)$ ]]; then
+            VERSION="${BASH_REMATCH[1]}"
+          else
+            VERSION=$(grep -oP '^\[\K\d+\.\d+\.\d+(?=\])' CHANGELOG.md | head -1)
+            if [ -z "$VERSION" ]; then
+              VERSION="0.1.0"
+            fi
+          fi
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "Building version: $VERSION"
 
