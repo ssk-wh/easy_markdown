@@ -1,29 +1,29 @@
 #include "ChangelogDialog.h"
+#include "PreviewWidget.h"
+#include "MarkdownParser.h"
 
-#include <QTextEdit>
 #include <QVBoxLayout>
 #include <QPushButton>
 #include <QFile>
 #include <QApplication>
-#include <QStandardPaths>
 #include <QDebug>
 
-ChangelogDialog::ChangelogDialog(QWidget* parent)
-    : QDialog(parent), m_textEdit(nullptr)
+ChangelogDialog::ChangelogDialog(const Theme& theme, QWidget* parent)
+    : QDialog(parent), m_previewWidget(nullptr)
 {
     setWindowTitle(tr("Update History"));
     setMinimumSize(700, 500);
 
-    // 文本编辑框
-    m_textEdit = new QTextEdit(this);
-    m_textEdit->setReadOnly(true);
+    // 预览组件
+    m_previewWidget = new PreviewWidget(this);
+    m_previewWidget->setTheme(theme);
 
     // 关闭按钮
     QPushButton* closeBtn = new QPushButton(tr("Close"), this);
     connect(closeBtn, &QPushButton::clicked, this, &QDialog::accept);
 
     QVBoxLayout* layout = new QVBoxLayout(this);
-    layout->addWidget(m_textEdit);
+    layout->addWidget(m_previewWidget);
     layout->addWidget(closeBtn);
 
     loadChangelog();
@@ -62,43 +62,8 @@ void ChangelogDialog::loadChangelog()
                      "Please ensure CHANGELOG.md is installed with the application.");
     }
 
-    // 渲染 Markdown 格式
-    // 简单的 Markdown 格式渲染（标题、列表、代码块）
-    QString html = "<html><body style=\"font-family: monospace; white-space: pre-wrap;\">";
-
-    // 基础 Markdown 渲染
-    QStringList lines = content.split('\n');
-    for (const auto& line : lines) {
-        QString htmlLine = line;
-
-        // 转义 HTML 特殊字符
-        htmlLine.replace("&", "&amp;")
-                .replace("<", "&lt;")
-                .replace(">", "&gt;");
-
-        // Markdown 标题处理（# ## ###）
-        if (htmlLine.startsWith("# ")) {
-            htmlLine.replace(0, 2, "");
-            htmlLine = QString("<h2 style=\"margin-top: 16px; margin-bottom: 8px; font-weight: bold;\">%1</h2>").arg(htmlLine);
-        } else if (htmlLine.startsWith("## ")) {
-            htmlLine.replace(0, 3, "");
-            htmlLine = QString("<h3 style=\"margin-top: 12px; margin-bottom: 6px; font-weight: bold;\">%1</h3>").arg(htmlLine);
-        } else if (htmlLine.startsWith("### ")) {
-            htmlLine.replace(0, 4, "");
-            htmlLine = QString("<h4 style=\"margin-top: 10px; margin-bottom: 4px; font-weight: bold;\">%1</h4>").arg(htmlLine);
-        }
-        // 列表处理
-        else if (htmlLine.startsWith("- ")) {
-            htmlLine.replace(0, 2, "");
-            htmlLine = QString("<div style=\"margin-left: 20px;\">• %1</div>").arg(htmlLine);
-        }
-
-        html += htmlLine + "\n";
-    }
-
-    html += "</body></html>";
-
-    m_textEdit->setHtml(html);
-    m_textEdit->moveCursor(QTextCursor::Start);  // 回到顶部
-    m_textEdit->ensureCursorVisible();
+    // 使用项目的 Markdown 解析器渲染
+    MarkdownParser parser;
+    auto ast = parser.parse(content);
+    m_previewWidget->updateAst(std::shared_ptr<AstNode>(std::move(ast)));
 }

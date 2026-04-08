@@ -69,7 +69,7 @@ private:
     QAction* m_lightThemeAct = nullptr;
     QAction* m_darkThemeAct = nullptr;
     QVector<QAction*> m_spacingActions;
-    qreal m_lineSpacingFactor = 1.0;
+    qreal m_lineSpacingFactor = 1.5;
 
     void saveSettings();
     void saveSessionLater();

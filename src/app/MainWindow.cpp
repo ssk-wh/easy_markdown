@@ -277,7 +277,7 @@ void MainWindow::setupMenuBar()
     QMenu* helpMenu = menuBar()->addMenu(tr("Help"));
 
     helpMenu->addAction(tr("Update History"), this, [this]() {
-        ChangelogDialog dialog(this);
+        ChangelogDialog dialog(m_currentTheme, this);
         dialog.exec();
     });
 
@@ -481,8 +481,7 @@ MainWindow::TabData MainWindow::createTab()
     tab.preview->setTheme(m_currentTheme);
     tab.editor->setWordWrap(m_wordWrapAct && m_wordWrapAct->isChecked());
     tab.preview->setWordWrap(m_wordWrapAct && m_wordWrapAct->isChecked());
-    if (!qFuzzyCompare(m_lineSpacingFactor, 1.0))
-        tab.editor->setLineSpacing(m_lineSpacingFactor);
+    tab.editor->setLineSpacing(m_lineSpacingFactor);
 
     // TOC 信号：仅当此 tab 是当前活跃 tab 时更新全局 TocPanel
     connect(tab.preview, &PreviewWidget::tocEntriesChanged,
@@ -996,7 +995,7 @@ void MainWindow::loadSettings()
         m_restoreSessionAct->setChecked(s.value("session/restoreLastFile", true).toBool());
 
     // 行间距
-    m_lineSpacingFactor = s.value("view/lineSpacing", 1.0).toDouble();
+    m_lineSpacingFactor = s.value("view/lineSpacing", 1.5).toDouble();
     // 更新菜单选中状态
     double spacings[] = {1.0, 1.2, 1.5, 1.8, 2.0};
     for (int i = 0; i < m_spacingActions.size() && i < 5; ++i) {

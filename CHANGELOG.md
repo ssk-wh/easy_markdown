@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.2.2] - 2026-04-08
+
+### Changed
+- 更新日志弹窗改用项目自身的 Markdown 渲染引擎，与主预览区域效果一致
+- 更新日志弹窗自动跟随当前主题（深色/浅色）
+
+### Fixed
+- 默认行间距从 1.0 改为 1.5，提升阅读体验
+
 ## [0.2.1] - 2026-04-07
 
 ### Fixed

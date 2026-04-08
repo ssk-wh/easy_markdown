@@ -1,15 +1,16 @@
 #pragma once
 
 #include <QDialog>
+#include "Theme.h"
 
-class QTextEdit;
+class PreviewWidget;
 
 class ChangelogDialog : public QDialog {
     Q_OBJECT
 public:
-    explicit ChangelogDialog(QWidget* parent = nullptr);
+    explicit ChangelogDialog(const Theme& theme, QWidget* parent = nullptr);
 
 private:
     void loadChangelog();
-    QTextEdit* m_textEdit;
+    PreviewWidget* m_previewWidget;
 };
