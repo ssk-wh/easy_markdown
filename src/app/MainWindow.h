@@ -16,6 +16,8 @@ class QSplitter;
 class QMenu;
 class QActionGroup;
 class QLocalServer;
+class QLabel;
+class QStatusBar;
 
 class MainWindow : public QMainWindow {
     Q_OBJECT
@@ -71,6 +73,12 @@ private:
     QVector<QAction*> m_spacingActions;
     qreal m_lineSpacingFactor = 1.5;
 
+    // 语言切换
+    QAction* m_zhCNAct = nullptr;
+    QAction* m_enUSAct = nullptr;
+    void switchLanguage(const QString& locale);
+    void retranslateUi();
+
     void saveSettings();
     void saveSessionLater();
     void loadSettings();
@@ -95,6 +103,17 @@ private:
     void onExportHtml();
     void onExportPdf();
     void onPrint();
+    void onShowShortcuts();
+
+    // 专注模式
+    bool m_focusMode = false;
+    QAction* m_focusModeAct = nullptr;
+    QByteArray m_savedMainSplitterState;
+    QList<int> m_savedTabSplitterSizes;
+    bool m_savedTocVisible = true;
+    void toggleFocusMode();
+    void enterFocusMode();
+    void exitFocusMode();
 
     // 字体缩放
     int m_fontSizeDelta = 0;  // 相对于默认字号的偏移
@@ -112,4 +131,16 @@ private:
     bool isSystemDarkMode() const;
     TabData* currentTab();
     bool maybeSave(int index);
+
+    // 状态栏统计信息
+    QLabel* m_statusWordCount = nullptr;
+    QLabel* m_statusCharCount = nullptr;
+    QLabel* m_statusLineCount = nullptr;
+    QLabel* m_statusCursorPos = nullptr;
+    QLabel* m_statusReadTime = nullptr;
+    QTimer m_statsDebounceTimer;
+    void setupStatusBar();
+    void updateStatusBarStats();
+    void updateCursorPosition(int line, int column);
+    void connectTabStatusBar(const TabData& tab);
 };

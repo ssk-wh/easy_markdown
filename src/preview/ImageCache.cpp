@@ -18,13 +18,19 @@ QPixmap* ImageCache::get(const QString& url)
     }
 
     // Skip network URLs
-    if (url.startsWith("http://") || url.startsWith("https://")) {
+    if (isNetworkUrl(url)) {
+        return nullptr;
+    }
+
+    // Skip already-failed URLs
+    if (m_failedUrls.contains(url)) {
         return nullptr;
     }
 
     // Try local file
     QFileInfo fi(url);
     if (!fi.exists() || !fi.isFile()) {
+        m_failedUrls.insert(url);
         return nullptr;
     }
 
@@ -35,10 +41,22 @@ QPixmap* ImageCache::get(const QString& url)
         return &inserted.value();
     }
 
+    m_failedUrls.insert(url);
     return nullptr;
+}
+
+bool ImageCache::isFailed(const QString& url) const
+{
+    return m_failedUrls.contains(url);
+}
+
+bool ImageCache::isNetworkUrl(const QString& url) const
+{
+    return url.startsWith("http://") || url.startsWith("https://");
 }
 
 void ImageCache::clear()
 {
     m_cache.clear();
+    m_failedUrls.clear();
 }

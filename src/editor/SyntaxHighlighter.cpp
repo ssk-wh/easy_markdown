@@ -59,13 +59,22 @@ void SyntaxHighlighter::setupFormats(const Theme& theme)
 
 QVector<HighlightToken> SyntaxHighlighter::highlightLine(int lineIndex, const QString& text)
 {
-    // 确保 states 数组足够大
+    // 确保 states 和 cache 数组足够大
     if (lineIndex >= static_cast<int>(m_states.size())) {
         m_states.resize(lineIndex + 1);
+    }
+    if (lineIndex >= static_cast<int>(m_cache.size())) {
+        m_cache.resize(lineIndex + 1);
     }
 
     // 获取前一行的结束状态
     LineState prevState = (lineIndex > 0) ? m_states[lineIndex - 1] : LineState{Normal};
+
+    // 检查缓存是否有效
+    auto& cached = m_cache[lineIndex];
+    if (cached.text == text && cached.prevState == prevState.state) {
+        return cached.tokens;
+    }
 
     QVector<HighlightToken> tokens;
 
@@ -78,16 +87,27 @@ QVector<HighlightToken> SyntaxHighlighter::highlightLine(int lineIndex, const QS
         } else {
             m_states[lineIndex] = {Normal};
         }
+        // 更新缓存
+        cached.text = text;
+        cached.tokens = tokens;
+        cached.prevState = prevState.state;
         return tokens;
     }
 
     if (prevState.state == InCodeBlock) {
         m_states[lineIndex] = {InCodeBlock};
-        return highlightCodeBlock(text);
+        tokens = highlightCodeBlock(text);
+    } else {
+        m_states[lineIndex] = {Normal};
+        tokens = highlightNormal(text);
     }
 
-    m_states[lineIndex] = {Normal};
-    return highlightNormal(text);
+    // 更新缓存
+    cached.text = text;
+    cached.tokens = tokens;
+    cached.prevState = prevState.state;
+
+    return tokens;
 }
 
 QVector<HighlightToken> SyntaxHighlighter::highlightNormal(const QString& text)
@@ -172,9 +192,13 @@ void SyntaxHighlighter::invalidateFromLine(int startLine)
     if (startLine < static_cast<int>(m_states.size())) {
         m_states.resize(startLine);
     }
+    if (startLine < static_cast<int>(m_cache.size())) {
+        m_cache.resize(startLine);
+    }
 }
 
 void SyntaxHighlighter::setLineCount(int count)
 {
     m_states.resize(count);
+    m_cache.resize(count);
 }

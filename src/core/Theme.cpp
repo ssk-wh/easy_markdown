@@ -22,6 +22,7 @@ Theme Theme::dark() {
     t.editorGutterBg = QColor("#1E1E1E");
     t.editorCursor = QColor("#D4D4D4");
     t.editorSearchMatch = QColor("#613214");
+    t.editorSearchMatchCurrent = QColor("#A05A2C");  // 当前匹配项（更亮的橙色）
     t.editorGutterLine = QColor("#333333");
     t.editorPreeditBg = QColor(80, 80, 50);
 
@@ -54,6 +55,10 @@ Theme Theme::dark() {
     t.previewImagePlaceholderBg = QColor("#2D2D2D");
     t.previewImagePlaceholderBorder = QColor("#444444");
     t.previewImagePlaceholderText = QColor("#808080");
+    t.previewImageErrorBg = QColor("#3D2020");
+    t.previewImageErrorBorder = QColor("#B71C1C");
+    t.previewImageErrorText = QColor("#EF9A9A");
+    t.previewImageInfoText = QColor("#A0A0A0");
     t.previewHighlight = QColor(255, 167, 38, 120);        // 橙黄色
     t.previewHighlightToc = QColor(180, 120, 0, 150);      // 深金黄
 

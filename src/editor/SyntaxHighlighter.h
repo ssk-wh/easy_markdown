@@ -31,6 +31,14 @@ private:
     };
     std::vector<LineState> m_states;
 
+    // 高亮缓存
+    struct CachedHighlight {
+        QString text;
+        QVector<HighlightToken> tokens;
+        State prevState = Normal;
+    };
+    std::vector<CachedHighlight> m_cache;
+
     QVector<HighlightToken> highlightNormal(const QString& text);
     QVector<HighlightToken> highlightCodeBlock(const QString& text);
 

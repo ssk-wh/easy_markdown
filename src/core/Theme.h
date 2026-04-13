@@ -16,6 +16,7 @@ struct Theme {
     QColor editorGutterBg = QColor("#F0F0F0");
     QColor editorCursor = QColor("#333333");
     QColor editorSearchMatch = QColor(255, 235, 59, 128);  // 半透明黄色
+    QColor editorSearchMatchCurrent = QColor(255, 152, 0, 180);  // 当前匹配项（橙色，更明显）
     QColor editorGutterLine = QColor("#E0E0E0");
     QColor editorPreeditBg = QColor(255, 255, 200);
 
@@ -48,6 +49,10 @@ struct Theme {
     QColor previewImagePlaceholderBg = QColor("#F0F0F0");
     QColor previewImagePlaceholderBorder = QColor("#CCCCCC");
     QColor previewImagePlaceholderText = QColor("#999999");
+    QColor previewImageErrorBg = QColor("#FFF0F0");
+    QColor previewImageErrorBorder = QColor("#E57373");
+    QColor previewImageErrorText = QColor("#C62828");
+    QColor previewImageInfoText = QColor("#666666");
     QColor previewHighlight = QColor(255, 235, 59, 180);     // 标记高亮（浅色）
     QColor previewHighlightToc = QColor(255, 235, 59, 120);  // TOC标记（浅色）
 

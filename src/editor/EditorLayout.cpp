@@ -1,5 +1,6 @@
 #include "EditorLayout.h"
 #include "Document.h"
+#include "FontDefaults.h"
 #include <QTextOption>
 #include <algorithm>
 
@@ -7,10 +8,9 @@ EditorLayout::EditorLayout(QObject* parent)
     : QObject(parent)
     , m_fontMetrics(QFont())
 {
-    // Set a sensible default font
-    QFont defaultFont("Courier New", 12);
-    defaultFont.setStyleHint(QFont::Monospace);
-    setFont(defaultFont);
+    // [字体系统] Spec: specs/横切关注点/80-字体系统.md INV-1, INV-3
+    // 默认字体统一从 FontDefaults 取，禁止硬编码字号
+    setFont(font_defaults::defaultEditorFont());
 }
 
 EditorLayout::~EditorLayout() = default;

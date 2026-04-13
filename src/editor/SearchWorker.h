@@ -11,6 +11,8 @@ public:
 
 public slots:
     void search(const QString& text, const QString& fullText, int requestId);
+    void searchWithOptions(const QString& text, const QString& fullText, int requestId,
+                          bool caseSensitive, bool wholeWord, bool regex);
 
 signals:
     void searchFinished(QVector<QPair<int,int>> matches, int requestId);

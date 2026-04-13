@@ -8,6 +8,8 @@
 #include <QRectF>
 #include <QPair>
 
+class ImageCache;
+
 struct TextSegment {
     QRectF rect;       // 屏幕坐标（相对于 viewport，已减 scrollY）
     int charStart;     // 在纯文本中的起始字符索引
@@ -57,6 +59,7 @@ public:
 
     void setTheme(const Theme& theme);
     const Theme& theme() const { return m_theme; }
+    void setImageCache(ImageCache* cache);
 
     void paint(QPainter* painter, const LayoutBlock& root,
                qreal scrollY, qreal viewportHeight, qreal viewportWidth);
@@ -68,6 +71,9 @@ public:
 
     // 标记高亮
     void setHighlights(const QVector<QPair<int,int>>& highlights);
+
+    // TOC 跳转目标行高亮
+    void setTargetLineHighlight(int sourceLine, qreal opacity);
 
     // [测试模式] 获取记录的块信息，并输出到 JSON 文件
 #ifdef ENABLE_TEST_MODE
@@ -86,11 +92,14 @@ private:
     void countBlockChars(const LayoutBlock& block);
 
     Theme m_theme;
+    ImageCache* m_imageCache = nullptr;
     QVector<TextSegment> m_textSegments;
     int m_charCounter = 0;  // 绘制期间的字符计数器
     int m_selStart = -1;
     int m_selEnd = -1;
     QVector<QPair<int,int>> m_highlights;  // 标记高亮范围 (start, end)
+    int m_targetSourceLine = -1;  // TOC 跳转目标行
+    qreal m_targetHighlightOpacity = 0.0;  // 目标行高亮透明度
 
 #ifdef ENABLE_TEST_MODE
     mutable BlockInfo m_rootBlockInfo;  // 递归渲染树（用于测试验证）

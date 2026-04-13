@@ -2,6 +2,36 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.2.3] - 2026-04-13
+
+### Added
+- 新增快捷键速查弹窗（ShortcutsDialog），列出常用编辑、预览、导航快捷键
+
+### Changed
+- 废弃 TODO 文件，所有工作项迁入 `plans/`；新增"极简 Plan 模板"适用于小改动；项目级 CLAUDE.md override 全局 TODO 规则
+- 项目转为规范驱动开发（SDD）：所有改动先写/改 `specs/` 下的 Spec 再生成代码
+- 新增 `specs/` 目录承载规范（产品愿景、系统架构、约束与不变量、模块 Spec、横切关注点）
+- 新增 `plans/` 目录承载实施计划，原 `docs/superpowers/` 历史文档迁入 `plans/归档/`
+- `docs/` 瘦身为人类向文档：`build.md` 合并打包诊断内容后更名为 `构建说明.md`
+- `CLAUDE.md` 从 437 行精简到约 200 行，重定位为 SDD 工作流入口 + 索引
+- 旧的 `docs/architecture.md` / `requirements.md` / `高DPI适配指南.md` 内容迁入 `specs/` 后删除
+- 编辑器与预览基础字号统一从中心化常量派生（FontDefaults.h），避免两侧字号不一致
+- README 整体重写，聚焦项目定位、特性与快速上手
+- Spec 中的 C++ 源文件编码规则从"UTF-8 BOM"修正为"UTF-8 无 BOM"，对齐项目现状
+- 文档中的 `<repo-url>` 占位符替换为实际的 GitHub 仓库地址
+
+### Fixed
+- 关于弹窗中部分英文文案未本地化为中文
+- ShortcutsDialog 在深色主题下背景、文字、分隔线颜色未跟随主题
+- ShortcutsDialog 表格 viewport（QAbstractScrollArea 内容区）和表头（QHeaderView）
+  在深色主题下仍是白底，用 QPalette + stylesheet 混合方案彻底覆盖
+- ShortcutsDialog 部分分组标题和快捷键描述未走 tr() 导致中文系统下显示为英文
+  （已审计：当前所有用户文本均已 tr() 包装且翻译条目齐全）
+- 编辑器与预览基础字号视觉对齐：等宽字体（Consolas）vs 比例字体（Segoe UI）在同
+  pointSize 下视觉差异显著，新增 `balanceEditorFontSize()` 基于 `xHeight` 度量
+  在 ±2pt 窗口内动态补偿编辑器字号；Spec 80 INV-2/INV-6 修订为"视觉对齐"，
+  新增 INV-10 强制走补偿函数
+
 ## [0.2.2] - 2026-04-08
 
 ### Changed

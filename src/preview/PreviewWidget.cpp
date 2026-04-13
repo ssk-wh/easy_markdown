@@ -4,6 +4,7 @@
 #include "ImageCache.h"
 #include "TocPanel.h"  // for TocEntry
 #include "MarkdownAst.h"
+#include "MarkdownParser.h"
 
 #include <QPainter>
 #include <QScrollBar>
@@ -14,6 +15,8 @@
 #include <QApplication>
 #include <QMenu>
 #include <QSet>
+#include <QMimeData>
+#include <QPropertyAnimation>
 
 PreviewWidget::PreviewWidget(QWidget* parent)
     : QAbstractScrollArea(parent)
@@ -22,8 +25,8 @@ PreviewWidget::PreviewWidget(QWidget* parent)
     m_layout->setFont(font());
 
     m_painter = new PreviewPainter();
-
     m_imageCache = new ImageCache(this);
+    m_painter->setImageCache(m_imageCache);
 
     viewport()->setAutoFillBackground(true);
     QPalette pal = viewport()->palette();
@@ -41,6 +44,10 @@ PreviewWidget::PreviewWidget(QWidget* parent)
 
 PreviewWidget::~PreviewWidget()
 {
+    if (m_scrollAnimation) {
+        m_scrollAnimation->disconnect();
+        m_scrollAnimation->stop();
+    }
     delete m_layout;
     delete m_painter;
     // m_imageCache is owned by QObject parent
@@ -112,6 +119,7 @@ void PreviewWidget::paintEvent(QPaintEvent* /*event*/)
 
     m_painter->setSelection(m_selStart, m_selEnd);
     m_painter->setHighlights(m_highlights);
+    m_painter->setTargetLineHighlight(m_targetSourceLine, m_highlightOpacity);
     qreal contentWidth = m_wordWrap ? (vpWidth - 40) : 10000;
     m_painter->paint(&painter, m_layout->rootBlock(), scrollY, vpHeight, contentWidth);
 }
@@ -199,6 +207,78 @@ void PreviewWidget::scrollToSourceLine(int line)
     qreal y = m_layout->sourceLineToY(line);
     verticalScrollBar()->setValue(static_cast<int>(y));
 }
+
+void PreviewWidget::smoothScrollToSourceLine(int line)
+{
+    qreal targetY = m_layout->sourceLineToY(line);
+    int currentY = verticalScrollBar()->value();
+    int targetYInt = static_cast<int>(targetY);
+
+    // 如果已经在目标位置附近，直接跳转
+    if (qAbs(targetYInt - currentY) < 10) {
+        verticalScrollBar()->setValue(targetYInt);
+        return;
+    }
+
+    // 停止之前的动画
+    if (m_scrollAnimation) {
+        m_scrollAnimation->disconnect();
+        m_scrollAnimation->stop();
+        m_scrollAnimation->deleteLater();
+        m_scrollAnimation = nullptr;
+    }
+
+    // 创建平滑滚动动画
+    m_scrollAnimation = new QPropertyAnimation(verticalScrollBar(), "value", this);
+    m_scrollAnimation->setDuration(300);  // 300ms 动画时长
+    m_scrollAnimation->setStartValue(currentY);
+    m_scrollAnimation->setEndValue(targetYInt);
+    m_scrollAnimation->setEasingCurve(QEasingCurve::OutCubic);
+
+    m_targetSourceLine = line;
+
+    connect(m_scrollAnimation, &QPropertyAnimation::valueChanged, this, &PreviewWidget::onScrollAnimationValueChanged);
+    connect(m_scrollAnimation, &QPropertyAnimation::finished, this, &PreviewWidget::onScrollAnimationFinished);
+
+    m_scrollAnimation->start();
+}
+
+void PreviewWidget::onScrollAnimationValueChanged(const QVariant &value)
+{
+    Q_UNUSED(value);
+    viewport()->update();
+}
+
+void PreviewWidget::onScrollAnimationFinished()
+{
+    // 动画结束后，启动高亮动画
+    if (m_targetSourceLine >= 0) {
+        // 创建透明度动画
+        QPropertyAnimation* highlightAnim = new QPropertyAnimation(this, "highlightOpacity");
+        highlightAnim->setDuration(500);  // 500ms 高亮持续时间
+        highlightAnim->setStartValue(0.3);
+        highlightAnim->setEndValue(0.0);
+        highlightAnim->setEasingCurve(QEasingCurve::OutQuad);
+
+        connect(highlightAnim, &QPropertyAnimation::valueChanged, this, [this]() {
+            viewport()->update();
+        });
+        connect(highlightAnim, &QPropertyAnimation::finished, this, [this]() {
+            m_targetSourceLine = -1;
+            m_highlightOpacity = 0.0;
+            viewport()->update();
+        });
+
+        highlightAnim->start(QAbstractAnimation::DeleteWhenStopped);
+    }
+
+    // 清理滚动动画
+    if (m_scrollAnimation) {
+        m_scrollAnimation->deleteLater();
+        m_scrollAnimation = nullptr;
+    }
+}
+
 
 void PreviewWidget::mousePressEvent(QMouseEvent* event)
 {
@@ -312,9 +392,14 @@ void PreviewWidget::contextMenuEvent(QContextMenuEvent* event)
     QMenu menu(this);
     int start = qMin(m_selStart, m_selEnd);
     int end = qMax(m_selStart, m_selEnd);
+    bool hasSelection = (start >= 0 && end > start);
 
-    QAction* copyAct = menu.addAction(tr("Copy"), this, &PreviewWidget::copySelection, QKeySequence::Copy);
-    copyAct->setEnabled(start >= 0 && end > start);
+    // 复制相关
+    QAction* copyAct = menu.addAction(tr("Copy as Plain Text"), this, &PreviewWidget::copySelection, QKeySequence::Copy);
+    copyAct->setEnabled(hasSelection);
+
+    QAction* copyHtmlAct = menu.addAction(tr("Copy as HTML"), this, &PreviewWidget::copyAsHtml);
+    copyHtmlAct->setEnabled(hasSelection);
 
     QAction* selectAllAct = menu.addAction(tr("Select All"), [this]() {
         m_selStart = 0;
@@ -325,11 +410,18 @@ void PreviewWidget::contextMenuEvent(QContextMenuEvent* event)
 
     menu.addSeparator();
 
+    // 标记相关
     QAction* hlAct = menu.addAction(tr("Mark"), this, &PreviewWidget::addHighlight);
-    hlAct->setEnabled(start >= 0 && end > start);
+    hlAct->setEnabled(hasSelection);
 
     QAction* clearHlAct = menu.addAction(tr("Clear All Marks"), this, &PreviewWidget::clearHighlights);
     clearHlAct->setEnabled(!m_highlights.isEmpty());
+
+    menu.addSeparator();
+
+    // 预览操作
+    menu.addAction(tr("Open in Browser"), this, &PreviewWidget::openInBrowser);
+    menu.addAction(tr("Refresh Preview"), this, &PreviewWidget::refreshPreview);
 
     menu.exec(event->globalPos());
 }
@@ -343,6 +435,44 @@ void PreviewWidget::copySelection()
 
     QString sel = m_plainText.mid(start, end - start);
     QApplication::clipboard()->setText(sel);
+}
+
+void PreviewWidget::copyAsHtml()
+{
+    if (m_selStart < 0 || m_selEnd < 0) return;
+    int start = qMin(m_selStart, m_selEnd);
+    int end = qMax(m_selStart, m_selEnd);
+    if (start == end) return;
+
+    // 提取选中的纯文本作为 Markdown
+    QString selectedMarkdown = m_plainText.mid(start, end - start);
+
+    // 使用 MarkdownParser 将选中文本转换为 HTML
+    MarkdownParser parser;
+    QString html = parser.renderHtml(selectedMarkdown);
+
+    // 设置到剪贴板，同时提供纯文本和 HTML 格式
+    QMimeData* mimeData = new QMimeData();
+    mimeData->setText(selectedMarkdown);
+    mimeData->setHtml(html);
+    QApplication::clipboard()->setMimeData(mimeData);
+}
+
+void PreviewWidget::openInBrowser()
+{
+    emit openInBrowserRequested();
+}
+
+void PreviewWidget::refreshPreview()
+{
+    if (m_currentAst) {
+        m_layout->buildFromAst(m_currentAst);
+        m_plainText = extractPlainText();
+        buildHeadingCharOffsets();
+        updateScrollBars();
+        updateTocEntries();
+        viewport()->update();
+    }
 }
 
 void PreviewWidget::updateTocEntries()

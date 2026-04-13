@@ -1,5 +1,6 @@
 #include "PreviewLayout.h"
 #include "MarkdownAst.h"
+#include "FontDefaults.h"
 
 #include <QFontMetricsF>
 #include <QtMath>
@@ -7,9 +8,10 @@
 
 PreviewLayout::PreviewLayout()
 {
-    m_baseFont = QFont("Segoe UI", 12);
-    m_monoFont = QFont("Consolas", 9);
-    m_monoFont.setStyleHint(QFont::Monospace);
+    // [字体系统] Spec: specs/横切关注点/80-字体系统.md INV-1, INV-2, INV-3
+    // 默认字体统一从 FontDefaults 取，保证与编辑器基础字号相等
+    m_baseFont = font_defaults::defaultPreviewFont();
+    m_monoFont = font_defaults::defaultMonoFont();
 
     // [高 DPI 修复] 不在构造函数中计算行高
     // 原因：构造函数中没有 device 参数，只能得到逻辑像素

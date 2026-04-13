@@ -22,6 +22,10 @@ public:
     void setTheme(const Theme& theme);
     void updateMatchInfo(int currentIndex, int totalMatches);
 
+    bool isCaseSensitive() const { return m_caseSensitive; }
+    bool isWholeWord() const { return m_wholeWord; }
+    bool isRegex() const { return m_regex; }
+
 signals:
     void findNext(const QString& text);
     void findPrev(const QString& text);
@@ -42,6 +46,11 @@ private:
     QWidget* m_replaceRow;
     QLabel* m_matchInfoLabel;
 
+    // Search options
+    bool m_caseSensitive = false;
+    bool m_wholeWord = false;
+    bool m_regex = false;
+
     // Custom painted buttons
     struct ToolButton {
         QRect rect;
@@ -53,6 +62,9 @@ private:
     ToolButton m_btnClose;
     ToolButton m_btnReplace;
     ToolButton m_btnReplaceAll;
+    ToolButton m_btnCaseSensitive;
+    ToolButton m_btnWholeWord;
+    ToolButton m_btnRegex;
 
     void mouseMoveEvent(QMouseEvent* event) override;
     void mousePressEvent(QMouseEvent* event) override;

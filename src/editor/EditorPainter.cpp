@@ -26,7 +26,8 @@ void EditorPainter::paint(QPainter* painter, EditorLayout* layout, Document* doc
                           bool cursorVisible,
                           TextPosition cursorPos,
                           const QString& preeditString,
-                          const QVector<QPair<int,int>>& searchMatches)
+                          const QVector<QPair<int,int>>& searchMatches,
+                          int currentMatchIndex)
 {
     const qreal margin = 8;
     qreal viewWidth = painter->clipBoundingRect().width();
@@ -44,7 +45,8 @@ void EditorPainter::paint(QPainter* painter, EditorLayout* layout, Document* doc
     qreal textLeft = gutterWidth + margin - scrollX;
 
     // 搜索匹配高亮
-    for (auto& match : searchMatches) {
+    for (int i = 0; i < searchMatches.size(); ++i) {
+        const auto& match = searchMatches[i];
         int matchLine = doc->offsetToLine(match.first);
         if (matchLine < firstLine || matchLine > lastLine) continue;
 
@@ -56,6 +58,11 @@ void EditorPainter::paint(QPainter* painter, EditorLayout* layout, Document* doc
         int colEnd = colStart + match.second;
 
         qreal baseY = layout->lineY(matchLine) - scrollY;
+
+        // 当前匹配项使用不同颜色
+        QColor highlightColor = (i == currentMatchIndex)
+                                ? m_theme.editorSearchMatchCurrent
+                                : m_theme.editorSearchMatch;
 
         // 遍历视觉行，找到匹配所在的视觉行
         for (int vi = 0; vi < tl->lineCount(); ++vi) {
@@ -73,7 +80,7 @@ void EditorPainter::paint(QPainter* painter, EditorLayout* layout, Document* doc
 
             painter->fillRect(QRectF(textLeft + x1, vy,
                                       x2 - x1, vline.height()),
-                              m_theme.editorSearchMatch);
+                              highlightColor);
         }
     }
 

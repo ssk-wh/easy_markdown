@@ -12,29 +12,37 @@ class PreviewLayout;
 class PreviewPainter;
 class ImageCache;
 struct TocEntry;
+class QPropertyAnimation;
 
 class PreviewWidget : public QAbstractScrollArea {
     Q_OBJECT
+    Q_PROPERTY(qreal highlightOpacity READ highlightOpacity WRITE setHighlightOpacity)
 public:
     explicit PreviewWidget(QWidget* parent = nullptr);
     ~PreviewWidget() override;
 
     PreviewLayout* previewLayout() const;
     void scrollToSourceLine(int line);
+    void smoothScrollToSourceLine(int line);
     void setTheme(const Theme& theme);
     void setWordWrap(bool enabled);
     bool wordWrap() const { return m_wordWrap; }
     void rebuildLayout();
+
+    qreal highlightOpacity() const { return m_highlightOpacity; }
+    void setHighlightOpacity(qreal opacity) { m_highlightOpacity = opacity; }
 
     const QVector<TocEntry>& tocEntries() const { return m_tocEntries; }
     const QSet<int>& tocHighlightedIndices() const { return m_tocHighlighted; }
 
 public slots:
     void updateAst(std::shared_ptr<AstNode> root);
+    void refreshPreview();
 
 signals:
     void tocEntriesChanged(const QVector<TocEntry>& entries);
     void tocHighlightChanged(const QSet<int>& indices);
+    void openInBrowserRequested();
 
 protected:
     void paintEvent(QPaintEvent* event) override;
@@ -53,11 +61,15 @@ private:
     void extractBlockText(const struct LayoutBlock& block, QString& out) const;
     int textIndexAtPoint(const QPointF& point) const;
     void copySelection();
+    void copyAsHtml();
+    void openInBrowser();
     void addHighlight();
     void clearHighlights();
     void updateTocHighlights();
     void buildHeadingCharOffsets();
     void updateTocEntries();
+    void onScrollAnimationValueChanged(const QVariant &value);
+    void onScrollAnimationFinished();
 
     Theme m_theme;
     PreviewLayout* m_layout = nullptr;
@@ -80,4 +92,9 @@ private:
     // 标记高亮
     QVector<QPair<int,int>> m_highlights;
     QVector<int> m_headingCharOffsets;
+
+    // TOC 跳转动画
+    QPropertyAnimation* m_scrollAnimation = nullptr;
+    int m_targetSourceLine = -1;
+    qreal m_highlightOpacity = 0.0;
 };

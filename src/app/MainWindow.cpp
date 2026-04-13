@@ -7,8 +7,10 @@
 #include "Document.h"
 #include "RecentFiles.h"
 #include "ChangelogDialog.h"
+#include "ShortcutsDialog.h"
 #include "EditorLayout.h"
 #include "PreviewLayout.h"
+#include "FontDefaults.h"
 
 #include <QSplitter>
 #include <QMenuBar>
@@ -19,6 +21,7 @@
 #include <QDropEvent>
 #include <QCloseEvent>
 #include <QShowEvent>
+#include <QKeyEvent>
 #include <QWheelEvent>
 #include <QFileInfo>
 #include <QShortcut>
@@ -37,6 +40,10 @@
 #include <QTextDocument>
 #include <QDir>
 #include <QPageSize>
+#include <QDesktopServices>
+#include <QUrl>
+#include <QLabel>
+#include <QStatusBar>
 #include "MarkdownParser.h"
 
 #ifdef _WIN32
@@ -44,6 +51,29 @@
 #include <dwmapi.h>
 #pragma comment(lib, "dwmapi.lib")
 #endif
+
+// HTML 导出模板
+static const char* kHtmlTemplate = R"(<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>%1</title>
+<style>
+body { font-family: -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif; max-width: 900px; margin: 0 auto; padding: 2em; color: #333; line-height: 1.6; }
+h1, h2, h3, h4, h5, h6 { margin-top: 1.2em; margin-bottom: 0.4em; color: #111; }
+h1 { font-size: 2em; border-bottom: 1px solid #eee; padding-bottom: 0.3em; }
+h2 { font-size: 1.5em; border-bottom: 1px solid #eee; padding-bottom: 0.3em; }
+code { background: #f5f5f5; padding: 0.2em 0.4em; border-radius: 3px; font-size: 0.9em; }
+pre { background: #f5f5f5; padding: 1em; border-radius: 6px; white-space: pre-wrap; word-wrap: break-word; }
+pre code { background: none; padding: 0; }
+blockquote { margin: 0; padding: 0.5em 1em; border-left: 4px solid #ddd; color: #666; }
+table { border-collapse: collapse; width: 100%%; }
+th, td { border: 1px solid #ddd; padding: 8px 12px; text-align: left; }
+th { background: #f5f5f5; font-weight: 600; }
+img { max-width: 100%%; }
+a { color: #0366d6; }
+del { color: #999; }
+hr { border: none; border-top: 1px solid #eee; margin: 2em 0; }
+</style></head><body>
+%2
+</body></html>)";
 
 MainWindow::MainWindow(QWidget* parent)
     : QMainWindow(parent)
@@ -74,7 +104,7 @@ MainWindow::MainWindow(QWidget* parent)
     connect(m_tocPanel, &TocPanel::headingClicked, this, [this](int sourceLine) {
         auto* tab = currentTab();
         if (tab)
-            tab->preview->scrollToSourceLine(sourceLine);
+            tab->preview->smoothScrollToSourceLine(sourceLine);
     });
 
     connect(m_tabWidget, &QTabWidget::tabCloseRequested,
@@ -128,6 +158,7 @@ MainWindow::MainWindow(QWidget* parent)
     setupMenuBar();
     // 强制 menuBar 使用样式表绘制，避免原生样式画底部分隔线
     menuBar()->setAttribute(Qt::WA_StyledBackground, true);
+    setupStatusBar();
     setupDragDrop();
     loadSettings();
 
@@ -269,12 +300,48 @@ void MainWindow::setupMenuBar()
 
     viewMenu->addSeparator();
 
+    m_focusModeAct = viewMenu->addAction(tr("Focus Mode"));
+    m_focusModeAct->setCheckable(true);
+    m_focusModeAct->setChecked(false);
+    m_focusModeAct->setShortcut(QKeySequence(Qt::Key_F11));
+    connect(m_focusModeAct, &QAction::triggered, this, &MainWindow::toggleFocusMode);
+
+    viewMenu->addSeparator();
+
     m_restoreSessionAct = viewMenu->addAction(tr("Restore Last File"));
     m_restoreSessionAct->setCheckable(true);
     m_restoreSessionAct->setChecked(true);
 
+    // -- Settings menu --
+    QMenu* settingsMenu = menuBar()->addMenu(tr("Settings"));
+
+    QMenu* languageMenu = settingsMenu->addMenu(tr("Language"));
+    QActionGroup* langGroup = new QActionGroup(this);
+    langGroup->setExclusive(true);
+
+    m_zhCNAct = languageMenu->addAction(tr("Chinese (Simplified)"));
+    m_zhCNAct->setCheckable(true);
+    langGroup->addAction(m_zhCNAct);
+
+    m_enUSAct = languageMenu->addAction(tr("English"));
+    m_enUSAct->setCheckable(true);
+    langGroup->addAction(m_enUSAct);
+
+    // 默认选中中文
+    m_zhCNAct->setChecked(true);
+
+    connect(m_zhCNAct, &QAction::triggered, this, [this]() {
+        switchLanguage("zh_CN");
+    });
+    connect(m_enUSAct, &QAction::triggered, this, [this]() {
+        switchLanguage("en_US");
+    });
+
     // -- Help menu --
     QMenu* helpMenu = menuBar()->addMenu(tr("Help"));
+
+    helpMenu->addAction(tr("Keyboard Shortcuts"), this, &MainWindow::onShowShortcuts);
+    helpMenu->addSeparator();
 
     helpMenu->addAction(tr("Update History"), this, [this]() {
         ChangelogDialog dialog(m_currentTheme, this);
@@ -284,19 +351,25 @@ void MainWindow::setupMenuBar()
     helpMenu->addSeparator();
 
     helpMenu->addAction(tr("About"), this, [this]() {
+        // 每个用户可见字段单独用 tr() 包装，保证翻译粒度正确（符合 Spec INV-2）
         QString about = QString(
             "<h2>SimpleMarkdown %1</h2>"
-            "<p>A lightweight cross-platform Markdown editor.</p>"
+            "<p>%2</p>"
             "<table>"
-            "<tr><td><b>Author:</b></td><td>pcfan</td></tr>"
-            "<tr><td><b>Build Date:</b></td><td>%2</td></tr>"
-            "<tr><td><b>Qt Version:</b></td><td>%3</td></tr>"
+            "<tr><td><b>%3</b></td><td>pcfan</td></tr>"
+            "<tr><td><b>%4</b></td><td>%5</td></tr>"
+            "<tr><td><b>%6</b></td><td>%7</td></tr>"
             "</table>"
-            "<p>Source: <a href=\"https://github.com/ssk-wh/simple_markdown\">"
+            "<p>%8: <a href=\"https://github.com/ssk-wh/simple_markdown\">"
             "https://github.com/ssk-wh/simple_markdown</a></p>"
         ).arg(QApplication::applicationVersion(),
+              tr("A lightweight cross-platform Markdown editor."),
+              tr("Author:"),
+              tr("Build Date:"),
               QString(__DATE__),
-              qVersion());
+              tr("Qt Version:"),
+              qVersion(),
+              tr("Source"));
         QMessageBox::about(this, tr("About SimpleMarkdown"), about);
     });
 }
@@ -342,11 +415,18 @@ void MainWindow::restoreSession(const QString& requestedFile)
                     openFile(fp);
                     int idx = m_tabWidget->count() - 1;
                     int es = s.value("editorScroll", 0).toInt();
+                    int ehs = s.value("editorHScroll", 0).toInt();
                     int ps = s.value("previewScroll", 0).toInt();
-                    QTimer::singleShot(200, this, [this, idx, es, ps]() {
+                    int phs = s.value("previewHScroll", 0).toInt();
+                    int cLine = s.value("cursorLine", 0).toInt();
+                    int cCol = s.value("cursorColumn", 0).toInt();
+                    QTimer::singleShot(200, this, [this, idx, es, ehs, ps, phs, cLine, cCol]() {
                         if (idx < m_tabs.size()) {
+                            m_tabs[idx].editor->document()->selection().setCursorPosition({cLine, cCol});
                             m_tabs[idx].editor->verticalScrollBar()->setValue(es);
+                            m_tabs[idx].editor->horizontalScrollBar()->setValue(ehs);
                             m_tabs[idx].preview->verticalScrollBar()->setValue(ps);
+                            m_tabs[idx].preview->horizontalScrollBar()->setValue(phs);
                         }
                     });
                 }
@@ -361,11 +441,19 @@ void MainWindow::restoreSession(const QString& requestedFile)
                 s.setArrayIndex(i);
                 if (s.value("file").toString() == QFileInfo(requestedFile).absoluteFilePath()) {
                     int es = s.value("editorScroll", 0).toInt();
+                    int ehs = s.value("editorHScroll", 0).toInt();
                     int ps = s.value("previewScroll", 0).toInt();
-                    QTimer::singleShot(200, this, [this, es, ps]() {
+                    int phs = s.value("previewHScroll", 0).toInt();
+                    int cLine = s.value("cursorLine", 0).toInt();
+                    int cCol = s.value("cursorColumn", 0).toInt();
+                    QTimer::singleShot(200, this, [this, es, ehs, ps, phs, cLine, cCol]() {
                         if (auto* tab = currentTab()) {
+                            tab->editor->document()->selection().setCursorPosition({cLine, cCol});
+                            tab->editor->ensureCursorVisible();
                             tab->editor->verticalScrollBar()->setValue(es);
+                            tab->editor->horizontalScrollBar()->setValue(ehs);
                             tab->preview->verticalScrollBar()->setValue(ps);
+                            tab->preview->horizontalScrollBar()->setValue(phs);
                         }
                     });
                     break;
@@ -378,16 +466,24 @@ void MainWindow::restoreSession(const QString& requestedFile)
 
     // 无命令行文件：恢复整个会话
     if (restore) {
+        struct TabState {
+            int editorScroll, editorHScroll, previewScroll, previewHScroll;
+            int cursorLine, cursorColumn;
+        };
         int count = s.beginReadArray("session/tabs");
-        QVector<QPair<int, int>> scrollPositions;
+        QVector<TabState> tabStates;
         bool opened = false;
         for (int i = 0; i < count; ++i) {
             s.setArrayIndex(i);
             QString fp = s.value("file").toString();
             if (!fp.isEmpty() && QFileInfo::exists(fp)) {
                 openFile(fp);
-                scrollPositions.append({s.value("editorScroll", 0).toInt(),
-                                        s.value("previewScroll", 0).toInt()});
+                tabStates.append({s.value("editorScroll", 0).toInt(),
+                                  s.value("editorHScroll", 0).toInt(),
+                                  s.value("previewScroll", 0).toInt(),
+                                  s.value("previewHScroll", 0).toInt(),
+                                  s.value("cursorLine", 0).toInt(),
+                                  s.value("cursorColumn", 0).toInt()});
                 opened = true;
             }
         }
@@ -399,12 +495,20 @@ void MainWindow::restoreSession(const QString& requestedFile)
             if (activeTab >= 0 && activeTab < m_tabWidget->count())
                 m_tabWidget->setCurrentIndex(activeTab);
 
-            // 延迟恢复所有标签页的滚动位置
-            QTimer::singleShot(200, this, [this, scrollPositions]() {
-                for (int i = 0; i < scrollPositions.size() && i < m_tabs.size(); ++i) {
-                    m_tabs[i].editor->verticalScrollBar()->setValue(scrollPositions[i].first);
-                    m_tabs[i].preview->verticalScrollBar()->setValue(scrollPositions[i].second);
+            // 延迟恢复所有标签页的光标位置和滚动位置
+            QTimer::singleShot(200, this, [this, tabStates]() {
+                for (int i = 0; i < tabStates.size() && i < m_tabs.size(); ++i) {
+                    const auto& st = tabStates[i];
+                    m_tabs[i].editor->document()->selection().setCursorPosition(
+                        {st.cursorLine, st.cursorColumn});
+                    m_tabs[i].editor->verticalScrollBar()->setValue(st.editorScroll);
+                    m_tabs[i].editor->horizontalScrollBar()->setValue(st.editorHScroll);
+                    m_tabs[i].preview->verticalScrollBar()->setValue(st.previewScroll);
+                    m_tabs[i].preview->horizontalScrollBar()->setValue(st.previewHScroll);
                 }
+                // 当前标签页需确保光标可见
+                if (auto* tab = currentTab())
+                    tab->editor->ensureCursorVisible();
             });
             return;
         }
@@ -495,6 +599,30 @@ MainWindow::TabData MainWindow::createTab()
             m_tocPanel->setHighlightedEntries(indices);
     });
 
+    // 预览区右键菜单：在浏览器中打开
+    connect(tab.preview, &PreviewWidget::openInBrowserRequested,
+            this, [this]() {
+        auto* tab = currentTab();
+        if (!tab) return;
+
+        QString body = currentMarkdownToHtml();
+        if (body.isEmpty()) return;
+
+        QString baseName = QFileInfo(tab->editor->document()->filePath()).completeBaseName();
+        if (baseName.isEmpty()) baseName = "untitled";
+
+        QString html = QString(kHtmlTemplate).arg(baseName.toHtmlEscaped(), body);
+
+        // 创建临时 HTML 文件
+        QString tempPath = QDir::temp().filePath(baseName + ".html");
+        QFile file(tempPath);
+        if (file.open(QIODevice::WriteOnly | QIODevice::Text)) {
+            file.write(html.toUtf8());
+            file.close();
+            QDesktopServices::openUrl(QUrl::fromLocalFile(tempPath));
+        }
+    });
+
     // TocPanel 点击 → 当前 tab 的 preview 跳转
     // （在 MainWindow 构造中统一连接一次即可，不需要每个 tab 连接）
 
@@ -505,6 +633,9 @@ MainWindow::TabData MainWindow::createTab()
         if (idx >= 0)
             updateTabTitle(idx);
     });
+
+    // 状态栏信号连接
+    connectTabStatusBar(tab);
 
     return tab;
 }
@@ -590,6 +721,7 @@ void MainWindow::applyTheme(const Theme& theme)
             "QMenu::item { padding: 6px 24px 6px 12px; }"
             "QMenu::item:selected { background: #3c3f41; border-left: 2px solid #4a9eff; }"
             "QMenu::separator { background: #555; height: 1px; margin: 4px 8px; }"
+            "QMenu::indicator { width: 16px; height: 16px; margin-right: 8px; }"
             // Tab 栏
             "QTabWidget { border: none; }"
             "QTabWidget::pane { border: none; }"
@@ -624,6 +756,9 @@ void MainWindow::applyTheme(const Theme& theme)
             "QScrollBar::handle:horizontal:hover { background: rgba(255,255,255,80); }"
             "QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal { width: 0; }"
             "QScrollBar::add-page:horizontal, QScrollBar::sub-page:horizontal { background: transparent; }"
+            // 状态栏
+            "QStatusBar { background: #2b2b2b; color: #aaa; border-top: 1px solid #3c3f41; font-size: 12px; }"
+            "QStatusBar QLabel { color: #aaa; font-size: 12px; }"
         ));
     } else {
         setStyleSheet(QStringLiteral(
@@ -638,6 +773,7 @@ void MainWindow::applyTheme(const Theme& theme)
             "QMenu::item { padding: 6px 24px 6px 12px; }"
             "QMenu::item:selected { background: #e8f0fe; border-left: 2px solid #0078d4; }"
             "QMenu::separator { background: #e0e0e0; height: 1px; margin: 4px 8px; }"
+            "QMenu::indicator { width: 16px; height: 16px; margin-right: 8px; }"
             // Tab 栏
             "QTabWidget { border: none; }"
             "QTabWidget::pane { border: none; }"
@@ -664,6 +800,9 @@ void MainWindow::applyTheme(const Theme& theme)
             "QScrollBar::handle:horizontal:hover { background: rgba(0,0,0,80); }"
             "QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal { width: 0; }"
             "QScrollBar::add-page:horizontal, QScrollBar::sub-page:horizontal { background: transparent; }"
+            // 状态栏
+            "QStatusBar { background: #f0f0f0; color: #666; border-top: 1px solid #ddd; font-size: 12px; }"
+            "QStatusBar QLabel { color: #666; font-size: 12px; }"
         ));
     }
 
@@ -811,21 +950,49 @@ void MainWindow::onTabChanged(int index)
         // 切换到有待重载标记的 tab 时弹窗提示
         if (m_tabs[index].pendingReload)
             QTimer::singleShot(0, this, [this, index]() { promptReloadTab(index); });
+
+        // 专注模式下：隐藏新 tab 的预览面板，启用打字机模式
+        if (m_focusMode) {
+            m_tabs[index].preview->hide();
+            m_tabs[index].editor->setTypewriterMode(true);
+            m_tabs[index].editor->setFocus();
+        }
     } else {
         m_tocPanel->setEntries({});
+    }
+
+    // 切换 tab 时更新状态栏统计
+    updateStatusBarStats();
+    if (index >= 0 && index < m_tabs.size()) {
+        auto curPos = m_tabs[index].editor->document()->selection().cursorPosition();
+        updateCursorPosition(curPos.line, curPos.column);
     }
 }
 
 // -- Drag & Drop --
+
+static bool isImageFilePath(const QString& path)
+{
+    static const QStringList exts = {
+        "png", "jpg", "jpeg", "gif", "svg", "webp", "bmp"
+    };
+    QString suffix = QFileInfo(path).suffix().toLower();
+    return exts.contains(suffix);
+}
+
+static bool isMarkdownFilePath(const QString& path)
+{
+    return path.endsWith(".md", Qt::CaseInsensitive) ||
+           path.endsWith(".markdown", Qt::CaseInsensitive) ||
+           path.endsWith(".txt", Qt::CaseInsensitive);
+}
 
 void MainWindow::dragEnterEvent(QDragEnterEvent* event)
 {
     if (event->mimeData()->hasUrls()) {
         for (const QUrl& url : event->mimeData()->urls()) {
             QString path = url.toLocalFile();
-            if (path.endsWith(".md", Qt::CaseInsensitive) ||
-                path.endsWith(".markdown", Qt::CaseInsensitive) ||
-                path.endsWith(".txt", Qt::CaseInsensitive)) {
+            if (isMarkdownFilePath(path) || isImageFilePath(path)) {
                 event->acceptProposedAction();
                 return;
             }
@@ -837,13 +1004,32 @@ void MainWindow::dropEvent(QDropEvent* event)
 {
     for (const QUrl& url : event->mimeData()->urls()) {
         QString path = url.toLocalFile();
-        if (!path.isEmpty())
+        if (path.isEmpty()) continue;
+
+        if (isImageFilePath(path)) {
+            // 图片文件：插入到当前编辑器的光标处
+            TabData* tab = currentTab();
+            if (tab && tab->editor) {
+                tab->editor->insertImageMarkdown(path);
+            }
+        } else {
+            // Markdown/文本文件：打开
             openFile(path);
+        }
     }
 }
 
 bool MainWindow::eventFilter(QObject* obj, QEvent* event)
 {
+    // Esc 键退出专注模式
+    if (m_focusMode && event->type() == QEvent::KeyPress) {
+        auto* ke = static_cast<QKeyEvent*>(event);
+        if (ke->key() == Qt::Key_Escape) {
+            exitFocusMode();
+            return true;
+        }
+    }
+
     // Ctrl+滚轮缩放字体
     if (event->type() == QEvent::Wheel) {
         auto* we = static_cast<QWheelEvent*>(event);
@@ -887,6 +1073,10 @@ void MainWindow::showEvent(QShowEvent* event)
 
 void MainWindow::closeEvent(QCloseEvent* event)
 {
+    // 关闭窗口时先退出专注模式，以便正确保存布局状态
+    if (m_focusMode)
+        exitFocusMode();
+
     // Check all tabs for unsaved changes
     for (int i = 0; i < m_tabs.size(); ++i) {
         if (!maybeSave(i)) {
@@ -957,7 +1147,13 @@ void MainWindow::saveSettings()
         s.setArrayIndex(written++);
         s.setValue("file", fp);
         s.setValue("editorScroll", m_tabs[i].editor->verticalScrollBar()->value());
+        s.setValue("editorHScroll", m_tabs[i].editor->horizontalScrollBar()->value());
         s.setValue("previewScroll", m_tabs[i].preview->verticalScrollBar()->value());
+        s.setValue("previewHScroll", m_tabs[i].preview->horizontalScrollBar()->value());
+        // 光标位置（行号、列号）
+        auto cursorPos = m_tabs[i].editor->document()->selection().cursorPosition();
+        s.setValue("cursorLine", cursorPos.line);
+        s.setValue("cursorColumn", cursorPos.column);
     }
     s.endArray();
 }
@@ -1005,6 +1201,14 @@ void MainWindow::loadSettings()
     // 字体缩放
     m_fontSizeDelta = s.value("view/fontSizeDelta", 0).toInt();
 
+    // 语言设置
+    QString locale = s.value("language/locale", "zh_CN").toString();
+    if (locale == "en_US" && m_enUSAct) {
+        m_enUSAct->setChecked(true);
+    } else if (m_zhCNAct) {
+        m_zhCNAct->setChecked(true);
+    }
+
     // 应用到已有标签页
     for (auto& tab : m_tabs) {
         tab.editor->setLineSpacing(m_lineSpacingFactor);
@@ -1012,9 +1216,9 @@ void MainWindow::loadSettings()
         tab.preview->setWordWrap(wordWrap);
     }
 
-    // 应用字号（在标签页创建后）
-    if (m_fontSizeDelta != 0)
-        applyFontSize();
+    // [字体系统] Spec: specs/横切关注点/80-字体系统.md INV-4
+    // 无条件调用：即使 delta==0 也要同步两侧字体，避免两边走各自构造函数的默认值而出现差异
+    applyFontSize();
 }
 
 static QIcon makeCloseIcon(const QColor& normal, const QColor& hover)
@@ -1146,6 +1350,108 @@ void MainWindow::promptReloadTab(int tabIndex)
     }
 }
 
+// ---- 状态栏统计信息 ----
+
+void MainWindow::setupStatusBar()
+{
+    auto* sb = statusBar();
+    sb->setSizeGripEnabled(true);
+
+    // 统一样式：QLabel 之间加竖线分隔
+    auto makeLabel = [sb](const QString& text) -> QLabel* {
+        auto* label = new QLabel(text, sb);
+        label->setContentsMargins(8, 0, 8, 0);
+        sb->addPermanentWidget(label);
+        return label;
+    };
+
+    m_statusCursorPos = makeLabel(tr("Ln %1, Col %2").arg(1).arg(1));
+    m_statusLineCount = makeLabel(tr("Lines: %1").arg(0));
+    m_statusWordCount = makeLabel(tr("Words: %1").arg(0));
+    m_statusCharCount = makeLabel(tr("Chars: %1").arg(0));
+    m_statusReadTime = makeLabel(tr("Read: <1 min"));
+
+    // 防抖定时器：文本变化后 300ms 才更新统计（避免频繁计算）
+    m_statsDebounceTimer.setSingleShot(true);
+    m_statsDebounceTimer.setInterval(300);
+    connect(&m_statsDebounceTimer, &QTimer::timeout, this, &MainWindow::updateStatusBarStats);
+}
+
+void MainWindow::connectTabStatusBar(const TabData& tab)
+{
+    // 文本变化 → 防抖更新统计
+    connect(tab.editor->document(), &Document::textChanged,
+            this, [this]() {
+        m_statsDebounceTimer.start();
+    });
+
+    // 光标移动 → 立即更新光标位置
+    connect(tab.editor, &EditorWidget::cursorPositionChanged,
+            this, &MainWindow::updateCursorPosition);
+}
+
+void MainWindow::updateCursorPosition(int line, int column)
+{
+    m_statusCursorPos->setText(tr("Ln %1, Col %2").arg(line + 1).arg(column + 1));
+}
+
+void MainWindow::updateStatusBarStats()
+{
+    auto* tab = currentTab();
+    if (!tab) return;
+
+    QString text = tab->editor->document()->text();
+
+    // 行数
+    int lineCount = tab->editor->document()->lineCount();
+    m_statusLineCount->setText(tr("Lines: %1").arg(lineCount));
+
+    // 字符数（不含空格）
+    int charsNoSpace = 0;
+    for (const QChar& ch : text) {
+        if (!ch.isSpace())
+            ++charsNoSpace;
+    }
+    m_statusCharCount->setText(tr("Chars: %1/%2").arg(charsNoSpace).arg(text.length()));
+
+    // 字数统计：中文按字计算，英文按单词计算
+    int wordCount = 0;
+    bool inWord = false;
+    for (int i = 0; i < text.length(); ++i) {
+        QChar ch = text[i];
+        // CJK 统一汉字区间
+        ushort uc = ch.unicode();
+        bool isCJK = (uc >= 0x4E00 && uc <= 0x9FFF)    // CJK 统一汉字
+                  || (uc >= 0x3400 && uc <= 0x4DBF)     // CJK 扩展 A
+                  || (uc >= 0xF900 && uc <= 0xFAFF);    // CJK 兼容汉字
+        if (isCJK) {
+            if (inWord) {
+                ++wordCount;  // 结束英文单词
+                inWord = false;
+            }
+            ++wordCount;  // 每个中文字符算一个
+        } else if (ch.isLetterOrNumber()) {
+            inWord = true;
+        } else {
+            if (inWord) {
+                ++wordCount;
+                inWord = false;
+            }
+        }
+    }
+    if (inWord)
+        ++wordCount;
+
+    m_statusWordCount->setText(tr("Words: %1").arg(wordCount));
+
+    // 阅读时间估算（300 字/分钟）
+    int minutes = wordCount / 300;
+    if (minutes < 1)
+        m_statusReadTime->setText(tr("Read: <1 min"));
+    else
+        m_statusReadTime->setText(tr("Read: %1 min").arg(minutes));
+}
+
 // ---- 字体缩放 ----
 
 void MainWindow::zoomIn()
@@ -1172,12 +1478,16 @@ void MainWindow::zoomReset()
 
 void MainWindow::applyFontSize()
 {
-    // 编辑器和预览默认均为 12pt
-    QFont editorFont("Courier New", 12 + m_fontSizeDelta);
-    editorFont.setStyleHint(QFont::Monospace);
-    QFont previewFont("Segoe UI", 12 + m_fontSizeDelta);
+    // [字体系统] Spec: specs/横切关注点/80-字体系统.md INV-1, INV-2, INV-5, INV-6, INV-10
+    // 预览侧字号固定为 base + delta；编辑器侧通过 balanceEditorFontSize 做视觉补偿
+    // （等宽字体与比例字体在同 pointSize 下视觉差异显著，需对齐 xHeight）
+    QFont previewFont = font_defaults::defaultPreviewFont(m_fontSizeDelta);
+    QFont editorBase  = font_defaults::defaultEditorFont(m_fontSizeDelta);
 
     for (auto& tab : m_tabs) {
+        // 用预览的 viewport 作为度量 device，确保 DPI 一致
+        QFont editorFont = font_defaults::balanceEditorFontSize(
+            editorBase, previewFont, tab.preview->viewport());
         tab.editor->editorLayout()->setFont(editorFont);
         tab.preview->previewLayout()->setFont(previewFont);
         tab.preview->rebuildLayout();
@@ -1188,28 +1498,6 @@ void MainWindow::applyFontSize()
 }
 
 // ---- 导出与打印 ----
-
-static const char* kHtmlTemplate = R"(<!DOCTYPE html>
-<html><head><meta charset="utf-8"><title>%1</title>
-<style>
-body { font-family: -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif; max-width: 900px; margin: 0 auto; padding: 2em; color: #333; line-height: 1.6; }
-h1, h2, h3, h4, h5, h6 { margin-top: 1.2em; margin-bottom: 0.4em; color: #111; }
-h1 { font-size: 2em; border-bottom: 1px solid #eee; padding-bottom: 0.3em; }
-h2 { font-size: 1.5em; border-bottom: 1px solid #eee; padding-bottom: 0.3em; }
-code { background: #f5f5f5; padding: 0.2em 0.4em; border-radius: 3px; font-size: 0.9em; }
-pre { background: #f5f5f5; padding: 1em; border-radius: 6px; white-space: pre-wrap; word-wrap: break-word; }
-pre code { background: none; padding: 0; }
-blockquote { margin: 0; padding: 0.5em 1em; border-left: 4px solid #ddd; color: #666; }
-table { border-collapse: collapse; width: 100%%; }
-th, td { border: 1px solid #ddd; padding: 8px 12px; text-align: left; }
-th { background: #f5f5f5; font-weight: 600; }
-img { max-width: 100%%; }
-a { color: #0366d6; }
-del { color: #999; }
-hr { border: none; border-top: 1px solid #eee; margin: 2em 0; }
-</style></head><body>
-%2
-</body></html>)";
 
 QString MainWindow::currentMarkdownToHtml()
 {
@@ -1315,6 +1603,13 @@ void MainWindow::onPrint()
     doc.print(&printer);
 }
 
+void MainWindow::onShowShortcuts()
+{
+    // [Spec 模块-app/07-快捷键弹窗.md INV-1] 构造时直接注入当前主题。
+    ShortcutsDialog dialog(m_currentTheme, this);
+    dialog.exec();
+}
+
 #ifdef _WIN32
 void MainWindow::setDarkTitleBar(bool dark)
 {
@@ -1326,3 +1621,98 @@ void MainWindow::setDarkTitleBar(bool dark)
     ::DwmSetWindowAttribute(hwnd, 20, &useDark, sizeof(useDark));
 }
 #endif
+
+void MainWindow::switchLanguage(const QString& locale)
+{
+    QSettings s;
+    s.setValue("language/locale", locale);
+
+    QMessageBox::information(this, tr("Language Changed"),
+        tr("Language will be changed after restart."));
+}
+
+void MainWindow::retranslateUi()
+{
+    // TODO: 实现运行时语言切换（当前依赖重启生效）
+}
+
+// ---- 专注模式 ----
+
+void MainWindow::toggleFocusMode()
+{
+    if (m_focusMode)
+        exitFocusMode();
+    else
+        enterFocusMode();
+}
+
+void MainWindow::enterFocusMode()
+{
+    if (m_focusMode) return;
+    m_focusMode = true;
+    m_focusModeAct->setChecked(true);
+
+    // 保存当前布局状态
+    m_savedMainSplitterState = m_mainSplitter->saveState();
+    m_savedTocVisible = m_tocPanel->isVisible();
+    auto* tab = currentTab();
+    if (tab)
+        m_savedTabSplitterSizes = tab->splitter->sizes();
+
+    // 隐藏菜单栏、状态栏、tab 栏
+    menuBar()->hide();
+    statusBar()->hide();
+    m_tabWidget->tabBar()->hide();
+
+    // 隐藏 TOC 面板
+    m_tocPanel->hide();
+
+    // 隐藏所有 tab 的预览面板，启用打字机模式
+    for (auto& t : m_tabs) {
+        t.preview->hide();
+        t.editor->setTypewriterMode(true);
+    }
+
+    // 进入全屏
+    showFullScreen();
+
+    // 给编辑器焦点
+    if (tab)
+        tab->editor->setFocus();
+}
+
+void MainWindow::exitFocusMode()
+{
+    if (!m_focusMode) return;
+    m_focusMode = false;
+    m_focusModeAct->setChecked(false);
+
+    // 退出全屏
+    showNormal();
+
+    // 恢复菜单栏、状态栏、tab 栏
+    menuBar()->show();
+    statusBar()->show();
+    m_tabWidget->tabBar()->show();
+
+    // 恢复 TOC 面板
+    m_tocPanel->setVisible(m_savedTocVisible);
+
+    // 恢复所有 tab 的预览面板，关闭打字机模式
+    for (auto& t : m_tabs) {
+        t.preview->show();
+        t.editor->setTypewriterMode(false);
+    }
+
+    // 恢复 splitter 状态
+    if (!m_savedMainSplitterState.isEmpty())
+        m_mainSplitter->restoreState(m_savedMainSplitterState);
+
+    auto* tab = currentTab();
+    if (tab && !m_savedTabSplitterSizes.isEmpty())
+        tab->splitter->setSizes(m_savedTabSplitterSizes);
+
+    // 给编辑器焦点
+    if (tab)
+        tab->editor->setFocus();
+}

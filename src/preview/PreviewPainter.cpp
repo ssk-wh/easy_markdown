@@ -1,6 +1,9 @@
 #include "PreviewPainter.h"
+#include "ImageCache.h"
 #include "CodeBlockRenderer.h"
 
+#include <QCoreApplication>
+#include <QFileInfo>
 #include <QFontMetricsF>
 #include <QFile>
 #include <QTextStream>
@@ -18,6 +21,11 @@ void PreviewPainter::setTheme(const Theme& theme)
     m_theme = theme;
 }
 
+void PreviewPainter::setImageCache(ImageCache* cache)
+{
+    m_imageCache = cache;
+}
+
 void PreviewPainter::setSelection(int selStart, int selEnd)
 {
     m_selStart = qMin(selStart, selEnd);
@@ -27,6 +35,12 @@ void PreviewPainter::setSelection(int selStart, int selEnd)
 void PreviewPainter::setHighlights(const QVector<QPair<int,int>>& highlights)
 {
     m_highlights = highlights;
+}
+
+void PreviewPainter::setTargetLineHighlight(int sourceLine, qreal opacity)
+{
+    m_targetSourceLine = sourceLine;
+    m_targetHighlightOpacity = opacity;
 }
 
 void PreviewPainter::recordSegment(const QRectF& rect, int charStart, int charLen,
@@ -94,6 +108,15 @@ void PreviewPainter::paintBlock(QPainter* p, const LayoutBlock& block,
         break;
     }
     case LayoutBlock::Heading: {
+        // TOC 跳转目标行高亮
+        if (m_targetSourceLine >= 0 && m_targetHighlightOpacity > 0.0 &&
+            block.sourceStartLine <= m_targetSourceLine && block.sourceEndLine >= m_targetSourceLine) {
+            QColor highlightColor = m_theme.previewLink;
+            highlightColor.setAlphaF(m_targetHighlightOpacity * 0.2);
+            QRectF highlightRect(drawX, drawY, block.bounds.width(), block.bounds.height());
+            p->fillRect(highlightRect, highlightColor);
+        }
+
         paintInlineRuns(p, block, drawX, drawY, block.bounds.width());
         // H1/H2: bottom separator line
         if (block.headingLevel <= 2) {
@@ -295,18 +318,135 @@ void PreviewPainter::paintBlock(QPainter* p, const LayoutBlock& block,
         break;
     }
     case LayoutBlock::Image: {
-        // Placeholder
         QRectF rect(drawX, drawY, block.bounds.width(), block.bounds.height());
-        p->fillRect(rect, m_theme.previewImagePlaceholderBg);
-        p->setPen(QPen(m_theme.previewImagePlaceholderBorder, 1));
-        p->drawRect(rect);
-        p->setPen(m_theme.previewImagePlaceholderText);
-        QFont f("Segoe UI", 12);
-        p->setFont(f);
-        QString label = block.imageUrl.isEmpty()
-                            ? QStringLiteral("Loading...")
-                            : QStringLiteral("Image: ") + block.imageUrl;
-        p->drawText(rect, Qt::AlignCenter, label);
+        const QString& url = block.imageUrl;
+
+        // Extract basename from URL
+        QString basename;
+        if (!url.isEmpty()) {
+            int lastSlash = url.lastIndexOf('/');
+            int lastBackslash = url.lastIndexOf('\\');
+            int pos = qMax(lastSlash, lastBackslash);
+            basename = (pos >= 0) ? url.mid(pos + 1) : url;
+        }
+
+        // Check image cache state
+        QPixmap* pixmap = m_imageCache ? m_imageCache->get(url) : nullptr;
+        bool isFailed = m_imageCache && !url.isEmpty() && m_imageCache->isFailed(url);
+        bool isNetwork = m_imageCache && m_imageCache->isNetworkUrl(url);
+
+        if (isFailed || (isNetwork && !pixmap)) {
+            // Error / unsupported state
+            p->fillRect(rect, m_theme.previewImageErrorBg);
+            p->setPen(QPen(m_theme.previewImageErrorBorder, 1.5));
+            p->drawRect(rect);
+
+            qreal cx = rect.center().x();
+            qreal cy = rect.center().y();
+
+            // Error icon: X mark
+            QFont iconFont("Segoe UI", 16);
+            iconFont.setBold(true);
+            p->setFont(iconFont);
+            p->setPen(m_theme.previewImageErrorText);
+            QFontMetricsF iconFm(iconFont, p->device());
+            qreal iconW = iconFm.horizontalAdvance(QStringLiteral("\u2717"));
+            qreal iconH = iconFm.height();
+            p->drawText(QPointF(cx - iconW / 2, cy - 4), QStringLiteral("\u2717"));
+
+            // Error label
+            QFont labelFont("Segoe UI", 10);
+            p->setFont(labelFont);
+            p->setPen(m_theme.previewImageErrorText);
+            // 使用 QCoreApplication::translate 绑定 context 名称，符合 Spec INV-2
+            QString errorLabel = isNetwork
+                ? QCoreApplication::translate("PreviewPainter", "Network images not supported")
+                : QCoreApplication::translate("PreviewPainter", "Failed to load image");
+            p->drawText(QRectF(rect.x(), cy + iconH * 0.3, rect.width(), iconH),
+                        Qt::AlignHCenter | Qt::AlignTop, errorLabel);
+
+            // File name at bottom
+            if (!basename.isEmpty()) {
+                QFont nameFont("Segoe UI", 9);
+                p->setFont(nameFont);
+                p->setPen(m_theme.previewImageInfoText);
+                QFontMetricsF nameFm(nameFont, p->device());
+                QString elidedName = nameFm.elidedText(basename, Qt::ElideMiddle, rect.width() - 16);
+                p->drawText(QRectF(rect.x(), rect.bottom() - nameFm.height() - 6,
+                                   rect.width(), nameFm.height()),
+                            Qt::AlignHCenter | Qt::AlignTop, elidedName);
+            }
+        } else if (pixmap) {
+            // Image loaded successfully - show placeholder with size info
+            p->fillRect(rect, m_theme.previewImagePlaceholderBg);
+            p->setPen(QPen(m_theme.previewImagePlaceholderBorder, 1));
+            p->drawRect(rect);
+
+            qreal cx = rect.center().x();
+            qreal cy = rect.center().y();
+
+            // Image icon
+            QFont iconFont("Segoe UI", 20);
+            p->setFont(iconFont);
+            p->setPen(m_theme.previewImagePlaceholderText);
+            QFontMetricsF iconFm(iconFont, p->device());
+            qreal iconW = iconFm.horizontalAdvance(QStringLiteral("\u25A3"));
+            p->drawText(QPointF(cx - iconW / 2, cy - 6), QStringLiteral("\u25A3"));
+
+            // File name
+            QFont nameFont("Segoe UI", 10);
+            nameFont.setBold(true);
+            p->setFont(nameFont);
+            p->setPen(m_theme.previewFg);
+            QFontMetricsF nameFm(nameFont, p->device());
+            QString displayName = basename.isEmpty()
+                ? QCoreApplication::translate("PreviewPainter", "Image")
+                : basename;
+            QString elidedName = nameFm.elidedText(displayName, Qt::ElideMiddle, rect.width() - 16);
+            qreal nameY = cy + iconFm.height() * 0.3;
+            p->drawText(QRectF(rect.x(), nameY, rect.width(), nameFm.height()),
+                        Qt::AlignHCenter | Qt::AlignTop, elidedName);
+
+            // Image dimensions
+            QFont dimFont("Segoe UI", 9);
+            p->setFont(dimFont);
+            p->setPen(m_theme.previewImageInfoText);
+            QString dimText = QString("%1 \u00D7 %2 px")
+                                  .arg(pixmap->width())
+                                  .arg(pixmap->height());
+            p->drawText(QRectF(rect.x(), nameY + nameFm.height() + 2,
+                               rect.width(), nameFm.height()),
+                        Qt::AlignHCenter | Qt::AlignTop, dimText);
+        } else {
+            // Not yet loaded / URL empty - neutral placeholder
+            p->fillRect(rect, m_theme.previewImagePlaceholderBg);
+            p->setPen(QPen(m_theme.previewImagePlaceholderBorder, 1));
+            p->drawRect(rect);
+
+            qreal cx = rect.center().x();
+            qreal cy = rect.center().y();
+
+            // Image icon
+            QFont iconFont("Segoe UI", 20);
+            p->setFont(iconFont);
+            p->setPen(m_theme.previewImagePlaceholderText);
+            QFontMetricsF iconFm(iconFont, p->device());
+            qreal iconW = iconFm.horizontalAdvance(QStringLiteral("\u25A3"));
+            p->drawText(QPointF(cx - iconW / 2, cy - 6), QStringLiteral("\u25A3"));
+
+            // File name or "Image"
+            QFont nameFont("Segoe UI", 10);
+            p->setFont(nameFont);
+            p->setPen(m_theme.previewImagePlaceholderText);
+            QFontMetricsF nameFm(nameFont, p->device());
+            QString displayName = basename.isEmpty()
+                ? QCoreApplication::translate("PreviewPainter", "Image")
+                : basename;
+            QString elidedName = nameFm.elidedText(displayName, Qt::ElideMiddle, rect.width() - 16);
+            p->drawText(QRectF(rect.x(), cy + iconFm.height() * 0.3,
+                               rect.width(), nameFm.height()),
+                        Qt::AlignHCenter | Qt::AlignTop, elidedName);
+        }
         break;
     }
     case LayoutBlock::ThematicBreak: {

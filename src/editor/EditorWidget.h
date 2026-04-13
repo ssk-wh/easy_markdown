@@ -35,12 +35,21 @@ public:
     void setLineSpacing(qreal factor);
     qreal lineSpacing() const;
 
+    void setTypewriterMode(bool enabled);
+    bool typewriterMode() const { return m_typewriterMode; }
+
     void showSearchBar();
     void showReplaceBar();
+
+    // 在光标处插入图片的 Markdown 语法
+    void insertImageMarkdown(const QString& imagePath);
 
     const QVector<QPair<int,int>>& searchMatches() const { return m_searchMatches; }
 
     int firstVisibleLine() const;
+
+signals:
+    void cursorPositionChanged(int line, int column);
 
 protected:
     void paintEvent(QPaintEvent* event) override;
@@ -55,6 +64,9 @@ protected:
     void mouseDoubleClickEvent(QMouseEvent* event) override;
     void inputMethodEvent(QInputMethodEvent* event) override;
     QVariant inputMethodQuery(Qt::InputMethodQuery query) const override;
+    void dragEnterEvent(QDragEnterEvent* event) override;
+    void dragMoveEvent(QDragMoveEvent* event) override;
+    void dropEvent(QDropEvent* event) override;
 
 private slots:
     void onTextChanged(int offset, int removedLen, int addedLen);
@@ -78,6 +90,7 @@ private:
     bool m_cursorVisible = true;
     bool m_mousePressed = false;
     bool m_wordWrap = true;
+    bool m_typewriterMode = false;
     QString m_preeditString;
 
     Theme m_theme;
@@ -90,6 +103,10 @@ private:
     SearchWorker* m_searchWorker = nullptr;
     QTimer m_searchDebounce;
     int m_searchRequestId = 0;
+
+    // 空闲时预加载布局
+    QTimer m_idlePreloadTimer;
+    int m_lastPreloadLine = -1;
 
     TextPosition pixelToTextPosition(const QPoint& pos) const;
     TextPosition offsetToTextPos(int offset) const;

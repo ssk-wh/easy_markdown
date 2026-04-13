@@ -1,12 +1,20 @@
-set(APP_SOURCES main.cpp MainWindow.h MainWindow.cpp ChangelogDialog.h ChangelogDialog.cpp)
+set(APP_SOURCES main.cpp MainWindow.h MainWindow.cpp ChangelogDialog.h ChangelogDialog.cpp ShortcutsDialog.h ShortcutsDialog.cpp)
 
 if(WIN32)
     list(APPEND APP_SOURCES app.rc)
 endif()
 
+# 翻译文件
+set(TS_FILES
+    ${CMAKE_SOURCE_DIR}/translations/simple_markdown_zh_CN.ts
+    ${CMAKE_SOURCE_DIR}/translations/simple_markdown_en_US.ts
+)
+
+qt5_create_translation(QM_FILES ${CMAKE_SOURCE_DIR}/src ${TS_FILES})
+
 qt5_add_resources(APP_QRC ${CMAKE_SOURCE_DIR}/resources/resources.qrc)
 
-add_executable(SimpleMarkdown WIN32 ${APP_SOURCES} ${APP_QRC})
+add_executable(SimpleMarkdown WIN32 ${APP_SOURCES} ${APP_QRC} ${QM_FILES})
 target_compile_definitions(SimpleMarkdown PRIVATE APP_VERSION="${PROJECT_VERSION}")
 target_link_libraries(SimpleMarkdown PRIVATE sm_editor sm_preview sm_parser sm_sync Qt5::Network Qt5::PrintSupport)
 

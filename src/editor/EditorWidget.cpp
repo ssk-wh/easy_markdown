@@ -6,12 +6,18 @@
 #include "SearchWorker.h"
 #include "Document.h"
 #include "Theme.h"
+#include "FontDefaults.h"
 
 #include <QPainter>
 #include <QPaintEvent>
 #include <QMouseEvent>
 #include <QScrollBar>
 #include <QFontDatabase>
+#include <QMimeData>
+#include <QDragEnterEvent>
+#include <QDropEvent>
+#include <QFileInfo>
+#include <QDir>
 
 EditorWidget::EditorWidget(QWidget* parent)
     : QAbstractScrollArea(parent)
@@ -20,10 +26,9 @@ EditorWidget::EditorWidget(QWidget* parent)
     m_painter = new EditorPainter();
     m_input = new EditorInput(this);
 
-    // Use system monospace font
-    QFont font = QFontDatabase::systemFont(QFontDatabase::FixedFont);
-    font.setPointSize(11);
-    m_layout->setFont(font);
+    // [字体系统] Spec: specs/横切关注点/80-字体系统.md INV-1, INV-2, INV-3
+    // 构造函数默认字体必须走中心化常量，避免与预览默认字号不一致
+    m_layout->setFont(font_defaults::defaultEditorFont());
 
     // Viewport settings
     viewport()->setCursor(Qt::IBeamCursor);
@@ -106,12 +111,37 @@ EditorWidget::EditorWidget(QWidget* parent)
         }
         QString fullText = m_doc->text();
         int reqId = ++m_searchRequestId;
-        QMetaObject::invokeMethod(m_searchWorker, "search",
+        QMetaObject::invokeMethod(m_searchWorker, "searchWithOptions",
                                   Qt::QueuedConnection,
                                   Q_ARG(QString, m_currentSearchText),
                                   Q_ARG(QString, fullText),
-                                  Q_ARG(int, reqId));
+                                  Q_ARG(int, reqId),
+                                  Q_ARG(bool, m_searchBar->isCaseSensitive()),
+                                  Q_ARG(bool, m_searchBar->isWholeWord()),
+                                  Q_ARG(bool, m_searchBar->isRegex()));
     });
+
+    // 空闲时预加载可见区域附近的行布局
+    m_idlePreloadTimer.setInterval(50);
+    m_idlePreloadTimer.setSingleShot(false);
+    connect(&m_idlePreloadTimer, &QTimer::timeout, this, [this]() {
+        if (!m_doc || m_layout->lineCount() == 0) return;
+
+        int first = firstVisibleLine();
+        int last = lastVisibleLine();
+        int preloadRange = 50;
+        int maxLine = m_layout->lineCount() - 1;
+
+        // 从上次预加载位置继续
+        int start = qMax(0, first - preloadRange);
+        int end = qMin(last + preloadRange, maxLine);
+        for (int i = qMax(start, m_lastPreloadLine + 1); i <= end; ++i) {
+            m_layout->layoutForLine(i);
+            m_lastPreloadLine = i;
+            return; // 每次只预加载一行，避免阻塞
+        }
+    });
+    m_idlePreloadTimer.start();
 
     setFocusPolicy(Qt::StrongFocus);
     setAttribute(Qt::WA_InputMethodEnabled, true);
@@ -256,7 +286,8 @@ void EditorWidget::paintEvent(QPaintEvent* event)
                      m_cursorVisible && hasFocus(),
                      m_doc->selection().cursorPosition(),
                      m_preeditString,
-                     m_searchMatches);
+                     m_searchMatches,
+                     m_currentMatchIndex);
     painter.restore();
 }
 
@@ -282,6 +313,7 @@ void EditorWidget::scrollContentsBy(int dx, int dy)
 {
     Q_UNUSED(dx);
     Q_UNUSED(dy);
+    m_lastPreloadLine = -1; // 重置预加载状态
     viewport()->update();
 }
 
@@ -298,6 +330,8 @@ void EditorWidget::keyPressEvent(QKeyEvent* event)
         m_cursorBlinkTimer.start(500);  // 重置闪烁
         ensureCursorVisible();
         viewport()->update();
+        auto pos = m_doc->selection().cursorPosition();
+        emit cursorPositionChanged(pos.line, pos.column);
     } else {
         QAbstractScrollArea::keyPressEvent(event);
     }
@@ -343,6 +377,7 @@ void EditorWidget::mousePressEvent(QMouseEvent* event) {
         m_cursorVisible = true;
         m_cursorBlinkTimer.start(500);
         viewport()->update();
+        emit cursorPositionChanged(pos.line, pos.column);
         event->accept();
         return;
     }
@@ -373,8 +408,12 @@ void EditorWidget::mouseMoveEvent(QMouseEvent* event) {
 }
 
 void EditorWidget::mouseReleaseEvent(QMouseEvent* event) {
-    m_mousePressed = false;
-    m_dragScrollTimer.stop();
+    if (m_mousePressed) {
+        m_mousePressed = false;
+        m_dragScrollTimer.stop();
+        auto pos = m_doc->selection().cursorPosition();
+        emit cursorPositionChanged(pos.line, pos.column);
+    }
     QAbstractScrollArea::mouseReleaseEvent(event);
 }
 
@@ -393,6 +432,8 @@ void EditorWidget::mouseDoubleClickEvent(QMouseEvent* event) {
 
         m_doc->selection().setSelection({pos.line, wordStart}, {pos.line, wordEnd});
         viewport()->update();
+        auto curPos = m_doc->selection().cursorPosition();
+        emit cursorPositionChanged(curPos.line, curPos.column);
     }
 }
 
@@ -404,10 +445,16 @@ void EditorWidget::ensureCursorVisible()
     qreal sy = scrollY();
     qreal vh = viewport()->height();
 
-    if (cy < sy) {
-        verticalScrollBar()->setValue((int)cy);
-    } else if (cy + ch > sy + vh) {
-        verticalScrollBar()->setValue((int)(cy + ch - vh));
+    if (m_typewriterMode) {
+        // 打字机模式：光标所在行始终保持在屏幕垂直居中位置
+        qreal targetY = cy + ch / 2.0 - vh / 2.0;
+        verticalScrollBar()->setValue(qMax(0, (int)targetY));
+    } else {
+        if (cy < sy) {
+            verticalScrollBar()->setValue((int)cy);
+        } else if (cy + ch > sy + vh) {
+            verticalScrollBar()->setValue((int)(cy + ch - vh));
+        }
     }
 
     // 水平方向（不换行模式）
@@ -424,6 +471,13 @@ void EditorWidget::ensureCursorVisible()
     }
 }
 
+void EditorWidget::setTypewriterMode(bool enabled)
+{
+    m_typewriterMode = enabled;
+    if (enabled)
+        ensureCursorVisible();
+}
+
 void EditorWidget::onTextChanged(int offset, int removedLen, int addedLen)
 {
     Q_UNUSED(removedLen);
@@ -435,6 +489,9 @@ void EditorWidget::onTextChanged(int offset, int removedLen, int addedLen)
     m_layout->rebuild();
     updateScrollBars();
     viewport()->update();
+
+    auto pos = m_doc->selection().cursorPosition();
+    emit cursorPositionChanged(pos.line, pos.column);
 }
 
 void EditorWidget::updateScrollBars()
@@ -718,4 +775,80 @@ QVariant EditorWidget::inputMethodQuery(Qt::InputMethodQuery query) const
 void EditorWidget::updateSearchBarMatchInfo()
 {
     m_searchBar->updateMatchInfo(m_currentMatchIndex, m_searchMatches.size());
+}
+
+// -- Drag & Drop (图片插入) --
+
+static bool isImageFile(const QString& path)
+{
+    static const QStringList exts = {
+        "png", "jpg", "jpeg", "gif", "svg", "webp", "bmp"
+    };
+    QString suffix = QFileInfo(path).suffix().toLower();
+    return exts.contains(suffix);
+}
+
+void EditorWidget::dragEnterEvent(QDragEnterEvent* event)
+{
+    if (event->mimeData()->hasUrls()) {
+        for (const QUrl& url : event->mimeData()->urls()) {
+            if (isImageFile(url.toLocalFile())) {
+                event->acceptProposedAction();
+                return;
+            }
+        }
+    }
+    QAbstractScrollArea::dragEnterEvent(event);
+}
+
+void EditorWidget::dragMoveEvent(QDragMoveEvent* event)
+{
+    if (event->mimeData()->hasUrls()) {
+        for (const QUrl& url : event->mimeData()->urls()) {
+            if (isImageFile(url.toLocalFile())) {
+                event->acceptProposedAction();
+                return;
+            }
+        }
+    }
+    QAbstractScrollArea::dragMoveEvent(event);
+}
+
+void EditorWidget::dropEvent(QDropEvent* event)
+{
+    if (!event->mimeData()->hasUrls()) {
+        QAbstractScrollArea::dropEvent(event);
+        return;
+    }
+
+    for (const QUrl& url : event->mimeData()->urls()) {
+        QString path = url.toLocalFile();
+        if (!path.isEmpty() && isImageFile(path)) {
+            insertImageMarkdown(path);
+        }
+    }
+    event->acceptProposedAction();
+}
+
+void EditorWidget::insertImageMarkdown(const QString& imagePath)
+{
+    if (!m_doc) return;
+
+    QString relPath = imagePath;
+    // 如果当前文档已保存，使用相对路径
+    QString docPath = m_doc->filePath();
+    if (!docPath.isEmpty()) {
+        QDir docDir = QFileInfo(docPath).absoluteDir();
+        relPath = docDir.relativeFilePath(imagePath);
+    }
+
+    // 使用正斜杠（Markdown 通用）
+    relPath.replace('\\', '/');
+
+    QString fileName = QFileInfo(imagePath).completeBaseName();
+    QString markdown = QString("![%1](%2)").arg(fileName, relPath);
+
+    m_input->insertText(markdown);
+    ensureCursorVisible();
+    viewport()->update();
 }

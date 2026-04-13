@@ -24,7 +24,8 @@ public:
                bool cursorVisible = false,
                TextPosition cursorPos = {0, 0},
                const QString& preeditString = QString(),
-               const QVector<QPair<int,int>>& searchMatches = {});
+               const QVector<QPair<int,int>>& searchMatches = {},
+               int currentMatchIndex = -1);
 
 private:
     Theme m_theme;

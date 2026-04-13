@@ -25,13 +25,13 @@ SearchBar::SearchBar(EditorWidget* parent)
     mainLayout->setContentsMargins(10, 8, 10, 8);
     mainLayout->setSpacing(6);
 
-    int findBtnsWidth = kBtnW * 3 + kBtnGap * 2;
+    int findBtnsWidth = kBtnW * 6 + kBtnGap * 5;  // 3 navigation + 3 option buttons
 
     // 搜索行
     auto* findRow = new QHBoxLayout();
     findRow->setSpacing(6);
     m_findEdit = new QLineEdit();
-    m_findEdit->setPlaceholderText("Search...");
+    m_findEdit->setPlaceholderText(tr("Search..."));
     m_matchInfoLabel = new QLabel();
     m_matchInfoLabel->setFixedWidth(60);
     m_matchInfoLabel->setAlignment(Qt::AlignCenter);
@@ -47,7 +47,7 @@ SearchBar::SearchBar(EditorWidget* parent)
     replaceLayout->setContentsMargins(0, 0, 0, 0);
     replaceLayout->setSpacing(6);
     m_replaceEdit = new QLineEdit();
-    m_replaceEdit->setPlaceholderText("Replace...");
+    m_replaceEdit->setPlaceholderText(tr("Replace..."));
     replaceLayout->addWidget(m_replaceEdit);
     int replBtnsWidth = kReplBtnW * 2 + kBtnGap + 60; // match info width + replace buttons
     replaceLayout->addSpacing(replBtnsWidth);
@@ -191,6 +191,14 @@ void SearchBar::updateButtonRects()
     x -= kBtnW + kBtnGap;
     m_btnPrev.rect = QRect(x, y, kBtnW, rowH);
 
+    // 选项按钮：在导航按钮左侧
+    x -= kBtnW + kBtnGap;
+    m_btnRegex.rect = QRect(x, y, kBtnW, rowH);
+    x -= kBtnW + kBtnGap;
+    m_btnWholeWord.rect = QRect(x, y, kBtnW, rowH);
+    x -= kBtnW + kBtnGap;
+    m_btnCaseSensitive.rect = QRect(x, y, kBtnW, rowH);
+
     // 替换行按钮
     if (m_replaceVisible) {
         int y2 = topMargin + rowH + 6 + 3;
@@ -208,6 +216,9 @@ SearchBar::ToolButton* SearchBar::hitTest(const QPoint& pos)
     if (m_btnPrev.rect.contains(pos)) return &m_btnPrev;
     if (m_btnNext.rect.contains(pos)) return &m_btnNext;
     if (m_btnClose.rect.contains(pos)) return &m_btnClose;
+    if (m_btnCaseSensitive.rect.contains(pos)) return &m_btnCaseSensitive;
+    if (m_btnWholeWord.rect.contains(pos)) return &m_btnWholeWord;
+    if (m_btnRegex.rect.contains(pos)) return &m_btnRegex;
     if (m_replaceVisible) {
         if (m_btnReplace.rect.contains(pos)) return &m_btnReplace;
         if (m_btnReplaceAll.rect.contains(pos)) return &m_btnReplaceAll;
@@ -218,7 +229,8 @@ SearchBar::ToolButton* SearchBar::hitTest(const QPoint& pos)
 void SearchBar::mouseMoveEvent(QMouseEvent* event)
 {
     updateButtonRects();
-    ToolButton* allBtns[] = {&m_btnPrev, &m_btnNext, &m_btnClose, &m_btnReplace, &m_btnReplaceAll};
+    ToolButton* allBtns[] = {&m_btnPrev, &m_btnNext, &m_btnClose, &m_btnReplace, &m_btnReplaceAll,
+                             &m_btnCaseSensitive, &m_btnWholeWord, &m_btnRegex};
     bool needUpdate = false;
     for (auto* btn : allBtns) {
         bool h = btn->rect.contains(event->pos());
@@ -251,7 +263,8 @@ void SearchBar::mouseReleaseEvent(QMouseEvent* event)
     auto* btn = hitTest(event->pos());
 
     // Reset all pressed states
-    ToolButton* allBtns[] = {&m_btnPrev, &m_btnNext, &m_btnClose, &m_btnReplace, &m_btnReplaceAll};
+    ToolButton* allBtns[] = {&m_btnPrev, &m_btnNext, &m_btnClose, &m_btnReplace, &m_btnReplaceAll,
+                             &m_btnCaseSensitive, &m_btnWholeWord, &m_btnRegex};
     for (auto* b : allBtns) b->pressed = false;
 
     if (btn == &m_btnPrev) emit findPrev(m_findEdit->text());
@@ -259,6 +272,18 @@ void SearchBar::mouseReleaseEvent(QMouseEvent* event)
     else if (btn == &m_btnClose) hideBar();
     else if (btn == &m_btnReplace) emit replaceNext(m_findEdit->text(), m_replaceEdit->text());
     else if (btn == &m_btnReplaceAll) emit replaceAll(m_findEdit->text(), m_replaceEdit->text());
+    else if (btn == &m_btnCaseSensitive) {
+        m_caseSensitive = !m_caseSensitive;
+        emit searchTextChanged(m_findEdit->text());
+    }
+    else if (btn == &m_btnWholeWord) {
+        m_wholeWord = !m_wholeWord;
+        emit searchTextChanged(m_findEdit->text());
+    }
+    else if (btn == &m_btnRegex) {
+        m_regex = !m_regex;
+        emit searchTextChanged(m_findEdit->text());
+    }
 
     update();
 }
@@ -322,6 +347,30 @@ void SearchBar::paintEvent(QPaintEvent*)
         p.drawLine(cx - s, cy - s, cx + s, cy + s);
         p.drawLine(cx + s, cy - s, cx - s, cy + s);
     });
+
+    // Case sensitive button: Aa
+    auto drawOptionBtn = [&](const ToolButton& btn, bool active) {
+        if (active) {
+            QColor activeBg = dark ? QColor(0, 120, 215, 100) : QColor(0, 102, 214, 100);
+            p.fillRect(btn.rect, activeBg);
+        }
+        drawBtn(btn);
+    };
+
+    drawOptionBtn(m_btnCaseSensitive, m_caseSensitive);
+    p.setPen(iconColor);
+    QFont smallFont = font();
+    smallFont.setPointSize(9);
+    p.setFont(smallFont);
+    p.drawText(m_btnCaseSensitive.rect, Qt::AlignCenter, "Aa");
+
+    // Whole word button: |a|
+    drawOptionBtn(m_btnWholeWord, m_wholeWord);
+    p.drawText(m_btnWholeWord.rect, Qt::AlignCenter, "|a|");
+
+    // Regex button: .*
+    drawOptionBtn(m_btnRegex, m_regex);
+    p.drawText(m_btnRegex.rect, Qt::AlignCenter, ".*");
 
     // 替换行按钮（文字按钮）
     if (m_replaceVisible) {

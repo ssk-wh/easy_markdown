@@ -7,6 +7,7 @@ add_library(sm_core STATIC
     Document.h Document.cpp
     RecentFiles.h RecentFiles.cpp
     Theme.h Theme.cpp
+    FontDefaults.h
 )
 
 target_include_directories(sm_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
