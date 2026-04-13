@@ -31,6 +31,8 @@ All notable changes to this project will be documented in this file.
   pointSize 下视觉差异显著，新增 `balanceEditorFontSize()` 基于 `xHeight` 度量
   在 ±2pt 窗口内动态补偿编辑器字号；Spec 80 INV-2/INV-6 修订为"视觉对齐"，
   新增 INV-10 强制走补偿函数
+- CI Linux 构建缺少 `Qt5LinguistTools` 导致 i18n 引入后 CMake configure 失败，
+  补 apt 包 `qttools5-dev` / `qttools5-dev-tools`
 
 ## [0.2.2] - 2026-04-08
 
