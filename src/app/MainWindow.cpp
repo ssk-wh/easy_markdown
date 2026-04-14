@@ -138,18 +138,22 @@ MainWindow::MainWindow(QWidget* parent)
         if (idx < 0) return;
         QMenu menu(this);
         menu.addAction(tr("Close"), [this, idx]() { onCloseTab(idx); });
-        menu.addAction(tr("Close Others"), [this, idx]() {
+        // [Spec specs/模块-app/04-窗口焦点管理.md INV-5] 按上下文禁用无可关闭对象的项
+        QAction* closeOthersAct = menu.addAction(tr("Close Others"), [this, idx]() {
             for (int i = m_tabs.size() - 1; i >= 0; --i)
                 if (i != idx) onCloseTab(i);
         });
-        menu.addAction(tr("Close to the Left"), [this, idx]() {
+        if (m_tabs.size() <= 1) closeOthersAct->setEnabled(false);
+        QAction* closeLeftAct = menu.addAction(tr("Close to the Left"), [this, idx]() {
             for (int i = idx - 1; i >= 0; --i)
                 onCloseTab(i);
         });
-        menu.addAction(tr("Close to the Right"), [this, idx]() {
+        if (idx == 0) closeLeftAct->setEnabled(false);
+        QAction* closeRightAct = menu.addAction(tr("Close to the Right"), [this, idx]() {
             for (int i = m_tabs.size() - 1; i > idx; --i)
                 onCloseTab(i);
         });
+        if (idx >= m_tabs.size() - 1) closeRightAct->setEnabled(false);
 
         // [Plan plans/2026-04-14-Tab打开文件所在目录.md]
         menu.addSeparator();
