@@ -88,6 +88,16 @@ Theme finalizeTheme(core::LoadResult& r)
     // 由于 #0078D4 恰好是 fallback，这里直接 always-recompute 并允许 TOML 覆写。
     const bool themeDeclaredAccent = (t.accentColor != QColor("#0078D4"));
     applyFrontmatterColors(t, themeDeclaredAccent);
+
+    // Spec: specs/模块-app/12-主题插件系统.md — 行内代码/代码块拆字段的 fallback
+    // 新字段默认无效 QColor：未声明时 fallback 到通用 previewCode* 字段，
+    // 保证旧主题 TOML（只写 preview.code_*）零行为变更。
+    if (!t.previewInlineCodeBg.isValid())    t.previewInlineCodeBg    = t.previewCodeBg;
+    if (!t.previewInlineCodeFg.isValid())    t.previewInlineCodeFg    = t.previewCodeFg;
+    if (!t.previewCodeBlockBg.isValid())     t.previewCodeBlockBg     = t.previewCodeBg;
+    if (!t.previewCodeBlockFg.isValid())     t.previewCodeBlockFg     = t.previewCodeFg;
+    if (!t.previewCodeBlockBorder.isValid()) t.previewCodeBlockBorder = t.previewCodeBorder;
+
     return t;
 }
 

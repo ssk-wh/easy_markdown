@@ -130,16 +130,17 @@ void PreviewPainter::paintBlock(QPainter* p, const LayoutBlock& block,
     }
     case LayoutBlock::CodeBlock:
     case LayoutBlock::HtmlBlock: {
-        // Background
+        // Background —— Spec: specs/模块-app/12-主题插件系统.md 代码块专用色
+        // （fallback 到 previewCode* 保证老主题零回归）
         QRectF bgRect(drawX, drawY, block.bounds.width(), block.bounds.height());
-        p->fillRect(bgRect, m_theme.previewCodeBg);
-        p->setPen(QPen(m_theme.previewCodeBorder, 1));
+        p->fillRect(bgRect, m_theme.previewCodeBlockBg);
+        p->setPen(QPen(m_theme.previewCodeBlockBorder, 1));
         p->drawRoundedRect(bgRect, 4, 4);
 
         // 绘制代码块文本 [Spec 模块-preview/03 INV-8: 字体来自 layout]
         QFont monoFont = m_layout ? m_layout->monoFont() : QFont("Consolas", 9);
         p->setFont(monoFont);
-        p->setPen(m_theme.previewCodeFg);
+        p->setPen(m_theme.previewCodeBlockFg);
 
         // [高 DPI 修复] 必须使用 p->device() 参数获取正确的字体度量
         // 原因：p->device() 返回 painter 所绘制设备的 DPI 信息
@@ -466,10 +467,11 @@ void PreviewPainter::paintBlock(QPainter* p, const LayoutBlock& block,
         break;
     }
     case LayoutBlock::Frontmatter: {
-        // Spec: specs/模块-preview/10-Frontmatter渲染.md §4.6 §8.10
+        // Spec: specs/模块-preview/10-Frontmatter渲染.md §4.6 §8.10 INV-13
         // 坐标系遵循 INV-COORD-ABS：递归绝对坐标（这里无子块，直接 drawX/drawY）
-        paintFrontmatter(p, block, drawX, drawY);
-        // 选区字符计数：把整个 rawText 作为一段记入
+        // 选区字符计数：记录 block 开始前的 charCounter，作为 segment.charStart
+        const int fmStart = m_charCounter;
+        paintFrontmatter(p, block, drawX, drawY, fmStart);
         m_charCounter += block.frontmatterRawText.length();
         if (!block.frontmatterRawText.isEmpty()) m_charCounter++;  // block separator
         break;
@@ -640,7 +642,7 @@ void PreviewPainter::paintInlineRuns(QPainter* p, const LayoutBlock& block,
 //   INV-11 (行高=codeLineHeight), INV-12 (value 按字符换行)
 // 高 DPI：QFontMetricsF 必须带 p->device()（specs/横切关注点/40-高DPI适配.md INV-2）
 void PreviewPainter::paintFrontmatter(QPainter* p, const LayoutBlock& block,
-                                       qreal absX, qreal absY)
+                                       qreal absX, qreal absY, int charStart)
 {
     // Spec §INV-9：frontmatter 使用 monoFont 字体族 + baseFont 字号
     // 字体必须从 layout 取（禁止字面量字号 — specs/横切关注点/80-字体系统.md INV-5/INV-8）
@@ -671,6 +673,27 @@ void PreviewPainter::paintFrontmatter(QPainter* p, const LayoutBlock& block,
     p->setBrush(Qt::NoBrush);
     p->setPen(QPen(m_theme.frontmatterBorder, 1.0));
     p->drawRoundedRect(rect, radius, radius);
+
+    // Spec INV-13：把整个 frontmatter block 作为一个 TextSegment 注册，使其参与
+    // 选区 hit-test + copy。粗粒度方案（整体可选），复制结果为原始 YAML rawText。
+    // recordSegment 必须在绘制文字之前：textIndexAtPoint 只看 segments 命中，
+    // 对 frontmatter 而言"块内任意位置"都 hit 到这个大 segment。
+    if (!block.frontmatterRawText.isEmpty()) {
+        recordSegment(rect, charStart, block.frontmatterRawText.length(),
+                       block.frontmatterRawText, fmFont, QString());
+    }
+
+    // Step 2.5：选区高亮反馈（整块）。只要选区与 [charStart, charStart+rawLen) 有交集，
+    // 就在整块上叠加半透明选区色（与 paintInlineRuns 里 inline 选区色保持一致）。
+    if (m_selStart >= 0 && m_selEnd > m_selStart && !block.frontmatterRawText.isEmpty()) {
+        const int fmEnd = charStart + block.frontmatterRawText.length();
+        if (charStart < m_selEnd && m_selStart < fmEnd) {
+            QColor selColor(0, 120, 215, 80);
+            p->setPen(Qt::NoPen);
+            p->setBrush(selColor);
+            p->drawRoundedRect(rect, radius, radius);
+        }
+    }
 
     // Step 3：逐行绘制 key / value
     const qreal innerX = absX + hPad;

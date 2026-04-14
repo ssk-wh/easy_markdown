@@ -98,6 +98,19 @@ MainWindow::MainWindow(QWidget* parent)
     m_tabWidget->setDocumentMode(true);
     m_tabWidget->tabBar()->setDrawBase(false);
 
+    // Spec: specs/模块-app/04-窗口焦点管理.md — Tab 栏右上角「新建文件」按钮
+    // 等价于菜单 文件→新建（Ctrl+N）；样式通过现有 QTabBar QToolButton 规则跟随主题
+    m_newTabCornerBtn = new QToolButton(m_tabWidget);
+    m_newTabCornerBtn->setText(QStringLiteral("+"));
+    m_newTabCornerBtn->setToolTip(tr("New File"));
+    m_newTabCornerBtn->setCursor(Qt::PointingHandCursor);
+    m_newTabCornerBtn->setAutoRaise(true);
+    m_newTabCornerBtn->setFocusPolicy(Qt::NoFocus);
+    // 固定尺寸：跟 tabBar 高度协调。过小会被 DPI 裁切，过大会突出 tabBar
+    m_newTabCornerBtn->setMinimumSize(26, 24);
+    connect(m_newTabCornerBtn, &QToolButton::clicked, this, &MainWindow::onNewFile);
+    m_tabWidget->setCornerWidget(m_newTabCornerBtn, Qt::TopRightCorner);
+
     m_tocPanel = new TocPanel(this);
     m_tocPanel->setMinimumWidth(160);
 
@@ -859,11 +872,12 @@ void MainWindow::applyTheme(const Theme& theme)
         css += QStringLiteral(
             "QMainWindow { background: %1; }"
             "QAbstractScrollArea { border: none; }"
-            // menuBar
-            "QMenuBar { background: %2; color: %3; border: none; }"
+            // menuBar：底部加 1px 分割线，避免与下方 TabBar 背景色相同时融成一片
+            // Spec: specs/模块-app/10-菜单栏样式.md INV-7 (menuBar/tabBar 分割)
+            "QMenuBar { background: %2; color: %3; border: none; border-bottom: 1px solid %6; }"
             "QMenuBar::item { padding: 6px 10px; background: transparent; }"
             "QMenuBar::item:selected { background: %4; border-bottom: 2px solid %5; }"
-        ).arg(mainBg, chromeBg, chromeFg, hover, accent);
+        ).arg(mainBg, chromeBg, chromeFg, hover, accent, border);
 
         css += QStringLiteral(
             // 菜单（包括右键菜单）
@@ -937,11 +951,12 @@ void MainWindow::applyTheme(const Theme& theme)
         css += QStringLiteral(
             "QMainWindow { background: %1; }"
             "QAbstractScrollArea { border: none; }"
-            // menuBar
-            "QMenuBar { background: %2; color: %3; border: none; }"
+            // menuBar：底部加 1px 分割线，避免与下方 TabBar 背景色相同时融成一片
+            // Spec: specs/模块-app/10-菜单栏样式.md INV-7 (menuBar/tabBar 分割)
+            "QMenuBar { background: %2; color: %3; border: none; border-bottom: 1px solid %6; }"
             "QMenuBar::item { padding: 6px 10px; background: transparent; }"
             "QMenuBar::item:selected { background: %4; border-bottom: 2px solid %5; }"
-        ).arg(mainBg, chromeBg, chromeFg, hover, accent);
+        ).arg(mainBg, chromeBg, chromeFg, hover, accent, border);
 
         css += QStringLiteral(
             // menu（弹出菜单）

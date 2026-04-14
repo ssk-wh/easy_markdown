@@ -44,9 +44,21 @@ struct Theme {
     QColor previewFg = QColor("#333333");
     QColor previewHeading = QColor("#1A1A1A");
     QColor previewLink = QColor("#0366D6");
+    // 「通用」代码字段：老主题 TOML 只写这组，视作行内和代码块共用底色
     QColor previewCodeBg = QColor("#F6F8FA");
     QColor previewCodeFg = QColor("#333333");
     QColor previewCodeBorder = QColor("#E1E4E8");
+
+    // 行内代码专用字段。默认无效 QColor 作为"未设置"哨兵——
+    // Theme::finalizeTheme 会 fallback 到 previewCodeBg / previewCodeFg。
+    // Spec: specs/模块-app/12-主题插件系统.md INV-9 字段清单
+    QColor previewInlineCodeBg;
+    QColor previewInlineCodeFg;
+
+    // 代码块专用字段。同上 fallback 策略。
+    QColor previewCodeBlockBg;
+    QColor previewCodeBlockFg;
+    QColor previewCodeBlockBorder;
     QColor previewBlockQuoteBorder = QColor("#DFE2E5");
     QColor previewBlockQuoteBg = QColor("#F8F8F8");
     QColor previewTableBorder = QColor("#DFE2E5");

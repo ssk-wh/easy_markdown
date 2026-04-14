@@ -538,6 +538,16 @@ QString PreviewWidget::extractPlainText() const
 
 void PreviewWidget::extractBlockText(const LayoutBlock& block, QString& out) const
 {
+    // Spec: specs/模块-preview/10-Frontmatter渲染.md INV-13
+    // Frontmatter：导出原始 YAML（rawText），与 paintBlock 里 m_charCounter 累加规则
+    // （+= rawLen；非空再 +1 分隔符）一一对应
+    if (block.type == LayoutBlock::Frontmatter) {
+        out += block.frontmatterRawText;
+        if (!block.frontmatterRawText.isEmpty())
+            out += '\n';
+        return;  // frontmatter 无子块，防御式短路
+    }
+
     // Inline text - 匹配 paintInlineRuns 的计数：所有 run.text + 无条件分隔换行
     if (!block.inlineRuns.empty()) {
         for (const auto& run : block.inlineRuns) {

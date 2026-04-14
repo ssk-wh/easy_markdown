@@ -91,9 +91,10 @@ private:
                     qreal scrollY, qreal viewportHeight, qreal viewportWidth);
     void paintInlineRuns(QPainter* p, const LayoutBlock& block,
                          qreal x, qreal y, qreal maxWidth);
-    // Spec: specs/模块-preview/10-Frontmatter渲染.md §4.6
+    // Spec: specs/模块-preview/10-Frontmatter渲染.md §4.6 INV-13（选区与复制）
+    // charStart: 整个 frontmatter block 在全局字符索引空间的起点，用于 recordSegment
     void paintFrontmatter(QPainter* p, const LayoutBlock& block,
-                          qreal absX, qreal absY);
+                          qreal absX, qreal absY, int charStart);
     void recordSegment(const QRectF& rect, int charStart, int charLen,
                        const QString& text, const QFont& font,
                        const QString& linkUrl = QString());

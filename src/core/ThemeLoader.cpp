@@ -308,6 +308,12 @@ static const ColorTarget kColorTargets[] = {
     { "preview.code_background",        &Theme::previewCodeBg },
     { "preview.code_foreground",        &Theme::previewCodeFg },
     { "preview.code_border",            &Theme::previewCodeBorder },
+    // 行内代码 / 代码块拆分字段（可选，不写时 fallback 到 preview.code_*）
+    { "preview.inline_code_background", &Theme::previewInlineCodeBg },
+    { "preview.inline_code_foreground", &Theme::previewInlineCodeFg },
+    { "preview.code_block_background",  &Theme::previewCodeBlockBg },
+    { "preview.code_block_foreground",  &Theme::previewCodeBlockFg },
+    { "preview.code_block_border",      &Theme::previewCodeBlockBorder },
     { "preview.blockquote_border",      &Theme::previewBlockQuoteBorder },
     { "preview.blockquote_background",  &Theme::previewBlockQuoteBg },
     { "preview.table_border",           &Theme::previewTableBorder },

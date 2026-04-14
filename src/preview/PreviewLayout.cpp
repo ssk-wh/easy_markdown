@@ -371,8 +371,9 @@ void PreviewLayout::collectInlineRuns(const AstNode* node, std::vector<InlineRun
             run.text = child->literal;
             run.font = m_monoFont;
             run.font.setPointSizeF(currentFont.pointSizeF() * 0.9);
-            run.color = m_theme.previewCodeFg;
-            run.bgColor = m_theme.previewCodeBg;
+            // Spec: specs/模块-app/12-主题插件系统.md — 行内代码专用色（fallback 到 previewCode*）
+            run.color = m_theme.previewInlineCodeFg;
+            run.bgColor = m_theme.previewInlineCodeBg;
             runs.push_back(std::move(run));
             break;
         }
