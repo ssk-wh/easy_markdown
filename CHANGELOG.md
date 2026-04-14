@@ -11,6 +11,10 @@ All notable changes to this project will be documented in this file.
   `preview.code_block_*`，默认 fallback 到通用 `preview.code_*`，向后兼容
 
 ### Fixed
+- 弹窗按钮跨主题 accent 色：`applyTheme` 非深色分支原本完全没有 QDialog/QMessageBox
+  stylesheet，6 款浅色主题下弹窗按钮全是原生灰白不体现主题。现在补齐弹窗样式并让按钮
+  `:hover` / `:pressed` / `:default` 使用 `theme.accentColor`；深色分支同样升级
+  （保留 Spec INV-4 深色底色统一，只在 accent 上体现差异）
 - Session 恢复的 Tab 不跟随当前主题：restoreSession 结束时重新 applyTheme 一次，
   清掉 Preview 块缓存中被固化的默认浅色
 - menuBar 与 TabBar 背景色相同时视觉融成一块：QMenuBar 加 1px 底边分割线

@@ -913,18 +913,22 @@ void MainWindow::applyTheme(const Theme& theme)
             "QSplitter::handle:vertical { height: 2px; }"
         ).arg(border);
 
-        // 弹窗（QDialog / QMessageBox 及其子控件）——保留硬编码深色
-        // Spec INV-4：所有深色主题下弹窗统一灰黑调，不随具体深色主题变化，
-        // 避免 Qt 5.15 QDialog 默认浅色回退 + 每个深色主题视觉不一致的 bug
+        // 弹窗（QDialog / QMessageBox 及其子控件）——深色硬编码 + accent 色点缀
+        // Spec INV-4：深色主题下弹窗统一灰黑调（避免 Qt 5.15 QDialog 默认浅色 bug），
+        // 但 button hover 引入当前主题 accent 色以体现主题差异（INV-4a）
         css += QStringLiteral(
             "QDialog { background: #2b2b2b; color: #ccc; }"
             "QDialog QLabel { color: #ccc; }"
             "QDialog QTextEdit, QDialog QTextBrowser { background: #1e1e1e; color: #ccc; border: 1px solid #555; }"
             "QDialog QPushButton { background: #3c3f41; color: #ccc; border: 1px solid #555; padding: 6px 16px; border-radius: 3px; }"
-            "QDialog QPushButton:hover { background: #4a4d50; }"
+            "QDialog QPushButton:hover { background: %1; color: white; border-color: %1; }"
+            "QDialog QPushButton:pressed { background: %1; color: white; }"
             "QMessageBox { background: #2b2b2b; color: #ccc; }"
             "QMessageBox QLabel { color: #ccc; }"
-        );
+            "QMessageBox QPushButton { background: #3c3f41; color: #ccc; border: 1px solid #555; padding: 6px 16px; border-radius: 3px; min-width: 70px; }"
+            "QMessageBox QPushButton:hover { background: %1; color: white; border-color: %1; }"
+            "QMessageBox QPushButton:pressed { background: %1; color: white; }"
+        ).arg(accent);
 
         css += QStringLiteral(
             // 滚动条
@@ -1010,6 +1014,26 @@ void MainWindow::applyTheme(const Theme& theme)
             "QStatusBar { background: %1; color: %2; border-top: 1px solid %3; font-size: 12px; }"
             "QStatusBar QLabel { color: %2; font-size: 12px; }"
         ).arg(chromeBg, chromeMuted, border);
+
+        // 弹窗（非深色主题）：从 Theme 字段派生，按钮 hover 用 accent 色
+        // Spec: specs/横切关注点/30-主题系统.md INV-4a (accent 色体现)
+        // 之前本分支完全没有 QDialog/QMessageBox 规则，浅色主题下所有弹窗按钮原生灰白，
+        // 完全不体现主题。现在补齐：6 款浅色主题的弹窗按钮 hover 会变成对应 accent 色。
+        css += QStringLiteral(
+            "QDialog { background: %1; color: %2; }"
+            "QDialog QLabel { color: %2; }"
+            "QDialog QTextEdit, QDialog QTextBrowser { background: %1; color: %2; border: 1px solid %3; }"
+            "QDialog QPushButton { background: %4; color: %2; border: 1px solid %3; padding: 6px 16px; border-radius: 3px; min-width: 70px; }"
+            "QDialog QPushButton:hover { background: %5; color: white; border-color: %5; }"
+            "QDialog QPushButton:pressed { background: %5; color: white; }"
+            "QDialog QPushButton:default { border: 1px solid %5; }"
+            "QMessageBox { background: %1; color: %2; }"
+            "QMessageBox QLabel { color: %2; }"
+            "QMessageBox QPushButton { background: %4; color: %2; border: 1px solid %3; padding: 6px 16px; border-radius: 3px; min-width: 70px; }"
+            "QMessageBox QPushButton:hover { background: %5; color: white; border-color: %5; }"
+            "QMessageBox QPushButton:pressed { background: %5; color: white; }"
+            "QMessageBox QPushButton:default { border: 1px solid %5; }"
+        ).arg(mainBg, chromeFg, border, chromeBg, accent);
 
         Q_UNUSED(panelBg);
         setStyleSheet(css);
