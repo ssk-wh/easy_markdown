@@ -54,6 +54,8 @@
 #include "MarkdownParser.h"
 // Spec: specs/模块-app/12-主题插件系统.md
 #include "ThemeLoader.h"
+// Spec: specs/模块-app/04-窗口焦点管理.md Tab 栏「+」按钮
+#include "TabBarWithAdd.h"
 
 #ifdef _WIN32
 #include <windows.h>
@@ -92,24 +94,15 @@ MainWindow::MainWindow(QWidget* parent)
 
     m_recentFiles = new RecentFiles(this);
 
-    m_tabWidget = new QTabWidget(this);
+    // Spec: specs/模块-app/04-窗口焦点管理.md — Tab 栏「+」按钮紧贴最后一个 Tab
+    // Chrome/Edge 风格：「+」随 Tab 水平移动，而非固定在窗口右上角
+    auto* twa = new TabWidgetWithAdd(this);
+    m_tabWidget = twa;
+    connect(twa->customTabBar(), &TabBarWithAdd::addClicked, this, &MainWindow::onNewFile);
     m_tabWidget->setTabsClosable(true);
     m_tabWidget->setMovable(true);
     m_tabWidget->setDocumentMode(true);
     m_tabWidget->tabBar()->setDrawBase(false);
-
-    // Spec: specs/模块-app/04-窗口焦点管理.md — Tab 栏右上角「新建文件」按钮
-    // 等价于菜单 文件→新建（Ctrl+N）；样式通过现有 QTabBar QToolButton 规则跟随主题
-    m_newTabCornerBtn = new QToolButton(m_tabWidget);
-    m_newTabCornerBtn->setText(QStringLiteral("+"));
-    m_newTabCornerBtn->setToolTip(tr("New File"));
-    m_newTabCornerBtn->setCursor(Qt::PointingHandCursor);
-    m_newTabCornerBtn->setAutoRaise(true);
-    m_newTabCornerBtn->setFocusPolicy(Qt::NoFocus);
-    // 固定尺寸：跟 tabBar 高度协调。过小会被 DPI 裁切，过大会突出 tabBar
-    m_newTabCornerBtn->setMinimumSize(26, 24);
-    connect(m_newTabCornerBtn, &QToolButton::clicked, this, &MainWindow::onNewFile);
-    m_tabWidget->setCornerWidget(m_newTabCornerBtn, Qt::TopRightCorner);
 
     m_tocPanel = new TocPanel(this);
     m_tocPanel->setMinimumWidth(160);
@@ -433,6 +426,14 @@ void MainWindow::newTab()
 
 void MainWindow::restoreSession(const QString& requestedFile)
 {
+    // Spec: specs/横切关注点/30-主题系统.md INV-3（切换主题时全部 widget 必须响应）
+    // 根因：loadSettings() 在构造末尾调用 applyTheme 时 m_tabs 为空，随后 restoreSession
+    // 创建的 Tab 虽然 createTab 里调了 setTheme(m_currentTheme)，但解析器/块缓存时序在
+    // 某些路径下会把默认浅色固化进 preview 块缓存，导致编辑器/预览区保持浅色。
+    // 修复：在所有返回路径末尾重新 applyTheme 一次，触发 tab 重绘并清缓存。
+    // 用 lambda 封装避免在 3 个 return 点重复写。
+    auto reapplyTheme = [this]() { applyTheme(m_currentTheme); };
+
     QSettings s;
     bool restore = s.value("session/restoreLastFile", true).toBool();
 
@@ -495,6 +496,7 @@ void MainWindow::restoreSession(const QString& requestedFile)
             }
             s.endArray();
         }
+        reapplyTheme();
         return;
     }
 
@@ -544,11 +546,13 @@ void MainWindow::restoreSession(const QString& requestedFile)
                 if (auto* tab = currentTab())
                     tab->editor->ensureCursorVisible();
             });
+            reapplyTheme();
             return;
         }
     }
 
     newTab();
+    reapplyTheme();
 }
 
 void MainWindow::openFile(const QString& path)

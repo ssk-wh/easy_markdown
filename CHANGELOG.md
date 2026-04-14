@@ -5,11 +5,14 @@ All notable changes to this project will be documented in this file.
 ## [0.2.4] - 2026-04-14
 
 ### Added
-- Tab 栏右上角新建文件按钮（「+」），等价于菜单 文件→新建（Ctrl+N），tooltip 走 i18n
+- Tab 栏「+」新建按钮：紧贴最后一个 Tab 右侧（Chrome/Edge 风格），随 Tab 数量水平移动；
+  自定义 `TabBarWithAdd` 子类实现 hover 态与点击 hit-test，点击等价 Ctrl+N
 - 主题 schema 新增行内代码 / 代码块独立字段 `preview.inline_code_*` /
   `preview.code_block_*`，默认 fallback 到通用 `preview.code_*`，向后兼容
 
 ### Fixed
+- Session 恢复的 Tab 不跟随当前主题：restoreSession 结束时重新 applyTheme 一次，
+  清掉 Preview 块缓存中被固化的默认浅色
 - menuBar 与 TabBar 背景色相同时视觉融成一块：QMenuBar 加 1px 底边分割线
   （色取 theme.editorGutterLine），深色/浅色主题下都生效
 - 预览区 frontmatter 块无法框选/复制：为整个 frontmatter block 注册 TextSegment

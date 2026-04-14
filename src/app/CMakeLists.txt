@@ -1,4 +1,4 @@
-set(APP_SOURCES main.cpp MainWindow.h MainWindow.cpp ChangelogDialog.h ChangelogDialog.cpp ShortcutsDialog.h ShortcutsDialog.cpp)
+set(APP_SOURCES main.cpp MainWindow.h MainWindow.cpp ChangelogDialog.h ChangelogDialog.cpp ShortcutsDialog.h ShortcutsDialog.cpp TabBarWithAdd.h TabBarWithAdd.cpp)
 
 if(WIN32)
     list(APPEND APP_SOURCES app.rc)

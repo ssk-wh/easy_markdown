@@ -18,7 +18,6 @@ class QActionGroup;
 class QLocalServer;
 class QLabel;
 class QStatusBar;
-class QToolButton;
 
 class MainWindow : public QMainWindow {
     Q_OBJECT
@@ -67,8 +66,6 @@ private:
     void maybeShowWelcomeOnFirstLaunch();
 
     QTabWidget* m_tabWidget;
-    // Spec: specs/模块-app/04-窗口焦点管理.md — Tab 栏右上角常驻新建按钮
-    QToolButton* m_newTabCornerBtn = nullptr;
     QSplitter* m_mainSplitter = nullptr;
     TocPanel* m_tocPanel = nullptr;
     QVector<TabData> m_tabs;
