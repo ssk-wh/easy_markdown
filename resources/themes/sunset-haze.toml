@@ -1,0 +1,74 @@
+# SimpleMarkdown 内置主题：Sunset Haze（琥珀桃暖玻璃）
+# Spec: specs/模块-app/12-主题插件系统.md
+#
+# 灵感来源：iOS 26 Liquid Glass 视觉语言，Mockup B（tmp/theme_mocks/mock_b_sunset_haze.html）
+#
+# 设计原则：
+#   - 暖米白基调：背景是琥珀/珊瑚/桃粉渐变 + 暖白玻璃叠加后的视觉估算色
+#   - 文字用深栗 #3A1F14 / 中棕 #6B4530 / 米棕 #9A7560 三阶（拒绝纯黑）
+#   - Accent 用 iOS 系统橙 #FF9500，强调色 #FF7A45（珊瑚橙）
+#   - 代码块反向对比：深栗墨底，暖米字
+#   - 黄昏时段写作最合适
+
+[meta]
+name = "琥珀桃暖"
+id = "sunset-haze"
+is_dark = false
+version = "1.0"
+author = "SimpleMarkdown"
+description = "iOS 26 Liquid Glass · 琥珀桃暖"
+
+[editor]
+background            = "#FFFAF2"
+foreground            = "#3A1F14"
+current_line          = "#FDF0E2"
+selection             = "#FDD8B9"
+line_number           = "#A58168"
+line_number_active    = "#FF7A45"
+gutter_background     = "#FBEDDE"
+gutter_line           = "#F3D9BD"
+cursor                = "#FF7A45"
+search_match          = "rgba(255, 213, 79, 230)"
+search_match_current  = "rgba(255, 122, 69, 240)"
+preedit_background    = "rgba(255, 220, 190, 200)"
+
+[syntax]
+heading                = "#8A3A15"
+code                   = "#C2410C"
+code_background        = "#FBEADA"
+code_block             = "#8A3A15"
+code_block_background  = "#F7E8D4"
+link                   = "#FF7A45"
+list                   = "#B8481C"
+blockquote             = "#8B6742"
+fence                  = "#A58168"
+fence_background       = "#F8E5CE"
+
+[preview]
+background                    = "#FFF6ED"
+foreground                    = "#3A1F14"
+heading                       = "#8A3A15"
+link                          = "#FF7A45"
+code_background               = "#2E1913"
+code_foreground               = "#F0DBC1"
+code_border                   = "#4A2A1E"
+blockquote_border             = "#F5A86A"
+blockquote_background         = "#FDEEDC"
+table_border                  = "#F3D9BD"
+table_header_background       = "#FBEADA"
+hr                            = "#F3D9BD"
+heading_separator             = "#F5DFC3"
+image_placeholder_background  = "#FBEADA"
+image_placeholder_border      = "#E6B78A"
+image_placeholder_text        = "#9A7560"
+image_error_background        = "#FFEEEE"
+image_error_border            = "#E86C6C"
+image_error_text              = "#B22323"
+image_info_text               = "#6B4530"
+highlight                     = "rgba(255, 122, 69, 90)"
+highlight_toc                 = "rgba(255, 149, 0, 70)"
+accent                        = "#FF7A45"
+frontmatter_background        = "#FDEEDC"
+frontmatter_border            = "#F5A86A"
+frontmatter_key               = "#8A3A15"
+frontmatter_value             = "#5A3525"

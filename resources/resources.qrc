@@ -11,4 +11,14 @@
         <file alias="simple_markdown_zh_CN.qm">../translations/simple_markdown_zh_CN.qm</file>
         <file alias="simple_markdown_en_US.qm">../translations/simple_markdown_en_US.qm</file>
     </qresource>
+    <qresource prefix="/themes">
+        <file alias="light.toml">themes/light.toml</file>
+        <file alias="dark.toml">themes/dark.toml</file>
+        <file alias="arctic-frost.toml">themes/arctic-frost.toml</file>
+        <file alias="sunset-haze.toml">themes/sunset-haze.toml</file>
+        <file alias="midnight-aurora.toml">themes/midnight-aurora.toml</file>
+        <file alias="paper-mist.toml">themes/paper-mist.toml</file>
+        <file alias="mint-breeze.toml">themes/mint-breeze.toml</file>
+        <file alias="monochrome-zen.toml">themes/monochrome-zen.toml</file>
+    </qresource>
 </RCC>

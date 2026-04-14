@@ -52,6 +52,8 @@
 #include <QLabel>
 #include <QStatusBar>
 #include "MarkdownParser.h"
+// Spec: specs/模块-app/12-主题插件系统.md
+#include "ThemeLoader.h"
 
 #ifdef _WIN32
 #include <windows.h>
@@ -258,31 +260,12 @@ void MainWindow::setupMenuBar()
     // -- View menu --
     QMenu* viewMenu = menuBar()->addMenu(tr("View"));
 
-    QActionGroup* themeGroup = new QActionGroup(this);
-    themeGroup->setExclusive(true);
-
-    m_followSystemThemeAct = viewMenu->addAction(tr("Follow System"));
-    m_followSystemThemeAct->setCheckable(true);
-    m_followSystemThemeAct->setChecked(true);
-    themeGroup->addAction(m_followSystemThemeAct);
-
-    m_lightThemeAct = viewMenu->addAction(tr("Light Theme"));
-    m_lightThemeAct->setCheckable(true);
-    themeGroup->addAction(m_lightThemeAct);
-
-    m_darkThemeAct = viewMenu->addAction(tr("Dark Theme"));
-    m_darkThemeAct->setCheckable(true);
-    themeGroup->addAction(m_darkThemeAct);
-
-    connect(m_followSystemThemeAct, &QAction::triggered, this, [this]() {
-        applySystemTheme();
-    });
-    connect(m_lightThemeAct, &QAction::triggered, this, [this]() {
-        applyTheme(Theme::light());
-    });
-    connect(m_darkThemeAct, &QAction::triggered, this, [this]() {
-        applyTheme(Theme::dark());
-    });
+    // Spec: specs/模块-app/12-主题插件系统.md
+    // 主题子菜单：动态列出 Follow System + 所有已发现的主题 + 工具项。
+    m_themeMenu = viewMenu->addMenu(tr("Theme"));
+    m_themeGroup = new QActionGroup(this);
+    m_themeGroup->setExclusive(true);
+    rebuildThemeMenu();
 
     viewMenu->addSeparator();
 
@@ -738,7 +721,105 @@ bool MainWindow::isSystemDarkMode() const
 
 void MainWindow::applySystemTheme()
 {
+    m_currentThemeId.clear();  // 空表示跟随系统
     applyTheme(isSystemDarkMode() ? Theme::dark() : Theme::light());
+}
+
+// Spec: specs/模块-app/12-主题插件系统.md
+// 按 id 切换主题；id 必须是已发现的主题（内置或用户目录）
+void MainWindow::applyThemeById(const QString& id)
+{
+    m_currentThemeId = id;
+    applyTheme(Theme::byId(id));
+}
+
+// 打开用户主题目录（首次打开会自动创建）
+void MainWindow::openThemeDirectory()
+{
+    const QString dir = core::ThemeLoader::userThemeDir();
+    QDesktopServices::openUrl(QUrl::fromLocalFile(dir));
+}
+
+// 动态构建主题子菜单：
+// - Follow System（第一个）
+// - 所有已发现的主题（light / dark / liquid-glass / 用户主题）
+// - 分隔线
+// - 重新扫描主题 / 打开主题目录
+void MainWindow::rebuildThemeMenu()
+{
+    if (!m_themeMenu || !m_themeGroup) return;
+
+    // 清空旧内容
+    m_themeMenu->clear();
+    // Qt 的 actionGroup 需要手动移除，否则旧 action 仍会在组里
+    for (QAction* act : m_themeGroup->actions())
+        m_themeGroup->removeAction(act);
+    m_dynamicThemeActs.clear();
+    m_followSystemThemeAct = nullptr;
+    m_lightThemeAct = nullptr;
+    m_darkThemeAct = nullptr;
+
+    // 1) Follow System
+    m_followSystemThemeAct = m_themeMenu->addAction(tr("Follow System"));
+    m_followSystemThemeAct->setCheckable(true);
+    m_themeGroup->addAction(m_followSystemThemeAct);
+    connect(m_followSystemThemeAct, &QAction::triggered, this, [this]() {
+        applySystemTheme();
+    });
+
+    m_themeMenu->addSeparator();
+
+    // 2) 所有已发现的主题（内置 + 用户）
+    const QString userDir = core::ThemeLoader::userThemeDir();
+    const auto all = core::ThemeLoader::discoverAll(userDir);
+    for (const auto& d : all) {
+        QAction* act = m_themeMenu->addAction(d.displayName);
+        act->setCheckable(true);
+        const QString id = d.id;
+        m_themeGroup->addAction(act);
+        connect(act, &QAction::triggered, this, [this, id]() {
+            applyThemeById(id);
+        });
+        // 保留对 light/dark 指针的引用，便于旧代码访问
+        if (id == QLatin1String("light"))  m_lightThemeAct = act;
+        else if (id == QLatin1String("dark")) m_darkThemeAct = act;
+        m_dynamicThemeActs.append(act);
+    }
+
+    m_themeMenu->addSeparator();
+
+    // 3) 工具项：打开主题目录 / 重新扫描
+    m_themeMenu->addAction(tr("Open Themes Folder"), this, [this]() {
+        openThemeDirectory();
+    });
+    m_themeMenu->addAction(tr("Rescan Themes"), this, [this]() {
+        rebuildThemeMenu();
+    });
+
+    // 4) 根据 m_currentThemeId 恢复选中
+    bool checkedAny = false;
+    if (m_currentThemeId.isEmpty()) {
+        m_followSystemThemeAct->setChecked(true);
+        checkedAny = true;
+    } else {
+        for (QAction* act : m_dynamicThemeActs) {
+            // 通过 connect 时捕获的 id 比对：我们没有存 id 到 QAction.data，这里用文本兜底
+            // 更稳妥：扫描 all 再比 id
+        }
+        // 再扫一遍 all 匹配 id 并选中对应 action
+        int idx = 0;
+        for (const auto& d : all) {
+            if (d.id == m_currentThemeId && idx < m_dynamicThemeActs.size()) {
+                m_dynamicThemeActs[idx]->setChecked(true);
+                checkedAny = true;
+                break;
+            }
+            ++idx;
+        }
+    }
+    if (!checkedAny && m_followSystemThemeAct) {
+        m_followSystemThemeAct->setChecked(true);
+    }
 }
 
 void MainWindow::applyTheme(const Theme& theme)
@@ -750,8 +831,28 @@ void MainWindow::applyTheme(const Theme& theme)
     }
     m_tocPanel->setTheme(theme);
 
-    // 主窗口 UI 元素跟随深色/浅色主题（含菜单栏、右键菜单、对话框）
+    // Spec: specs/模块-app/12-主题插件系统.md INV-1 唯一数据源
+    // menuBar / TabBar / StatusBar / Splitter / ScrollBar 的样式从 Theme 字段派生，
+    // 所有主题（Arctic Frost / Sunset Haze / Midnight Aurora 等）切换时外壳跟随。
+    // 只保留 dark 分支的硬编码（向后兼容 Spec INV-4 "弹窗跟随深色主题"要求）。
+    const QString mainBg      = theme.editorBg.name();
+    const QString panelBg     = theme.editorGutterBg.name();
+    const QString chromeBg    = theme.editorGutterBg.name();
+    const QString chromeFg    = theme.editorFg.name();
+    const QString chromeMuted = theme.editorLineNumber.name();
+    const QString border      = theme.editorGutterLine.name();
+    const QString accent      = theme.accentColor.name();
+    const QString hover       = theme.editorCurrentLine.name();
+    const QString tabActiveBg = theme.editorBg.name();
+    const QString scrollThumb = theme.isDark
+        ? QStringLiteral("rgba(255,255,255,40)")
+        : QStringLiteral("rgba(0,0,0,40)");
+    const QString scrollThumbHover = theme.isDark
+        ? QStringLiteral("rgba(255,255,255,80)")
+        : QStringLiteral("rgba(0,0,0,80)");
+
     if (theme.isDark) {
+        // 深色主题：保留硬编码 stylesheet（已按 Spec INV-4 覆盖所有弹窗/表格细节）
         setStyleSheet(QStringLiteral(
             "QMainWindow { background: #2b2b2b; }"
             // 编辑器和预览区域去掉默认 frame 边框
@@ -805,49 +906,69 @@ void MainWindow::applyTheme(const Theme& theme)
             "QStatusBar QLabel { color: #aaa; font-size: 12px; }"
         ));
     } else {
-        setStyleSheet(QStringLiteral(
-            // 编辑器和预览区域去掉默认 frame 边框
+        // 非深色主题（Light / Arctic Frost / Sunset Haze / ...）：stylesheet 从 Theme 派生
+        // 超过 9 个占位符时 QString::arg 会出问题，这里拆成 3 段
+        QString css;
+        css += QStringLiteral(
+            "QMainWindow { background: %1; }"
             "QAbstractScrollArea { border: none; }"
-            // 菜单栏
-            "QMenuBar { border: none; }"
-            "QMenuBar::item { padding: 6px 10px; }"
-            "QMenuBar::item:selected { background: #e8e8e8; border-bottom: 2px solid #0078d4; }"
-            // 菜单
-            "QMenu { border: 1px solid #d0d0d0; padding: 4px 0; }"
-            "QMenu::item { padding: 6px 24px 6px 32px; }"  // [Spec 模块-app/10-菜单栏样式 INV-1] padding-left = indicator 占位(24) + 约1字符宽(~8)，保证 ✓ 与文字留间距
-            "QMenu::item:selected { background: #e8f0fe; border-left: 2px solid #0078d4; }"
-            "QMenu::separator { background: #e0e0e0; height: 1px; margin: 4px 8px; }"
+            // menuBar
+            "QMenuBar { background: %2; color: %3; border: none; }"
+            "QMenuBar::item { padding: 6px 10px; background: transparent; }"
+            "QMenuBar::item:selected { background: %4; border-bottom: 2px solid %5; }"
+        ).arg(mainBg, chromeBg, chromeFg, hover, accent);
+
+        css += QStringLiteral(
+            // menu（弹出菜单）
+            "QMenu { background: %1; color: %2; border: 1px solid %3; padding: 4px 0; }"
+            "QMenu::item { padding: 6px 24px 6px 32px; background: transparent; }"
+            "QMenu::item:selected { background: %4; border-left: 2px solid %5; }"
+            "QMenu::separator { background: %3; height: 1px; margin: 4px 8px; }"
             "QMenu::indicator { width: 16px; height: 16px; margin-right: 8px; }"
-            // Tab 栏
+        ).arg(mainBg, chromeFg, border, hover, accent);
+
+        css += QStringLiteral(
+            // TabBar
             "QTabWidget { border: none; }"
             "QTabWidget::pane { border: none; }"
-            "QTabBar { background: #f0f0f0; border: none; }"
-            "QTabBar::tab { background: #f0f0f0; color: #666; padding: 6px 12px; border: none; border-bottom: 2px solid transparent; }"
-            "QTabBar::tab:selected { color: #333; border-bottom: 2px solid #0078d4; background: #fff; }"
-            "QTabBar::tab:hover { color: #333; background: #e8e8e8; }"
-            // Tab 滚动按钮
+            "QTabBar { background: %1; border: none; }"
+            "QTabBar::tab { background: %1; color: %2; padding: 6px 12px; border: none; border-bottom: 2px solid transparent; }"
+            "QTabBar::tab:selected { color: %3; border-bottom: 2px solid %4; background: %5; }"
+            "QTabBar::tab:hover { color: %3; background: %6; }"
             "QTabBar::tear { width: 0; border: none; }"
-            "QTabBar QToolButton { background: #f0f0f0; border: none; color: #666; width: 20px; }"
-            "QTabBar QToolButton:hover { background: #e0e0e0; color: #333; }"
-            // 分割线
-            "QSplitter::handle { background: #e0e0e0; }"
+            "QTabBar QToolButton { background: %1; border: none; color: %2; width: 20px; }"
+            "QTabBar QToolButton:hover { background: %6; color: %3; }"
+        ).arg(chromeBg, chromeMuted, chromeFg, accent, tabActiveBg, hover);
+
+        css += QStringLiteral(
+            // splitter
+            "QSplitter::handle { background: %1; }"
             "QSplitter::handle:horizontal { width: 1px; }"
             "QSplitter::handle:vertical { height: 1px; }"
+        ).arg(border);
+
+        css += QStringLiteral(
             // 滚动条
             "QScrollBar:vertical { background: transparent; width: 8px; margin: 2px; }"
-            "QScrollBar::handle:vertical { background: rgba(0,0,0,40); border-radius: 3px; min-height: 30px; }"
-            "QScrollBar::handle:vertical:hover { background: rgba(0,0,0,80); }"
+            "QScrollBar::handle:vertical { background: %1; border-radius: 3px; min-height: 30px; }"
+            "QScrollBar::handle:vertical:hover { background: %2; }"
             "QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { height: 0; }"
             "QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical { background: transparent; }"
             "QScrollBar:horizontal { background: transparent; height: 8px; margin: 2px; }"
-            "QScrollBar::handle:horizontal { background: rgba(0,0,0,40); border-radius: 3px; min-width: 30px; }"
-            "QScrollBar::handle:horizontal:hover { background: rgba(0,0,0,80); }"
+            "QScrollBar::handle:horizontal { background: %1; border-radius: 3px; min-width: 30px; }"
+            "QScrollBar::handle:horizontal:hover { background: %2; }"
             "QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal { width: 0; }"
             "QScrollBar::add-page:horizontal, QScrollBar::sub-page:horizontal { background: transparent; }"
+        ).arg(scrollThumb, scrollThumbHover);
+
+        css += QStringLiteral(
             // 状态栏
-            "QStatusBar { background: #f0f0f0; color: #666; border-top: 1px solid #ddd; font-size: 12px; }"
-            "QStatusBar QLabel { color: #666; font-size: 12px; }"
-        ));
+            "QStatusBar { background: %1; color: %2; border-top: 1px solid %3; font-size: 12px; }"
+            "QStatusBar QLabel { color: %2; font-size: 12px; }"
+        ).arg(chromeBg, chromeMuted, border);
+
+        Q_UNUSED(panelBg);
+        setStyleSheet(css);
     }
 
     updateAllTabCloseButtons();
@@ -1255,10 +1376,10 @@ void MainWindow::saveSettings()
     s.setValue("view/wordWrap", m_wordWrapAct ? m_wordWrapAct->isChecked() : true);
     s.setValue("view/lineSpacing", m_lineSpacingFactor);
     s.setValue("view/fontSizeDelta", m_fontSizeDelta);
-    // 主题：follow_system / light / dark
+    // Spec: specs/模块-app/12-主题插件系统.md
+    // 主题：follow_system / <theme-id>（如 light / dark / liquid-glass / 用户自定义）
     QString themeMode = "follow_system";
-    if (m_lightThemeAct && m_lightThemeAct->isChecked()) themeMode = "light";
-    else if (m_darkThemeAct && m_darkThemeAct->isChecked()) themeMode = "dark";
+    if (!m_currentThemeId.isEmpty()) themeMode = m_currentThemeId;
     s.setValue("view/themeMode", themeMode);
     s.setValue("window/geometry", saveGeometry());
     s.setValue("window/mainSplitter", m_mainSplitter->saveState());
@@ -1298,17 +1419,16 @@ void MainWindow::loadSettings()
     // 主分割器（编辑/预览 | TOC）状态在 showEvent 中恢复（需窗口已显示）
     m_pendingSplitterState = s.value("window/mainSplitter").toByteArray();
 
-    // 主题
+    // Spec: specs/模块-app/12-主题插件系统.md
+    // 主题：向后兼容旧的 "light"/"dark" 字符串，同时接受任意主题 id
     QString themeMode = s.value("view/themeMode", "follow_system").toString();
-    if (themeMode == "light") {
-        m_lightThemeAct->setChecked(true);
-        applyTheme(Theme::light());
-    } else if (themeMode == "dark") {
-        m_darkThemeAct->setChecked(true);
-        applyTheme(Theme::dark());
-    } else {
-        m_followSystemThemeAct->setChecked(true);
+    if (themeMode == "follow_system") {
+        if (m_followSystemThemeAct) m_followSystemThemeAct->setChecked(true);
         applySystemTheme();
+    } else {
+        // 按 id 切换，并在菜单中勾选对应项
+        applyThemeById(themeMode);
+        rebuildThemeMenu();  // 触发重新选中（rebuild 会根据 m_currentThemeId 设 checked）
     }
 
     // 自动换行

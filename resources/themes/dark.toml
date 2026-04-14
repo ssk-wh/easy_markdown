@@ -1,0 +1,61 @@
+# SimpleMarkdown 内置深色主题
+# Spec: specs/模块-app/12-主题插件系统.md
+# 本文件与 Theme::dark() 的历史硬编码值逐字段对齐，保证零视觉回归。
+
+[meta]
+name = "Dark"
+id = "dark"
+is_dark = true
+version = "1.0"
+author = "SimpleMarkdown"
+description = "默认深色主题"
+
+[editor]
+background            = "#1E1E1E"
+foreground            = "#D4D4D4"
+current_line          = "#2A2A2A"
+selection             = "#264F78"
+line_number           = "#858585"
+line_number_active    = "#C6C6C6"
+gutter_background     = "#1E1E1E"
+gutter_line           = "#333333"
+cursor                = "#D4D4D4"
+search_match          = "rgba(218, 165, 32, 220)"
+search_match_current  = "rgba(255, 140, 0, 240)"
+preedit_background    = "rgb(80, 80, 50)"
+
+[syntax]
+heading                = "#569CD6"
+code                   = "#CE9178"
+code_background        = "#2D2D2D"
+code_block             = "#6A9955"
+code_block_background  = "#2D2D2D"
+link                   = "#4FC3F7"
+list                   = "#C586C0"
+blockquote             = "#808080"
+fence                  = "#808080"
+fence_background       = "#2D2D2D"
+
+[preview]
+background                    = "#1E1E1E"
+foreground                    = "#D4D4D4"
+heading                       = "#FFFFFF"
+link                          = "#4FC3F7"
+code_background               = "#2D2D2D"
+code_foreground               = "#CE9178"
+code_border                   = "#444444"
+blockquote_border             = "#444444"
+blockquote_background         = "#252525"
+table_border                  = "#444444"
+table_header_background       = "#2D2D2D"
+hr                            = "#444444"
+heading_separator             = "#444444"
+image_placeholder_background  = "#2D2D2D"
+image_placeholder_border      = "#444444"
+image_placeholder_text        = "#808080"
+image_error_background        = "#3D2020"
+image_error_border            = "#B71C1C"
+image_error_text              = "#EF9A9A"
+image_info_text               = "#A0A0A0"
+highlight                     = "rgba(255, 167, 38, 120)"
+highlight_toc                 = "rgba(180, 120, 0, 150)"

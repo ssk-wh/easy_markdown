@@ -1,0 +1,74 @@
+# SimpleMarkdown 内置主题：Mint Breeze（薄荷清新）
+# Spec: specs/模块-app/12-主题插件系统.md
+#
+# 灵感来源：Mockup E（tmp/theme_mocks/mock_e_mint_breeze.html）
+#
+# 设计原则（日系/北欧 清新温和）：
+#   - 背景：淡薄荷奶白 #F4FBF6 → 窗体 #FBFEFC
+#   - 双 accent：主 薄荷绿 #4ECDC4 + 辅 柠檬黄 #FFDC7A（柠檬黄只在 TOC 激活点、badge、highlight 使用）
+#   - 低饱和绿灰边框：#D5E9DC
+#   - 代码块用冷薄荷灰 #E8F2EB 浅底（反常规不用深色反差），整屏明度统一
+#   - 文字深松针 #1B3B2A（不是黑），次文字 #5E7B6B
+
+[meta]
+name = "薄荷清新"
+id = "mint-breeze"
+is_dark = false
+version = "1.0"
+author = "SimpleMarkdown"
+description = "日系清新薄荷绿 + 柠檬黄点睛"
+
+[editor]
+background            = "#FBFEFC"
+foreground            = "#1B3B2A"
+current_line          = "#E8F7EC"
+selection             = "#B8E8DE"
+line_number           = "#8AA896"
+line_number_active    = "#4ECDC4"
+gutter_background     = "#F4FBF6"
+gutter_line           = "#D5E9DC"
+cursor                = "#4ECDC4"
+search_match          = "rgba(255, 220, 122, 220)"
+search_match_current  = "rgba(255, 164, 61, 240)"
+preedit_background    = "rgba(192, 230, 216, 200)"
+
+[syntax]
+heading                = "#1B3B2A"
+code                   = "#2A7F72"
+code_background        = "#E0EFE5"
+code_block             = "#2A7F72"
+code_block_background  = "#E8F2EB"
+link                   = "#2A9D8F"
+list                   = "#E5A52E"
+blockquote             = "#5E7B6B"
+fence                  = "#8AA896"
+fence_background       = "#DDEBE1"
+
+[preview]
+background                    = "#F4FBF6"
+foreground                    = "#1B3B2A"
+heading                       = "#1B3B2A"
+link                          = "#2A9D8F"
+code_background               = "#E8F2EB"
+code_foreground               = "#1B3B2A"
+code_border                   = "#D5E9DC"
+blockquote_border             = "#4ECDC4"
+blockquote_background         = "#EAF5EE"
+table_border                  = "#D5E9DC"
+table_header_background       = "#E4F1E8"
+hr                            = "#D5E9DC"
+heading_separator             = "#DDEBE1"
+image_placeholder_background  = "#E4F1E8"
+image_placeholder_border      = "#B9D6C3"
+image_placeholder_text        = "#5E7B6B"
+image_error_background        = "#FFEFEE"
+image_error_border            = "#F08686"
+image_error_text              = "#BC3838"
+image_info_text               = "#5E7B6B"
+highlight                     = "rgba(255, 220, 122, 130)"
+highlight_toc                 = "rgba(255, 220, 122, 90)"
+accent                        = "#4ECDC4"
+frontmatter_background        = "#EAF5EE"
+frontmatter_border            = "#4ECDC4"
+frontmatter_key               = "#2A7F72"
+frontmatter_value             = "#1B3B2A"

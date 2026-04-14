@@ -1,0 +1,61 @@
+# SimpleMarkdown 内置亮色主题
+# Spec: specs/模块-app/12-主题插件系统.md
+# 本文件与 Theme::light() 的历史硬编码值逐字段对齐，保证零视觉回归。
+
+[meta]
+name = "Light"
+id = "light"
+is_dark = false
+version = "1.0"
+author = "SimpleMarkdown"
+description = "默认亮色主题"
+
+[editor]
+background            = "#FFFFFF"
+foreground            = "#333333"
+current_line          = "#F5F5F5"
+selection             = "#B5D5FF"
+line_number           = "#999999"
+line_number_active    = "#333333"
+gutter_background     = "#F0F0F0"
+gutter_line           = "#E0E0E0"
+cursor                = "#333333"
+search_match          = "rgba(255, 235, 59, 220)"
+search_match_current  = "rgba(255, 140, 0, 240)"
+preedit_background    = "rgb(255, 255, 200)"
+
+[syntax]
+heading                = "#1A237E"
+code                   = "#C62828"
+code_background        = "#F5F5F5"
+code_block             = "#2E7D32"
+code_block_background  = "#F8F8F8"
+link                   = "#0366D6"
+list                   = "#6A1B9A"
+blockquote             = "#757575"
+fence                  = "#999999"
+fence_background       = "#F0F0F0"
+
+[preview]
+background                    = "#FFFFFF"
+foreground                    = "#333333"
+heading                       = "#1A1A1A"
+link                          = "#0366D6"
+code_background               = "#F6F8FA"
+code_foreground               = "#333333"
+code_border                   = "#E1E4E8"
+blockquote_border             = "#DFE2E5"
+blockquote_background         = "#F8F8F8"
+table_border                  = "#DFE2E5"
+table_header_background       = "#F6F8FA"
+hr                            = "#E0E0E0"
+heading_separator             = "#EAECEF"
+image_placeholder_background  = "#F0F0F0"
+image_placeholder_border      = "#CCCCCC"
+image_placeholder_text        = "#999999"
+image_error_background        = "#FFF0F0"
+image_error_border            = "#E57373"
+image_error_text              = "#C62828"
+image_info_text               = "#666666"
+highlight                     = "rgba(255, 235, 59, 180)"
+highlight_toc                 = "rgba(255, 235, 59, 120)"

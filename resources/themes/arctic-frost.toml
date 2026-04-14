@@ -1,0 +1,75 @@
+# SimpleMarkdown 内置主题：Arctic Frost（冰霜蓝白）
+# Spec: specs/模块-app/12-主题插件系统.md
+#
+# 灵感来源：iOS 26 Liquid Glass 视觉语言，Mockup A（tmp/theme_mocks/mock_a_arctic_frost.html）
+#
+# 设计原则：
+#   - 冰蓝白基调：editorBg/previewBg 取"白玻璃 + 冰蓝极光壁纸"叠加后的视觉终态
+#   - 文字用深海蓝 #0D1B2A 替代纯黑，柔化视觉重量
+#   - Accent 统一用 iOS 系统蓝 #0A84FF
+#   - 边框/分隔线从 accent 派生（低 alpha 浅化），视觉整体感一致
+#   - 代码块反向对比：深墨色底，浅灰字，衬托浅色玻璃面板的"明亮感"
+# Qt5 widget 没有真正的 backdrop-filter，这里用"叠加后的视觉估算色"近似 mock 观感。
+
+[meta]
+name = "冰霜蓝白"
+id = "arctic-frost"
+is_dark = false
+version = "1.0"
+author = "SimpleMarkdown"
+description = "iOS 26 Liquid Glass · 冰霜蓝白"
+
+[editor]
+background            = "#F8FBFF"
+foreground            = "#0D1B2A"
+current_line          = "#EAF2FC"
+selection             = "#CFE1FB"
+line_number           = "#7290AE"
+line_number_active    = "#0A84FF"
+gutter_background     = "#EEF4FB"
+gutter_line           = "#D6E4F2"
+cursor                = "#0A84FF"
+search_match          = "rgba(255, 224, 102, 220)"
+search_match_current  = "rgba(255, 149, 0, 240)"
+preedit_background    = "rgba(200, 220, 255, 180)"
+
+[syntax]
+heading                = "#0D3B66"
+code                   = "#4A5EDA"
+code_background        = "#E7EFFB"
+code_block             = "#0D3B66"
+code_block_background  = "#E9EFFA"
+link                   = "#0A84FF"
+list                   = "#6F42C1"
+blockquote             = "#556B82"
+fence                  = "#7290AE"
+fence_background       = "#EAF1FB"
+
+[preview]
+background                    = "#F4F9FF"
+foreground                    = "#0D1B2A"
+heading                       = "#0D3B66"
+link                          = "#0A84FF"
+code_background               = "#0E1925"
+code_foreground               = "#CCD4E4"
+code_border                   = "#1A2A40"
+blockquote_border             = "#7CB2E8"
+blockquote_background         = "#EEF6FF"
+table_border                  = "#CFE0F0"
+table_header_background       = "#EAF2FB"
+hr                            = "#D6E4F2"
+heading_separator             = "#DCE8F5"
+image_placeholder_background  = "#EDF3FB"
+image_placeholder_border      = "#BFD3E8"
+image_placeholder_text        = "#6E88A5"
+image_error_background        = "#FFEEF0"
+image_error_border            = "#E86C78"
+image_error_text              = "#B22334"
+image_info_text               = "#556B82"
+highlight                     = "rgba(10, 132, 255, 80)"
+highlight_toc                 = "rgba(10, 132, 255, 50)"
+accent                        = "#0A84FF"
+frontmatter_background        = "#EAF2FD"
+frontmatter_border            = "#6FA8E5"
+frontmatter_key               = "#0D3B66"
+frontmatter_value             = "#1F3A5F"

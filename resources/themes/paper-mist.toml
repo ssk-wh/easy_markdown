@@ -1,0 +1,74 @@
+# SimpleMarkdown 内置主题：Paper Mist（纸面极简）
+# Spec: specs/模块-app/12-主题插件系统.md
+#
+# 灵感来源：Mockup D（tmp/theme_mocks/mock_d_paper_mist.html）
+#
+# 设计原则（GitHub Primer / Typora / Notion / Obsidian 白面阵营）：
+#   - 纸面感：奶白底，无玻璃模糊无 aurora 壁纸
+#   - 3 种灰阶纪律：#FAFAF8(纸面) / #F6F8FA(代码块底) / #E1E4E8(分隔线)
+#   - 唯一 accent：GitHub 绿 #2DA44E；active tab / 列表 marker / 当前行 / 链接 / TOC 激活项都走它
+#   - 强调靠「线」不靠「块」：active tab 底 2px 绿、当前行左 2px 绿条
+#   - 文字 #1F2328（深石墨，不是纯黑），次文字 #6E7781
+
+[meta]
+name = "纸面极简"
+id = "paper-mist"
+is_dark = false
+version = "1.0"
+author = "SimpleMarkdown"
+description = "极简纸面风 · GitHub 绿 accent"
+
+[editor]
+background            = "#FAFAF8"
+foreground            = "#1F2328"
+current_line          = "#F3F4F1"
+selection             = "#C5E4D0"
+line_number           = "#8C959F"
+line_number_active    = "#2DA44E"
+gutter_background     = "#F6F6F3"
+gutter_line           = "#E1E4E8"
+cursor                = "#2DA44E"
+search_match          = "rgba(255, 223, 93, 200)"
+search_match_current  = "rgba(255, 153, 31, 230)"
+preedit_background    = "rgba(214, 237, 222, 220)"
+
+[syntax]
+heading                = "#1F2328"
+code                   = "#116329"
+code_background        = "#EAF4EE"
+code_block             = "#1F2328"
+code_block_background  = "#F6F8FA"
+link                   = "#2DA44E"
+list                   = "#953800"
+blockquote             = "#6E7781"
+fence                  = "#8C959F"
+fence_background       = "#F0F1EE"
+
+[preview]
+background                    = "#FBFBF9"
+foreground                    = "#1F2328"
+heading                       = "#1F2328"
+link                          = "#2DA44E"
+code_background               = "#F6F8FA"
+code_foreground               = "#24292F"
+code_border                   = "#E1E4E8"
+blockquote_border             = "#2DA44E"
+blockquote_background         = "#F3F8F4"
+table_border                  = "#E1E4E8"
+table_header_background       = "#F6F8FA"
+hr                            = "#E1E4E8"
+heading_separator             = "#E1E4E8"
+image_placeholder_background  = "#F3F4F1"
+image_placeholder_border      = "#D0D7DE"
+image_placeholder_text        = "#6E7781"
+image_error_background        = "#FFEBE9"
+image_error_border            = "#FF8182"
+image_error_text              = "#CF222E"
+image_info_text               = "#6E7781"
+highlight                     = "rgba(45, 164, 78, 70)"
+highlight_toc                 = "rgba(45, 164, 78, 50)"
+accent                        = "#2DA44E"
+frontmatter_background        = "#F3F8F4"
+frontmatter_border            = "#2DA44E"
+frontmatter_key               = "#116329"
+frontmatter_value             = "#24292F"

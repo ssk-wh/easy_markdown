@@ -81,6 +81,12 @@ private:
     QAction* m_followSystemThemeAct = nullptr;
     QAction* m_lightThemeAct = nullptr;
     QAction* m_darkThemeAct = nullptr;
+    // Spec: specs/模块-app/12-主题插件系统.md
+    // 主题子菜单动态列出所有已发现主题（内置 + 用户目录）
+    QMenu* m_themeMenu = nullptr;
+    QActionGroup* m_themeGroup = nullptr;
+    QList<QAction*> m_dynamicThemeActs;  // 除 follow system/light/dark 外的动态主题项
+    QString m_currentThemeId;             // 当前选中的主题 id；空表示 follow system
     QVector<QAction*> m_spacingActions;
     qreal m_lineSpacingFactor = 1.5;
 
@@ -138,8 +144,12 @@ private:
     void updateAllTabCloseButtons();
     void updateRecentFilesMenu();
     void applyTheme(const Theme& theme);
+    void applyThemeById(const QString& id);
     void applySystemTheme();
     bool isSystemDarkMode() const;
+    // Spec: specs/模块-app/12-主题插件系统.md
+    void rebuildThemeMenu();
+    void openThemeDirectory();
     TabData* currentTab();
     bool maybeSave(int index);
 

@@ -1,0 +1,74 @@
+# SimpleMarkdown 内置主题：Midnight Aurora（深夜极光玻璃）
+# Spec: specs/模块-app/12-主题插件系统.md
+#
+# 灵感来源：iOS 26 Liquid Glass 视觉语言，Mockup C（tmp/theme_mocks/mock_c_midnight_aurora.html）
+#
+# 设计原则：
+#   - 深紫黑基调：深紫 + 钴蓝 + 青绿 + 品红 极光壁纸 + 半透明深玻璃叠加后的视觉估算色
+#   - 文字用月光紫白 #E8E6F5，不是纯白
+#   - 双 accent：紫 #A78BFA（主）+ 青 #60E5FF（辅）
+#   - 代码块更深（#0D0820）衬托玻璃层次
+#   - 深夜编码 / 写诗氛围，长时间低光环境最友好
+
+[meta]
+name = "深夜极光"
+id = "midnight-aurora"
+is_dark = true
+version = "1.0"
+author = "SimpleMarkdown"
+description = "iOS 26 Liquid Glass · 深夜极光"
+
+[editor]
+background            = "#140E28"
+foreground            = "#E8E6F5"
+current_line          = "#1F1636"
+selection             = "rgba(167, 139, 250, 72)"
+line_number           = "#6B6389"
+line_number_active    = "#A78BFA"
+gutter_background     = "#1A1132"
+gutter_line           = "#2C2147"
+cursor                = "#A78BFA"
+search_match          = "rgba(96, 229, 255, 140)"
+search_match_current  = "rgba(167, 139, 250, 220)"
+preedit_background    = "rgba(167, 139, 250, 100)"
+
+[syntax]
+heading                = "#C4B0FF"
+code                   = "#60E5FF"
+code_background        = "#1F1636"
+code_block             = "#A78BFA"
+code_block_background  = "#0D0820"
+link                   = "#60E5FF"
+list                   = "#C084FC"
+blockquote             = "#9FB0D9"
+fence                  = "#6B6389"
+fence_background       = "#0D0820"
+
+[preview]
+background                    = "#1A1233"
+foreground                    = "#E8E6F5"
+heading                       = "#C4B0FF"
+link                          = "#60E5FF"
+code_background               = "#0D0820"
+code_foreground               = "#C8BCEF"
+code_border                   = "#2C2147"
+blockquote_border             = "#A78BFA"
+blockquote_background         = "#201638"
+table_border                  = "#2C2147"
+table_header_background       = "#1F1636"
+hr                            = "#2C2147"
+heading_separator             = "#2C2147"
+image_placeholder_background  = "#1F1636"
+image_placeholder_border      = "#3A2D52"
+image_placeholder_text        = "#8A85A5"
+image_error_background        = "#3A1420"
+image_error_border            = "#E86C8C"
+image_error_text              = "#F0A0B8"
+image_info_text               = "#8A85A5"
+highlight                     = "rgba(96, 229, 255, 80)"
+highlight_toc                 = "rgba(167, 139, 250, 70)"
+accent                        = "#A78BFA"
+frontmatter_background        = "#1F1636"
+frontmatter_border            = "#60E5FF"
+frontmatter_key               = "#60E5FF"
+frontmatter_value             = "#C8BCEF"

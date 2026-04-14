@@ -7,6 +7,8 @@ add_library(sm_core STATIC
     Document.h Document.cpp
     RecentFiles.h RecentFiles.cpp
     Theme.h Theme.cpp
+    ThemeLoader.h ThemeLoader.cpp
+    ThemeSchema.h
     FontDefaults.h
 )
 

@@ -4,7 +4,30 @@ All notable changes to this project will be documented in this file.
 
 ## [0.2.4] - 2026-04-14
 
+### Fixed
+- 主题切换后编辑器代码块/行内代码出现残留"行背景"色：`SyntaxHighlighter` 的
+  行缓存 `m_cache` 里 `HighlightToken::format` 是 `QTextCharFormat` value copy，
+  把旧主题的背景色固化进了 token；主题切换时 cache 不 invalidate，旧 token 被复用
+  导致在新主题背景上看到旧主题的浅色/深色 block。`setTheme` 里增加 `m_cache.clear()`
+  修复。回归测试：`tests/editor/SyntaxHighlighterThemeCacheTest.cpp`
+- `Theme::applyFrontmatterColors` 无条件覆盖 TOML 里显式声明的 frontmatter_* 字段，
+  导致反色代码块主题（如 Monochrome Zen，previewCodeFg 是浅色）的 frontmatter value
+  被强制设成浅色，在浅背景上不可见。改为"TOML 未显式声明时才派生"。
+
 ### Added
+- **主题插件系统（Theme Plugin System）**：主题从硬编码升级为 TOML 配置文件驱动
+  - 新增 `core::ThemeLoader`：零外部依赖的 TOML 子集解析器（支持 `[section]` 嵌套 table、
+    `key = value`（字符串/数字/布尔）、`#` 注释、`#RGB/#RRGGBB/#RRGGBBAA/rgb()/rgba()` 色值）
+  - **内置 6 款新主题**（display name 全中文）：
+    - iOS 26 Liquid Glass 组：**冰霜蓝白**（arctic-frost）、**琥珀桃暖**（sunset-haze）、**深夜极光**（midnight-aurora）
+    - 清新 / 极简组：**纸面极简**（paper-mist，GitHub 风）、**薄荷清新**（mint-breeze，日系）、**墨禅单色**（monochrome-zen，宣纸墨书）
+  - 内置 light / dark 主题也走同一 loader（消除硬编码双重真相）
+  - 菜单 视图 → Theme 动态列出所有已发现主题 + "打开主题目录" / "重新扫描主题"
+  - 用户自定义主题：放到 `%APPDATA%/SimpleMarkdown/themes/*.toml` 即可被菜单扫到
+  - `applyTheme` 重构：非深色主题的 menuBar/TabBar/StatusBar/Splitter/ScrollBar stylesheet
+    从 Theme 字段动态派生，所有主题切换时外壳一起变色
+  - 11 个单元测试覆盖解析正例/反例/色值格式/继承（TODO V2）/8 款内置资源加载/serialize round-trip
+  - Spec: specs/模块-app/12-主题插件系统.md、specs/横切关注点/30-主题系统.md INV-6
 - **首次启动欢迎页**：首次启动弹窗展示项目定位 + 7 条核心特性 + 快捷键提示；
   菜单 帮助 → 重新显示欢迎页 可手动重新打开
 - **Tab 右键"打开所在目录"**：Windows 下用 `explorer /select` 高亮该文件，Linux 下打开包含目录

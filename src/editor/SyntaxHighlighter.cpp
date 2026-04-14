@@ -20,6 +20,14 @@ SyntaxHighlighter::SyntaxHighlighter()
 void SyntaxHighlighter::setTheme(const Theme& theme)
 {
     setupFormats(theme);
+    // [bug fix 2026-04-14] 主题切换后必须清空高亮缓存。
+    // 原因：CachedHighlight.tokens 里每个 HighlightToken 持有 QTextCharFormat 的 *value copy*，
+    // 即 token 生成时已经把当时 theme 的背景/前景色固化进去。setupFormats 只更新了
+    // m_codeFormat 等"模板"对象，不会回溯修改 cache 里已经固化的 token。
+    // 切换路径 Dark → Arctic Frost(code_bg 浅冰蓝) → Dark 时，cache 里的 Arctic token
+    // 被复用，就会在 Dark 的深色背景上看到浅色"行背景"。
+    // 回归测试：tests/editor/SyntaxHighlighterThemeCacheTest.cpp
+    m_cache.clear();
 }
 
 void SyntaxHighlighter::setupFormats(const Theme& theme)

@@ -1,6 +1,13 @@
+// src/core/Theme.h
+//
+// Spec: specs/横切关注点/30-主题系统.md
+// Spec: specs/模块-app/12-主题插件系统.md
+// Invariants enforced here: INV-1 (唯一数据源), INV-6 (可从配置文件构造)
+// Last synced: 2026-04-14
 #pragma once
 #include <QColor>
 #include <QString>
+#include <QStringList>
 
 struct Theme {
     QString name;
@@ -65,6 +72,16 @@ struct Theme {
     QColor frontmatterKeyForeground = QColor("#1F5A8A");     // 偏 accent
     QColor frontmatterValueForeground = QColor("#333333");   // 与 previewCodeFg 一致
 
+    // 内置主题（V1 从 :/themes/*.toml 加载，保持 API 向后兼容）
+    // Spec: specs/模块-app/12-主题插件系统.md 内置主题通过 ThemeLoader
     static Theme light();
     static Theme dark();
+
+    // V1 新增：按主题 ID 加载（内置 or 用户目录）。
+    // 找不到时返回 light() 并在 appLog 记录 warning。
+    // 传 "light" / "dark" / "liquid-glass" 可直接拿到内置主题。
+    static Theme byId(const QString& id);
+
+    // 可用主题 ID 列表（内置 + 用户目录 .toml）
+    static QStringList availableIds();
 };

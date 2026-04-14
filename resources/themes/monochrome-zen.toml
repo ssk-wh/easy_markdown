@@ -1,0 +1,74 @@
+# SimpleMarkdown 内置主题：Monochrome Zen（墨禅单色）
+# Spec: specs/模块-app/12-主题插件系统.md
+#
+# 灵感来源：Mockup F（tmp/theme_mocks/mock_f_monochrome_zen.html）
+#
+# 设计原则（无印 / 日式茶室 / 宣纸墨书）：
+#   - 11 阶灰度，全部沿"浓墨 #1A1A1A → 宣纸 #FCFBF8"暖灰轴线（R > G > B，微微偏暖）
+#   - 零彩色：不用蓝绿红紫，强调全靠加粗 + 下划线 + 竖墨条
+#   - 圆角极小或无（Qt widget 没法完全 border-radius:0，用小值替代）
+#   - 代码块反色（深墨底 + 宣纸字）制造全页唯一的黑白对比
+#   - accent 用墨色 #1A1A1A 本身（不是彩色）
+
+[meta]
+name = "墨禅单色"
+id = "monochrome-zen"
+is_dark = false
+version = "1.0"
+author = "SimpleMarkdown"
+description = "零彩色墨禅风 · 无印/宣纸/书法"
+
+[editor]
+background            = "#FCFBF8"
+foreground            = "#1A1A1A"
+current_line          = "#F0EDE6"
+selection             = "#D6D2C8"
+line_number           = "#A8A299"
+line_number_active    = "#1A1A1A"
+gutter_background     = "#F7F5F0"
+gutter_line           = "#D6D2C8"
+cursor                = "#1A1A1A"
+search_match          = "rgba(26, 26, 26, 80)"
+search_match_current  = "rgba(26, 26, 26, 140)"
+preedit_background    = "rgba(214, 210, 200, 200)"
+
+[syntax]
+heading                = "#1A1A1A"
+code                   = "#4A453D"
+code_background        = "#EEE9DF"
+code_block             = "#F0EDE6"
+code_block_background  = "#1A1A1A"
+link                   = "#1A1A1A"
+list                   = "#4A453D"
+blockquote             = "#757168"
+fence                  = "#A8A299"
+fence_background       = "#EEE9DF"
+
+[preview]
+background                    = "#FCFBF8"
+foreground                    = "#1A1A1A"
+heading                       = "#1A1A1A"
+link                          = "#1A1A1A"
+code_background               = "#1A1A1A"
+code_foreground               = "#F0EDE6"
+code_border                   = "#3A3530"
+blockquote_border             = "#1A1A1A"
+blockquote_background         = "#F4F0E7"
+table_border                  = "#D6D2C8"
+table_header_background       = "#F0EDE6"
+hr                            = "#D6D2C8"
+heading_separator             = "#D6D2C8"
+image_placeholder_background  = "#F0EDE6"
+image_placeholder_border      = "#C8C3B8"
+image_placeholder_text        = "#757168"
+image_error_background        = "#F0E6E6"
+image_error_border            = "#8B3A3A"
+image_error_text              = "#8B3A3A"
+image_info_text               = "#757168"
+highlight                     = "rgba(26, 26, 26, 55)"
+highlight_toc                 = "rgba(26, 26, 26, 30)"
+accent                        = "#1A1A1A"
+frontmatter_background        = "#F4F0E7"
+frontmatter_border            = "#1A1A1A"
+frontmatter_key               = "#1A1A1A"
+frontmatter_value             = "#4A453D"
