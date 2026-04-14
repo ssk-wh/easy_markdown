@@ -33,10 +33,12 @@ echo ================================================
 echo   Step 2/3: Collecting dependencies...
 echo ================================================
 python installer\collect_dist.py build\src\app
-set COLLECT_RC=%errorlevel%
-if not "%COLLECT_RC%"=="0" (
-    echo [ERROR] Dependency collection failed rc=%COLLECT_RC%
-    echo         (Hint: close any running SimpleMarkdown.exe first)
+REM 注意: 这里必须用 'if errorlevel 1' 的内建语法 — 用 'set VAR=%errorlevel%'
+REM 后 '%VAR%' 比较的写法在 setlocal enabledelayedexpansion 下有兼容性陷阱,
+REM 之前翻车过: python 明明返回 0, Step 3 仍被跳过并 'exit /b 2', 没看到 ERROR 输出
+if errorlevel 1 (
+    echo [ERROR] Dependency collection failed
+    echo         ^(Hint: close any running SimpleMarkdown.exe first^)
     exit /b 2
 )
 
