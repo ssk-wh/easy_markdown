@@ -54,9 +54,12 @@ void TocPanel::setTheme(const Theme& theme)
 {
     m_theme = theme;
 
-    QColor bg = theme.isDark ? QColor(37, 37, 38) : QColor(245, 245, 245);
-    QColor borderColor = theme.isDark ? QColor(60, 63, 65) : QColor(220, 220, 220);
-    QColor titleFg = theme.isDark ? QColor(200, 200, 200) : QColor(80, 80, 80);
+    // Spec: specs/模块-app/12-主题插件系统.md INV-1（唯一数据源）
+    // TocPanel 的所有颜色必须从 Theme 字段派生，不得硬编码。
+    // 2026-04-14 修复：深夜极光下 TOC 应随主题显示深紫，而非通用灰黑。
+    const QColor bg = theme.previewBg;
+    const QColor borderColor = theme.previewTableBorder;
+    const QColor titleFg = theme.previewHeading;
 
     setStyleSheet(QString(
         "TocPanel { background: %1; border-left: 1px solid %2; }"
@@ -67,14 +70,17 @@ void TocPanel::setTheme(const Theme& theme)
         "QLabel { color: %1; font-size: 14px; font-weight: bold; background: transparent; }"
     ).arg(titleFg.name()));
 
-    // scrollArea 透明
+    // scrollArea 透明；滚动条从 theme 派生（深色用浅色 alpha，浅色用深色 alpha）
+    const QString scrollThumb = theme.isDark
+        ? QStringLiteral("rgba(255,255,255,50)")
+        : QStringLiteral("rgba(0,0,0,30)");
     m_scrollArea->setStyleSheet(QString(
         "QScrollArea { background: transparent; }"
         "QWidget { background: transparent; }"
         "QScrollBar:vertical { width: 5px; background: transparent; }"
         "QScrollBar::handle:vertical { background: %1; border-radius: 2px; min-height: 20px; }"
         "QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { height: 0; }"
-    ).arg(theme.isDark ? "rgba(255,255,255,50)" : "rgba(0,0,0,30)"));
+    ).arg(scrollThumb));
 
     buildList();
 }
@@ -88,10 +94,11 @@ void TocPanel::buildList()
         delete item;
     }
 
-    QColor fg = m_theme.isDark ? QColor(210, 210, 210) : QColor(50, 50, 50);
-    QColor subFg = m_theme.isDark ? QColor(170, 170, 170) : QColor(90, 90, 90);
-    QColor hoverBg = m_theme.isDark ? QColor(65, 68, 72) : QColor(220, 224, 230);
-    QColor hoverFg = m_theme.previewLink;
+    // TOC 条目颜色全部从 Theme 派生（Spec INV-1）
+    QColor fg = m_theme.previewFg;
+    QColor subFg = m_theme.previewImageInfoText;       // 次级标题用"次要正文色"（H3+）
+    QColor hoverBg = m_theme.editorCurrentLine;        // 悬停底色复用编辑器当前行色（与主题一致）
+    QColor hoverFg = m_theme.accentColor;              // 悬停字色用主题 accent，提供足够对比度
 
     for (int i = 0; i < m_entries.size(); ++i) {
         const auto& entry = m_entries[i];

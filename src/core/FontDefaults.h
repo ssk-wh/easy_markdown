@@ -22,10 +22,13 @@ namespace font_defaults {
 constexpr int kDefaultBaseFontSizePt = 12;
 
 // 等宽字号（代码块、内联代码默认值）
-constexpr int kMonoFontSizePt = 9;
+// 2026-04-14: 对齐编辑器代码块字号——预览代码块应与编辑器内的代码内容视觉等价
+// （用户在编辑器写代码，切到预览应该等价呈现，不该明显缩小）
+constexpr int kMonoFontSizePt = 12;
 
 // 等宽字号相对基础字号的派生差值（INV-9）
-constexpr int kMonoDelta = kMonoFontSizePt - kDefaultBaseFontSizePt;  // = -3
+// = 0 意味着预览代码块字号 = 预览正文字号 = 编辑器字号（xHeight 对齐后）
+constexpr int kMonoDelta = kMonoFontSizePt - kDefaultBaseFontSizePt;  // = 0
 
 // 字体族
 constexpr const char* kEditorFontFamily = "Courier New";

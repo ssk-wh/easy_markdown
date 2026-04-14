@@ -105,14 +105,6 @@ Please ensure CHANGELOG.md is installed with the application.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Light Theme</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Dark Theme</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Word Wrap</source>
         <translation type="unfinished"></translation>
     </message>
@@ -269,6 +261,199 @@ Do you want to reload it?</source>
     <message>
         <source>Read: %1 min</source>
         <translation>Read: %1 min</translation>
+    </message>
+    <message>
+        <source>Open Containing Folder</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Theme</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Presentation Mode</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Document Statistics...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Show Welcome</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>A lightweight cross-platform Markdown editor.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Author:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Build Date:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Qt Version:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Source</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Open Themes Folder</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Rescan Themes</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The following file(s) appear to be binary or unsupported. SimpleMarkdown only opens Markdown and plain text files:
+
+  %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Cannot Open File</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Chars: %1</source>
+        <translation type="unfinished">Chars: %1</translation>
+    </message>
+    <message>
+        <source>Blocked</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Refusing to open executable file: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>File Not Found</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Cannot find file: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Document Statistics</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Words:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Characters:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>no space</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Lines:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Paragraphs:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Headings:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>By Level:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Code Blocks:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Images:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Links:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Tables:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Block Quotes:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Reading Time:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Welcome to SimpleMarkdown</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>A lightweight, fast, cross-platform Markdown editor.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Key Features</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Dual-pane view: edit on the left, live preview on the right</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Multi-tab workspace with drag-and-drop file support</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Full-text search with highlight (Ctrl+F), Ctrl+click to follow links</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Outline/TOC panel for quick heading navigation</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Content marking (highlighter effect) for key passages</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Presentation Mode: press F11 to full-screen the preview</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Light / dark themes with system-follow option</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Tip: press Ctrl+/ or open Help → Keyboard Shortcuts to see all shortcuts.</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>PreviewPainter</name>
+    <message>
+        <source>Network images not supported</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Failed to load image</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Image</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -437,6 +622,14 @@ Do you want to reload it?</source>
     </message>
     <message>
         <source>Zoom Out (Mouse)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Focus Mode</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Exit Focus Mode</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

@@ -852,37 +852,53 @@ void MainWindow::applyTheme(const Theme& theme)
         : QStringLiteral("rgba(0,0,0,80)");
 
     if (theme.isDark) {
-        // 深色主题：保留硬编码 stylesheet（已按 Spec INV-4 覆盖所有弹窗/表格细节）
-        setStyleSheet(QStringLiteral(
-            "QMainWindow { background: #2b2b2b; }"
-            // 编辑器和预览区域去掉默认 frame 边框
+        // 深色主题：menuBar / TabBar / StatusBar / Splitter / ScrollBar 从 Theme 字段派生
+        // （对称非 dark 分支的数据化），保留 QDialog / QMessageBox / QTextEdit / QPushButton
+        // 硬编码（Spec INV-4 强要求：深色下所有弹窗统一走深色，避免 Qt 5.15 QDialog 默认浅色 bug）
+        QString css;
+        css += QStringLiteral(
+            "QMainWindow { background: %1; }"
             "QAbstractScrollArea { border: none; }"
-            // 菜单栏
-            "QMenuBar { background: #2b2b2b; color: #ccc; border: none; }"
-            "QMenuBar::item { padding: 6px 10px; }"
-            "QMenuBar::item:selected { background: #3c3f41; border-bottom: 2px solid #4a9eff; }"
+            // menuBar
+            "QMenuBar { background: %2; color: %3; border: none; }"
+            "QMenuBar::item { padding: 6px 10px; background: transparent; }"
+            "QMenuBar::item:selected { background: %4; border-bottom: 2px solid %5; }"
+        ).arg(mainBg, chromeBg, chromeFg, hover, accent);
+
+        css += QStringLiteral(
             // 菜单（包括右键菜单）
-            "QMenu { background: #2b2b2b; color: #ccc; border: 1px solid #555; padding: 4px 0; }"
-            "QMenu::item { padding: 6px 24px 6px 32px; }"  // [Spec 模块-app/10-菜单栏样式 INV-1] padding-left = indicator 占位(24) + 约1字符宽(~8)，保证 ✓ 与文字留间距
-            "QMenu::item:selected { background: #3c3f41; border-left: 2px solid #4a9eff; }"
-            "QMenu::separator { background: #555; height: 1px; margin: 4px 8px; }"
+            "QMenu { background: %1; color: %2; border: 1px solid %3; padding: 4px 0; }"
+            "QMenu::item { padding: 6px 24px 6px 32px; background: transparent; }"  // [Spec 模块-app/10-菜单栏样式 INV-1] padding-left = indicator 占位(24) + 约1字符宽(~8)，保证 ✓ 与文字留间距
+            "QMenu::item:selected { background: %4; border-left: 2px solid %5; }"
+            "QMenu::separator { background: %3; height: 1px; margin: 4px 8px; }"
             "QMenu::indicator { width: 16px; height: 16px; margin-right: 8px; }"
+        ).arg(mainBg, chromeFg, border, hover, accent);
+
+        css += QStringLiteral(
             // Tab 栏
             "QTabWidget { border: none; }"
             "QTabWidget::pane { border: none; }"
-            "QTabBar { background: #2b2b2b; border: none; }"
-            "QTabBar::tab { background: #2b2b2b; color: #aaa; padding: 6px 12px; border: none; border-bottom: 2px solid transparent; }"
-            "QTabBar::tab:selected { color: #fff; border-bottom: 2px solid #4a9eff; }"
-            "QTabBar::tab:hover { color: #ddd; background: #353535; }"
+            "QTabBar { background: %1; border: none; }"
+            "QTabBar::tab { background: %1; color: %2; padding: 6px 12px; border: none; border-bottom: 2px solid transparent; }"
+            "QTabBar::tab:selected { color: %3; border-bottom: 2px solid %4; background: %5; }"
+            "QTabBar::tab:hover { color: %3; background: %6; }"
             // Tab 滚动按钮（tab 过多时出现的左右箭头）
             "QTabBar::tear { width: 0; border: none; }"
-            "QTabBar QToolButton { background: #2b2b2b; border: none; color: #aaa; width: 20px; }"
-            "QTabBar QToolButton:hover { background: #353535; color: #fff; }"
+            "QTabBar QToolButton { background: %1; border: none; color: %2; width: 20px; }"
+            "QTabBar QToolButton:hover { background: %6; color: %3; }"
+        ).arg(chromeBg, chromeMuted, chromeFg, accent, tabActiveBg, hover);
+
+        css += QStringLiteral(
             // 分割线
-            "QSplitter::handle { background: #3c3f41; }"
+            "QSplitter::handle { background: %1; }"
             "QSplitter::handle:horizontal { width: 2px; }"
             "QSplitter::handle:vertical { height: 2px; }"
-            // 对话框（About、更新日志等）
+        ).arg(border);
+
+        // 弹窗（QDialog / QMessageBox 及其子控件）——保留硬编码深色
+        // Spec INV-4：所有深色主题下弹窗统一灰黑调，不随具体深色主题变化，
+        // 避免 Qt 5.15 QDialog 默认浅色回退 + 每个深色主题视觉不一致的 bug
+        css += QStringLiteral(
             "QDialog { background: #2b2b2b; color: #ccc; }"
             "QDialog QLabel { color: #ccc; }"
             "QDialog QTextEdit, QDialog QTextBrowser { background: #1e1e1e; color: #ccc; border: 1px solid #555; }"
@@ -890,21 +906,30 @@ void MainWindow::applyTheme(const Theme& theme)
             "QDialog QPushButton:hover { background: #4a4d50; }"
             "QMessageBox { background: #2b2b2b; color: #ccc; }"
             "QMessageBox QLabel { color: #ccc; }"
+        );
+
+        css += QStringLiteral(
             // 滚动条
             "QScrollBar:vertical { background: transparent; width: 8px; margin: 2px; }"
-            "QScrollBar::handle:vertical { background: rgba(255,255,255,40); border-radius: 3px; min-height: 30px; }"
-            "QScrollBar::handle:vertical:hover { background: rgba(255,255,255,80); }"
+            "QScrollBar::handle:vertical { background: %1; border-radius: 3px; min-height: 30px; }"
+            "QScrollBar::handle:vertical:hover { background: %2; }"
             "QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { height: 0; }"
             "QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical { background: transparent; }"
             "QScrollBar:horizontal { background: transparent; height: 8px; margin: 2px; }"
-            "QScrollBar::handle:horizontal { background: rgba(255,255,255,40); border-radius: 3px; min-width: 30px; }"
-            "QScrollBar::handle:horizontal:hover { background: rgba(255,255,255,80); }"
+            "QScrollBar::handle:horizontal { background: %1; border-radius: 3px; min-width: 30px; }"
+            "QScrollBar::handle:horizontal:hover { background: %2; }"
             "QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal { width: 0; }"
             "QScrollBar::add-page:horizontal, QScrollBar::sub-page:horizontal { background: transparent; }"
+        ).arg(scrollThumb, scrollThumbHover);
+
+        css += QStringLiteral(
             // 状态栏
-            "QStatusBar { background: #2b2b2b; color: #aaa; border-top: 1px solid #3c3f41; font-size: 12px; }"
-            "QStatusBar QLabel { color: #aaa; font-size: 12px; }"
-        ));
+            "QStatusBar { background: %1; color: %2; border-top: 1px solid %3; font-size: 12px; }"
+            "QStatusBar QLabel { color: %2; font-size: 12px; }"
+        ).arg(chromeBg, chromeMuted, border);
+
+        Q_UNUSED(panelBg);
+        setStyleSheet(css);
     } else {
         // 非深色主题（Light / Arctic Frost / Sunset Haze / ...）：stylesheet 从 Theme 派生
         // 超过 9 个占位符时 QString::arg 会出问题，这里拆成 3 段

@@ -5,6 +5,11 @@ All notable changes to this project will be documented in this file.
 ## [0.2.4] - 2026-04-14
 
 ### Fixed
+- Theme 子菜单中文缺失："主题 / 打开主题目录 / 重新扫描主题 / 字符 / 专注模式 / 退出专注模式" 补充 zh_CN 翻译，lrelease 生成 .qm 并打包进 qrc
+- 深色主题外壳不跟主题：`MainWindow::applyTheme` dark 分支 stylesheet 数据化，menuBar/TabBar/StatusBar/Splitter/ScrollBar 从 Theme 字段派生；深夜极光等深色主题的外壳跟随主题（保留 QDialog/QMessageBox 硬编码以满足 Spec INV-4）
+- TocPanel 不跟主题：`setTheme` 与 `buildList` 移除硬编码 `QColor(37,37,38)` 等数字，改为从 Theme 派生（previewBg/previewFg/accentColor 等）
+- 预览区代码块字号偏小：`kMonoDelta` 由 `-3` 改为 `0`，预览代码块字号与编辑器代码字号视觉等价
+- 多主题代码块配色去反色：冰霜蓝白/琥珀桃暖/墨禅单色三个浅色主题的代码块改为浅底深字，与整体色温一致
 - 主题切换后编辑器代码块/行内代码出现残留"行背景"色：`SyntaxHighlighter` 的
   行缓存 `m_cache` 里 `HighlightToken::format` 是 `QTextCharFormat` value copy，
   把旧主题的背景色固化进了 token；主题切换时 cache 不 invalidate，旧 token 被复用

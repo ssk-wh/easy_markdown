@@ -1,4 +1,5 @@
-<?xml version='1.0' encoding='utf-8'?>
+<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE TS>
 <TS version="2.1" language="zh_CN">
 <context>
     <name>ChangelogDialog</name>
@@ -246,14 +247,6 @@ Please ensure CHANGELOG.md is installed with the application.</source>
         <translation>跟随系统</translation>
     </message>
     <message>
-        <source>Light Theme</source>
-        <translation>浅色主题</translation>
-    </message>
-    <message>
-        <source>Dark Theme</source>
-        <translation>深色主题</translation>
-    </message>
-    <message>
         <source>Word Wrap</source>
         <translation>自动换行</translation>
     </message>
@@ -354,8 +347,8 @@ Please ensure CHANGELOG.md is installed with the application.</source>
         <translation>保存更改</translation>
     </message>
     <message>
-        <source>Do you want to save changes to "%1"?</source>
-        <translation>是否保存对 "%1" 的更改？</translation>
+        <source>Do you want to save changes to &quot;%1&quot;?</source>
+        <translation>是否保存对 &quot;%1&quot; 的更改？</translation>
     </message>
     <message>
         <source>Save File</source>
@@ -382,10 +375,10 @@ Please ensure CHANGELOG.md is installed with the application.</source>
         <translation>文件已更改</translation>
     </message>
     <message>
-        <source>"%1" has been modified by another program.
+        <source>&quot;%1&quot; has been modified by another program.
 
 Do you want to reload it?</source>
-        <translation>"%1" 已被其他程序修改。
+        <translation>&quot;%1&quot; 已被其他程序修改。
 
 是否重新加载？</translation>
     </message>
@@ -436,6 +429,22 @@ Do you want to reload it?</source>
     <message>
         <source>Read: %1 min</source>
         <translation>阅读: %1 分钟</translation>
+    </message>
+    <message>
+        <source>Theme</source>
+        <translation>主题</translation>
+    </message>
+    <message>
+        <source>Open Themes Folder</source>
+        <translation>打开主题目录</translation>
+    </message>
+    <message>
+        <source>Rescan Themes</source>
+        <translation>重新扫描主题</translation>
+    </message>
+    <message>
+        <source>Chars: %1</source>
+        <translation>字符: %1</translation>
     </message>
 </context>
 <context>
@@ -602,14 +611,6 @@ Do you want to reload it?</source>
         <translation>重置缩放</translation>
     </message>
     <message>
-        <source>Presentation Mode</source>
-        <translation>演示模式</translation>
-    </message>
-    <message>
-        <source>Exit Presentation Mode</source>
-        <translation>退出演示模式</translation>
-    </message>
-    <message>
         <source>Toggle Preview</source>
         <translation>切换预览</translation>
     </message>
@@ -628,6 +629,14 @@ Do you want to reload it?</source>
     <message>
         <source>Zoom Out (Mouse)</source>
         <translation>缩小（鼠标）</translation>
+    </message>
+    <message>
+        <source>Focus Mode</source>
+        <translation>专注模式</translation>
+    </message>
+    <message>
+        <source>Exit Focus Mode</source>
+        <translation>退出专注模式</translation>
     </message>
 </context>
 <context>
