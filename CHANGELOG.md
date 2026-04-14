@@ -27,6 +27,7 @@ All notable changes to this project will be documented in this file.
 - 菜单项 checkable indicator 与文字间距：padding-left 从 12px 调到 32px，✓ / radio button 不再紧贴文字
 
 ### Fixed
+- Tab 右键菜单"Close Others / Close to the Left / Close to the Right"按上下文禁用无可操作对象的项（只 1 个 tab、最左、最右时对应项置灰）
 - 预览区 Ctrl+滚轮缩放对部分元素无效：代码块、列表序号、表格单元格、图片占位符等
   11 处硬编码 QFont 全部改为从 `PreviewLayout::baseFont()/monoFont()` 派生
   （新增 INV-8 / INV-9：PreviewLayout::setFont 同步 m_monoFont + 新增 getter）
