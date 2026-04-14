@@ -42,6 +42,9 @@ All notable changes to this project will be documented in this file.
   打进资源。修复通过 `set_source_files_properties(... OUTPUT_LOCATION)` 让 lrelease 直接输出到
   源码 translations/，每次 build 自动刷新；同步补 `specs/横切关注点/60-国际化.md` 的 INV-1.1
   与新 UI 字符串 checklist，避免第三次翻车
+- 行内代码（反引号包围片段）垂直基线漂移：`paintInlineRuns` 原按每个 run 自身 `fm.ascent()`
+  定位 drawText，导致小字号 run（inline code 字号为正文 0.9）基线上移；改为以行主字体
+  ascent 作为统一 `lineAscent`，所有 run 共享基线（新增 INV-10 / T-10）
 
 ## [0.2.3] - 2026-04-13
 
