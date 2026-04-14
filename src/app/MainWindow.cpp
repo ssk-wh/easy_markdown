@@ -374,6 +374,9 @@ void MainWindow::setupMenuBar()
     helpMenu->addAction(tr("Keyboard Shortcuts"), this, &MainWindow::onShowShortcuts);
     helpMenu->addSeparator();
 
+    // [Plan plans/2026-04-13-首次启动引导.md] 欢迎对话框
+    helpMenu->addAction(tr("Show Welcome"), this, &MainWindow::onShowWelcome);
+
     helpMenu->addAction(tr("Update History"), this, [this]() {
         ChangelogDialog dialog(m_currentTheme, this);
         dialog.exec();
@@ -1186,6 +1189,10 @@ void MainWindow::showEvent(QShowEvent* event)
             m_mainSplitter->setSizes({totalW - 220, 220});
         }
         m_pendingSplitterState.clear();
+
+        // [Plan plans/2026-04-13-首次启动引导.md] 首次启动弹欢迎页
+        // 延迟到下一个事件循环，避免和窗口初始化竞争
+        QTimer::singleShot(100, this, &MainWindow::maybeShowWelcomeOnFirstLaunch);
     }
 }
 
@@ -2032,4 +2039,50 @@ void MainWindow::onShowDocumentStats()
     .arg(tr("Reading Time:")).arg(minutes);
 
     QMessageBox::information(this, title, body);
+}
+
+// ---- 首次启动欢迎对话框 [Plan plans/2026-04-13-首次启动引导.md] ----
+
+void MainWindow::onShowWelcome()
+{
+    const QString title = tr("Welcome to SimpleMarkdown");
+    const QString body = QString(
+        "<h2>SimpleMarkdown</h2>"
+        "<p><i>%1</i></p>"
+        "<hr>"
+        "<h3>%2</h3>"
+        "<ul>"
+        "<li>%3</li>"
+        "<li>%4</li>"
+        "<li>%5</li>"
+        "<li>%6</li>"
+        "<li>%7</li>"
+        "<li>%8</li>"
+        "<li>%9</li>"
+        "</ul>"
+        "<p><b>%10</b></p>"
+    )
+    .arg(tr("A lightweight, fast, cross-platform Markdown editor."))
+    .arg(tr("Key Features"))
+    .arg(tr("Dual-pane view: edit on the left, live preview on the right"))
+    .arg(tr("Multi-tab workspace with drag-and-drop file support"))
+    .arg(tr("Full-text search with highlight (Ctrl+F), Ctrl+click to follow links"))
+    .arg(tr("Outline/TOC panel for quick heading navigation"))
+    .arg(tr("Content marking (highlighter effect) for key passages"))
+    .arg(tr("Presentation Mode: press F11 to full-screen the preview"))
+    .arg(tr("Light / dark themes with system-follow option"))
+    .arg(tr("Tip: press Ctrl+/ or open Help → Keyboard Shortcuts to see all shortcuts."));
+
+    QMessageBox::information(this, title, body);
+}
+
+void MainWindow::maybeShowWelcomeOnFirstLaunch()
+{
+    QSettings s;
+    QString lastSeen = s.value("session/firstLaunchedVersion").toString();
+    if (lastSeen.isEmpty()) {
+        // 首次启动
+        onShowWelcome();
+        s.setValue("session/firstLaunchedVersion", "0.2.4");
+    }
 }

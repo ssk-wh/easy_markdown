@@ -61,6 +61,10 @@ private:
     // [Plan 文档统计信息] 弹窗统计当前文档的结构化信息
     void onShowDocumentStats();
 
+    // [Plan 首次启动引导] 显示欢迎对话框（首次启动 + 菜单手动触发）
+    void onShowWelcome();
+    void maybeShowWelcomeOnFirstLaunch();
+
     QTabWidget* m_tabWidget;
     QSplitter* m_mainSplitter = nullptr;
     TocPanel* m_tocPanel = nullptr;

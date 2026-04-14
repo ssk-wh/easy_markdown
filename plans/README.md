@@ -96,14 +96,18 @@ related_specs: [...]
 ## 生命周期
 
 ```
-draft → in_progress → completed → 一周后归档到 plans/归档/
-                   ↘ aborted → 立即归档
+draft → in_progress → completed → 立即 mv 到 plans/归档/
+                   ↘ aborted     → 立即 mv 到 plans/归档/
 ```
 
 - **draft**：还没开始做，仅作为待办列表
 - **in_progress**：正在执行
-- **completed**：做完且经过验证
-- **aborted**：废弃
+- **completed**：做完且经过验证——**此状态必须立即归档**
+- **aborted**：废弃——**同样立即归档**
+
+**强制规则（2026-04-14）**：plan 完成（status 改为 completed）后**必须在同一个工作流步骤内**执行
+`mv plans/xxx.md plans/归档/xxx.md`，不等一周、不等 batch 提交。这样 `plans/` 根目录只保留
+draft + in_progress 状态的任务，视觉上就是"还没做完的清单"，一目了然。
 
 ## 归档
 

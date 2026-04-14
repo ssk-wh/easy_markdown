@@ -130,6 +130,54 @@ Please ensure CHANGELOG.md is installed with the application.</source>
         <translation>无法找到文件：%1</translation>
     </message>
     <message>
+        <source>Show Welcome</source>
+        <translation>重新显示欢迎页</translation>
+    </message>
+    <message>
+        <source>Welcome to SimpleMarkdown</source>
+        <translation>欢迎使用 SimpleMarkdown</translation>
+    </message>
+    <message>
+        <source>A lightweight, fast, cross-platform Markdown editor.</source>
+        <translation>一款轻量、快速的跨平台 Markdown 编辑器。</translation>
+    </message>
+    <message>
+        <source>Key Features</source>
+        <translation>核心特性</translation>
+    </message>
+    <message>
+        <source>Dual-pane view: edit on the left, live preview on the right</source>
+        <translation>分屏视图：左侧编辑，右侧实时预览</translation>
+    </message>
+    <message>
+        <source>Multi-tab workspace with drag-and-drop file support</source>
+        <translation>多标签工作区，支持拖拽文件打开</translation>
+    </message>
+    <message>
+        <source>Full-text search with highlight (Ctrl+F), Ctrl+click to follow links</source>
+        <translation>全文搜索高亮（Ctrl+F），Ctrl+点击跟踪链接</translation>
+    </message>
+    <message>
+        <source>Outline/TOC panel for quick heading navigation</source>
+        <translation>大纲/TOC 面板快速跳转到标题</translation>
+    </message>
+    <message>
+        <source>Content marking (highlighter effect) for key passages</source>
+        <translation>内容标记（荧光笔效果）标注重点段落</translation>
+    </message>
+    <message>
+        <source>Presentation Mode: press F11 to full-screen the preview</source>
+        <translation>演示模式：按 F11 将预览区全屏</translation>
+    </message>
+    <message>
+        <source>Light / dark themes with system-follow option</source>
+        <translation>亮色/暗色主题，可跟随系统</translation>
+    </message>
+    <message>
+        <source>Tip: press Ctrl+/ or open Help → Keyboard Shortcuts to see all shortcuts.</source>
+        <translation>提示：打开 帮助 → 键盘快捷键 查看全部快捷键。</translation>
+    </message>
+    <message>
         <source>File</source>
         <translation>文件</translation>
     </message>

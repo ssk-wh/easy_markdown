@@ -5,6 +5,8 @@ All notable changes to this project will be documented in this file.
 ## [0.2.4] - 2026-04-14
 
 ### Added
+- **首次启动欢迎页**：首次启动弹窗展示项目定位 + 7 条核心特性 + 快捷键提示；
+  菜单 帮助 → 重新显示欢迎页 可手动重新打开
 - **Tab 右键"打开所在目录"**：Windows 下用 `explorer /select` 高亮该文件，Linux 下打开包含目录
 - **文档统计信息弹窗**：视图菜单 "Document Statistics..." 显示当前文档的
   字数/字符数/行数/段落数/标题分级数/代码块数/图片数/链接数/表格数/引用块数/阅读时间
