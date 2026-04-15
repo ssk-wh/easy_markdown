@@ -259,7 +259,8 @@ void TocPanel::toggleCollapse(int idx)
     recomputeVisibility();
     saveCollapsed();
     buildList();
-    emit preferredWidthChanged(preferredWidth());
+    // [INV-TOC-WIDTH-AUTO] 宽度只在 setEntries / setCurrentFileKey 时重算；
+    // toggleCollapse 不触发重算、不发信号（T-WIDTH-NO-JITTER 稳定优先）。
 }
 
 // ---- 持久化 ----

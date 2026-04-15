@@ -7,6 +7,7 @@
 //   T-WIDTH-1/T-WIDTH-2  preferredWidth 按标题长度调整
 #include <gtest/gtest.h>
 #include <QApplication>
+#include <QSignalSpy>
 #include <QVector>
 
 #include "preview/TocPanel.h"
@@ -178,6 +179,28 @@ TEST(TocPanelWidthTest, CollapsedChildrenDoNotAffectWidth)
 
     EXPECT_LT(collapsedW, expandedW)
         << "collapsedW=" << collapsedW << " expandedW=" << expandedW;
+}
+
+// ---- T-WIDTH-NO-JITTER: 折叠/展开不发 preferredWidthChanged ----
+
+TEST(TocPanelCollapseTest, CollapseDoesNotEmitPreferredWidthChanged)
+{
+    TocPanel panel;
+    panel.setEntries(makeEntries({
+        {1, "A"},
+        {2, "A superduper extremely long child heading that would otherwise dominate width"},
+        {2, "A.2"},
+        {1, "B"},
+    }));
+
+    QSignalSpy spy(&panel, &TocPanel::preferredWidthChanged);
+    ASSERT_EQ(spy.count(), 0);
+
+    panel.toggleCollapseForTest(0);   // 折叠 A
+    EXPECT_EQ(spy.count(), 0) << "toggleCollapse must not emit preferredWidthChanged";
+
+    panel.toggleCollapseForTest(0);   // 展开 A
+    EXPECT_EQ(spy.count(), 0) << "toggleCollapse (expand) must not emit preferredWidthChanged";
 }
 
 int main(int argc, char** argv)
