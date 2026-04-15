@@ -18,6 +18,7 @@
 #include <QTimer>
 #include <QFontMetricsF>
 #include <QKeyEvent>
+#include <cmath>
 #include <QSettings>
 #include <QCryptographicHash>
 #include <QGuiApplication>
