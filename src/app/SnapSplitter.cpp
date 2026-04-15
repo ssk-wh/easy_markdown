@@ -102,6 +102,22 @@ protected:
             m_snap->endDrag();
     }
 
+    // Spec: specs/模块-app/13-分隔条吸附刻度.md INV-SNAP-DOUBLE-CLICK-RESET
+    // 双击 handle：把 editor / preview 重置为 50/50。
+    // 既是"拖歪了恢复对称"的快捷方式，也是 INV-SNAP-NO-COLLAPSE 的救急通道
+    // （即使 minimumWidth / setChildrenCollapsible 被其它路径绕过，双击始终生效）
+    void mouseDoubleClickEvent(QMouseEvent* e) override {
+        if (e->button() == Qt::LeftButton && m_snap && m_snap->orientation() == Qt::Horizontal) {
+            const int total = m_snap->width();
+            const int hw = m_snap->handleWidth();
+            const int each = qMax(0, (total - hw) / 2);
+            m_snap->setSizes({ each, each });
+            e->accept();
+            return;
+        }
+        QSplitterHandle::mouseDoubleClickEvent(e);
+    }
+
 private:
     SnapSplitter* m_snap;
 };
@@ -112,6 +128,12 @@ private:
 SnapSplitter::SnapSplitter(Qt::Orientation orientation, QWidget* parent)
     : QSplitter(orientation, parent)
 {
+    // Spec: specs/模块-app/13-分隔条吸附刻度.md INV-SNAP-NO-COLLAPSE
+    // 禁止任一侧被拖到 0：若允许 collapse，用户把 handle 拖到边缘后
+    // editor 或 preview 会消失、handle 贴边几乎不可抓回。
+    // 子 pane 的 minimumWidth 由 MainWindow::createTab 设置兜底。
+    setChildrenCollapsible(false);
+
     connect(this, &QSplitter::splitterMoved,
             this, &SnapSplitter::onSplitterMoved);
 }

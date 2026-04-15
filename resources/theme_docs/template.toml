@@ -1,0 +1,95 @@
+# SimpleMarkdown 主题模板
+# Spec: specs/模块-app/12-主题插件系统.md
+#
+# ⚠ 重要：本文件名 template.toml 会被主程序**主动跳过**，
+#    不会作为一个主题出现在菜单里。你必须按步骤 1 复制并改成别的文件名，
+#    改名后的文件才会被识别为主题。
+#
+# 怎么用：
+#   1. 复制本文件并改名（例如 my-theme.toml），文件名（不含扩展名）即主题 ID
+#      —— 千万不要保留 template.toml 这个名字，它不会被加载
+#   2. 修改 [meta] 里的 name / id（id 必须与文件名一致）
+#   3. 按需修改各色组的颜色值，所有字段都可覆盖
+#   4. 保存后回到 SimpleMarkdown 菜单：视图 → 主题 → 重新扫描主题
+#   5. 在主题列表里找到你的新主题并切换
+#
+# 颜色支持的格式：
+#   "#RRGGBB"           例：#1A237E
+#   "#RRGGBBAA"         带 alpha 通道，例：#FFEB3BB4
+#   "rgba(r, g, b, a)"  例：rgba(255, 235, 59, 180)
+#
+# 提示：
+#   - 没写的字段不会让加载失败，会回退到内置默认值
+#   - 想做深色主题：把 is_dark 设为 true，主程序会做对应的样式调整
+#   - 字符串都用双引号，不要省略
+#   - 文件必须保存为 UTF-8（无 BOM），不要用 GBK / ANSI
+
+[meta]
+name = "我的主题"           # 显示在菜单里的名字（任意中英文）
+id = "my-theme"             # 主题 ID，必须与文件名（不含扩展名）一致
+is_dark = false             # true = 深色主题；false = 亮色主题
+version = "1.0"             # 必填，schema 版本号
+author = "你的名字"
+description = "示例主题：复制后按需修改"
+
+# === 编辑器区域 ===
+[editor]
+background            = "#FFFFFF"   # 编辑器背景色
+foreground            = "#333333"   # 正文文字色
+current_line          = "#F5F5F5"   # 当前行高亮背景
+selection             = "#B5D5FF"   # 选区背景
+line_number           = "#999999"   # 行号文字
+line_number_active    = "#333333"   # 当前行行号
+gutter_background     = "#F0F0F0"   # 行号栏背景
+gutter_line           = "#E0E0E0"   # 行号栏右侧分隔线
+cursor                = "#333333"   # 光标颜色
+search_match          = "rgba(255, 235, 59, 220)"  # 搜索匹配项高亮
+search_match_current  = "rgba(255, 140, 0, 240)"   # 当前命中项高亮
+preedit_background    = "rgb(255, 255, 200)"        # 输入法预编辑背景
+
+# === 语法高亮（编辑器侧） ===
+[syntax]
+heading                = "#1A237E"   # 标题（# / ## ...）
+code                   = "#C62828"   # 行内代码 `code`
+code_background        = "#F5F5F5"   # 行内代码背景
+code_block             = "#2E7D32"   # 代码块文本
+code_block_background  = "#F8F8F8"   # 代码块背景
+link                   = "#0366D6"   # 链接 [text](url)
+list                   = "#6A1B9A"   # 列表标记 - / 1.
+blockquote             = "#757575"   # 引用 > 文本
+fence                  = "#999999"   # 围栏标记 ```
+fence_background       = "#F0F0F0"   # 围栏背景
+
+# === 预览区域 ===
+[preview]
+background                    = "#FFFFFF"   # 预览背景
+foreground                    = "#333333"   # 正文文字
+heading                       = "#1A1A1A"   # 标题
+link                          = "#0366D6"   # 链接
+code_background               = "#F6F8FA"   # 代码块背景
+code_foreground               = "#333333"   # 代码块文字
+code_border                   = "#E1E4E8"   # 代码块边框
+blockquote_border             = "#DFE2E5"   # 引用左侧边线
+blockquote_background         = "#F8F8F8"   # 引用背景
+table_border                  = "#DFE2E5"   # 表格边框
+table_header_background       = "#F6F8FA"   # 表头背景
+hr                            = "#E0E0E0"   # 水平分割线
+heading_separator             = "#EAECEF"   # 标题底部分隔线
+image_placeholder_background  = "#F0F0F0"   # 图片占位背景（加载中）
+image_placeholder_border      = "#CCCCCC"
+image_placeholder_text        = "#999999"
+image_error_background        = "#FFF0F0"   # 图片加载失败背景
+image_error_border            = "#E57373"
+image_error_text              = "#C62828"
+image_info_text               = "#666666"
+highlight                     = "rgba(255, 235, 59, 180)"   # 内容标记（荧光笔）
+highlight_toc                 = "rgba(255, 235, 59, 120)"   # TOC 内的标记色
+
+# === 更多技巧 ===
+# 想做深色主题？参考内置主题文件作为起点：
+#   - dark.toml              经典深色
+#   - midnight-aurora.toml   iOS 26 风格深色（Liquid Glass）
+#   - arctic-frost.toml      iOS 26 风格亮色（Liquid Glass）
+#
+# 内置主题保存在应用资源里，可在 GitHub 仓库的 resources/themes/ 查看：
+#   https://github.com/pcfan/simple_markdown/tree/main/resources/themes

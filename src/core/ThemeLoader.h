@@ -70,6 +70,21 @@ public:
 
     // 序列化 Theme 为 TOML 字符串。供导出 / 测试使用。
     static QString serialize(const Theme& theme);
+
+    // Spec: specs/模块-app/12-主题插件系统.md INV-15
+    // 当目录为空（不含任何文件）时，从 :/theme_docs/ 注入 template.toml + HOW_TO.md
+    // 让用户立即知道如何写自定义主题。
+    //
+    // 行为：
+    //   - 目录非空（任意一个文件）→ 不操作，writtenOut/failedOut 都置空，返回 false
+    //   - 目录为空 → 尝试拷贝模板，写入成功的文件名追加到 writtenOut，
+    //                失败的追加到 failedOut；只要至少写入了一个就返回 true。
+    //   - 目录不存在但 dir 路径合法 → 视为空目录，先 mkpath 再注入。
+    //
+    // writtenOut / failedOut 可为 nullptr。
+    static bool injectThemeTemplatesIfEmpty(const QString& dir,
+                                            QStringList* writtenOut = nullptr,
+                                            QStringList* failedOut = nullptr);
 };
 
 } // namespace core

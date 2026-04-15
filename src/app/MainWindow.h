@@ -67,6 +67,10 @@ private:
     void onShowWelcome();
     void maybeShowWelcomeOnFirstLaunch();
 
+    // Spec: specs/模块-app/16-崩溃报告收集.md
+    // 启动后检测 %APPDATA%/SimpleMarkdown/crashes/ 下是否有"未查看"的 dump，弹窗提示
+    void maybeShowCrashReportPrompt();
+
     // Spec: specs/模块-preview/07-TOC面板.md INV-TOC-VALIGN
     // central widget = QVBoxLayout(m_tabBar + m_mainSplitter)
     // m_mainSplitter 左：m_contentStack（每页一个 editor|preview splitter）
@@ -175,9 +179,34 @@ private:
     QLabel* m_statusLineCount = nullptr;
     QLabel* m_statusCursorPos = nullptr;
     QLabel* m_statusReadTime = nullptr;
+    // Spec: specs/模块-app/14-自动保存.md
+    // 自动保存失败时显示瞬时提示（5s 自动清空），平时为空字符串
+    QLabel* m_statusAutoSaveMsg = nullptr;
+    QTimer m_autoSaveMsgClearTimer;
     QTimer m_statsDebounceTimer;
+    // Spec: specs/模块-app/15-状态栏布局.md
+    // 状态栏右区元数据：编码 / 换行 / 保存状态
+    // （主题名字段已移除 — 用户从整个 UI 颜色即可感知当前主题，不需要再占状态栏）
+    QLabel* m_statusEncoding = nullptr;
+    QLabel* m_statusLineEnding = nullptr;
+    QLabel* m_statusSaveStatus = nullptr;
+    // 30s 周期重算"已保存 · X 分钟前"相对时间
+    QTimer m_relTimeRefreshTimer;
     void setupStatusBar();
     void updateStatusBarStats();
     void updateCursorPosition(int line, int column);
     void connectTabStatusBar(const TabData& tab);
+    void updateRightStatusBar();   // 编码 + 换行 + 主题 + 保存状态全部刷新
+    void updateSaveStatusOnly();   // 仅刷新保存状态文本（30s timer 触发）
+
+    // Spec: specs/模块-app/14-自动保存.md
+    // 编辑停顿后静默保存（仅有磁盘路径的 Tab）
+    QTimer m_autoSaveTimer;
+    bool m_autoSaveEnabled = true;
+    int m_autoSaveDelayMs = 1500;
+    QAction* m_autoSaveEnabledAct = nullptr;
+    QVector<QAction*> m_autoSaveDelayActions;  // 1500 / 3000 / 5000 三档
+    void scheduleAutoSave();
+    void performAutoSave();
+    void showAutoSaveError(const QString& message);
 };

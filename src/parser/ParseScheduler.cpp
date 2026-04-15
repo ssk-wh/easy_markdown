@@ -1,6 +1,7 @@
 #include "ParseScheduler.h"
 #include "MarkdownParser.h"
 #include "../core/Document.h"
+#include "PerfProbe.h"
 
 #include <QMetaObject>
 
@@ -10,6 +11,7 @@ ParseWorker::~ParseWorker() = default;
 
 void ParseWorker::doParse(const QString& text, quint64 seq)
 {
+    SM_PERF_SCOPE("parser.doParse");
     if (!m_parser)
         m_parser = std::make_unique<MarkdownParser>();
     auto root = m_parser->parse(text);

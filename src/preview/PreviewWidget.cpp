@@ -5,6 +5,7 @@
 #include "TocPanel.h"  // for TocEntry
 #include "MarkdownAst.h"
 #include "MarkdownParser.h"
+#include "PerfProbe.h"
 
 #include <QPainter>
 #include <QScrollBar>
@@ -98,6 +99,7 @@ void PreviewWidget::rebuildLayout()
 
 void PreviewWidget::paintEvent(QPaintEvent* /*event*/)
 {
+    SM_PERF_SCOPE("preview.paintEvent");
     QPainter painter(viewport());
     painter.fillRect(viewport()->rect(), m_theme.previewBg);
 

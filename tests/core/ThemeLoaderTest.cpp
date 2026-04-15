@@ -15,6 +15,10 @@
 #include "core/Theme.h"
 #include "core/ThemeLoader.h"
 
+#include <QDateTime>
+#include <QDir>
+#include <QFile>
+#include <QFileInfo>
 #include <QGuiApplication>
 #include <QtCore/QString>
 #include <gtest/gtest.h>
@@ -168,6 +172,197 @@ TEST(ThemeLoaderTest, T8_ThemeByIdMatchesBuiltin) {
     Theme d = Theme::byId(QStringLiteral("dark"));
     EXPECT_EQ(c.isDark, d.isDark);
     EXPECT_EQ(c.editorBg, d.editorBg);
+}
+
+// Spec: specs/模块-app/12-主题插件系统.md INV-15 / T-13 / T-14 / T-15
+// 主题目录注入引导文件（template.toml + HOW_TO.md）的行为契约
+namespace {
+
+// 用临时目录构造测试 fixture，避免污染真实用户目录
+QString makeTempThemeDir(const QString& tag) {
+    QDir base(QDir::tempPath());
+    const QString name = QStringLiteral("simple_markdown_test_%1_%2")
+                             .arg(tag)
+                             .arg(QDateTime::currentMSecsSinceEpoch());
+    base.mkpath(name);
+    return base.absoluteFilePath(name);
+}
+
+void rmDirContents(const QString& dir) {
+    QDir d(dir);
+    if (!d.exists()) return;
+    for (const QFileInfo& fi : d.entryInfoList(QDir::Files | QDir::NoDotAndDotDot)) {
+        QFile::remove(fi.absoluteFilePath());
+    }
+}
+
+} // namespace
+
+TEST(ThemeLoaderTest, T13_InjectTemplatesIntoEmptyDir) {
+    const QString dir = makeTempThemeDir(QStringLiteral("t13"));
+    rmDirContents(dir);  // 确保空
+
+    QStringList written, failed;
+    const bool any = ThemeLoader::injectThemeTemplatesIfEmpty(dir, &written, &failed);
+
+    EXPECT_TRUE(any);
+    EXPECT_TRUE(failed.isEmpty()) << failed.join(",").toStdString();
+
+    // 必须同时写入两份文件
+    ASSERT_EQ(written.size(), 2);
+    EXPECT_TRUE(written.contains(QStringLiteral("template.toml")));
+    EXPECT_TRUE(written.contains(QStringLiteral("HOW_TO.md")));
+
+    // 文件确实落盘且非空
+    QDir d(dir);
+    QFile templ(d.absoluteFilePath(QStringLiteral("template.toml")));
+    QFile howto(d.absoluteFilePath(QStringLiteral("HOW_TO.md")));
+    ASSERT_TRUE(templ.exists());
+    ASSERT_TRUE(howto.exists());
+    EXPECT_GT(templ.size(), 100);  // 模板内容至少 100 字节
+    EXPECT_GT(howto.size(), 100);
+
+    // 清理
+    rmDirContents(dir);
+    QDir().rmdir(dir);
+}
+
+TEST(ThemeLoaderTest, T14_SkipInjectWhenDirNotEmpty) {
+    const QString dir = makeTempThemeDir(QStringLiteral("t14"));
+    rmDirContents(dir);
+
+    // 放一个用户已有的"假主题"
+    QDir d(dir);
+    const QString userPath = d.absoluteFilePath(QStringLiteral("user_existing.toml"));
+    {
+        QFile f(userPath);
+        ASSERT_TRUE(f.open(QIODevice::WriteOnly));
+        f.write("# user theme placeholder\n");
+        f.close();
+    }
+
+    QStringList written, failed;
+    const bool any = ThemeLoader::injectThemeTemplatesIfEmpty(dir, &written, &failed);
+
+    EXPECT_FALSE(any);
+    EXPECT_TRUE(written.isEmpty());
+    EXPECT_TRUE(failed.isEmpty());
+
+    // 用户文件还在
+    EXPECT_TRUE(QFile::exists(userPath));
+    // 模板文件未被注入
+    EXPECT_FALSE(QFile::exists(d.absoluteFilePath(QStringLiteral("template.toml"))));
+    EXPECT_FALSE(QFile::exists(d.absoluteFilePath(QStringLiteral("HOW_TO.md"))));
+
+    // 清理
+    rmDirContents(dir);
+    QDir().rmdir(dir);
+}
+
+TEST(ThemeLoaderTest, T15_InjectedTemplateIsLoadable) {
+    // 注入的 template.toml 必须本身就是合法 TOML 主题，能被 ThemeLoader 加载
+    const QString dir = makeTempThemeDir(QStringLiteral("t15"));
+    rmDirContents(dir);
+
+    QStringList written, failed;
+    ASSERT_TRUE(ThemeLoader::injectThemeTemplatesIfEmpty(dir, &written, &failed));
+    ASSERT_EQ(failed.size(), 0);
+
+    QDir d(dir);
+    const QString templPath = d.absoluteFilePath(QStringLiteral("template.toml"));
+    LoadResult r = ThemeLoader::loadFromFile(templPath);
+    EXPECT_TRUE(r.errors.isEmpty()) << r.errors.join(";").toStdString();
+    EXPECT_FALSE(r.theme.name.isEmpty());
+
+    rmDirContents(dir);
+    QDir().rmdir(dir);
+}
+
+TEST(ThemeLoaderTest, T15b_InjectIsIdempotentAfterUserClears) {
+    // 用户清空目录后再次调用 → 应再次注入（幂等性）
+    const QString dir = makeTempThemeDir(QStringLiteral("t15b"));
+    rmDirContents(dir);
+
+    QStringList w1, f1;
+    ASSERT_TRUE(ThemeLoader::injectThemeTemplatesIfEmpty(dir, &w1, &f1));
+    EXPECT_EQ(w1.size(), 2);
+
+    // 第二次：目录非空 → 不动
+    QStringList w2, f2;
+    EXPECT_FALSE(ThemeLoader::injectThemeTemplatesIfEmpty(dir, &w2, &f2));
+    EXPECT_EQ(w2.size(), 0);
+
+    // 用户清空
+    rmDirContents(dir);
+
+    // 第三次：目录又空 → 再注入
+    QStringList w3, f3;
+    ASSERT_TRUE(ThemeLoader::injectThemeTemplatesIfEmpty(dir, &w3, &f3));
+    EXPECT_EQ(w3.size(), 2);
+
+    rmDirContents(dir);
+    QDir().rmdir(dir);
+}
+
+// Spec: specs/模块-app/12-主题插件系统.md INV-16 / T-17
+// 扫描目录时必须跳过 template.toml，避免它被当作一个可选主题出现在菜单中。
+TEST(ThemeLoaderTest, T17_ScanDirectorySkipsTemplateToml) {
+    const QString dir = makeTempThemeDir(QStringLiteral("t17"));
+    rmDirContents(dir);
+
+    // 注入模板
+    QStringList written, failed;
+    ASSERT_TRUE(ThemeLoader::injectThemeTemplatesIfEmpty(dir, &written, &failed));
+    ASSERT_EQ(failed.size(), 0);
+
+    // 再放一份真实的用户主题
+    QDir d(dir);
+    const QString myPath = d.absoluteFilePath(QStringLiteral("my-theme.toml"));
+    {
+        QFile f(myPath);
+        ASSERT_TRUE(f.open(QIODevice::WriteOnly));
+        f.write(
+            "[meta]\n"
+            "name = \"My Real Theme\"\n"
+            "id = \"my-theme\"\n"
+            "is_dark = false\n"
+            "version = \"1.0\"\n"
+            "\n"
+            "[editor]\n"
+            "background = \"#FFFFFF\"\n"
+        );
+        f.close();
+    }
+
+    // scanDirectory 应跳过 template.toml，只返回 my-theme
+    const QList<core::ThemeDescriptor> found = ThemeLoader::scanDirectory(dir, /*markBuiltin=*/false);
+
+    bool sawTemplate = false;
+    bool sawMyTheme = false;
+    for (const core::ThemeDescriptor& x : found) {
+        QFileInfo fi(x.filePath);
+        if (QString::compare(fi.fileName(), QStringLiteral("template.toml"), Qt::CaseInsensitive) == 0) {
+            sawTemplate = true;
+        }
+        if (x.id == QStringLiteral("my-theme")) {
+            sawMyTheme = true;
+        }
+    }
+    EXPECT_FALSE(sawTemplate) << "template.toml should NOT be listed as a scannable theme";
+    EXPECT_TRUE(sawMyTheme) << "user's my-theme.toml should still be discovered";
+
+    // discoverAll 同样不应返回模板
+    const QList<core::ThemeDescriptor> all = ThemeLoader::discoverAll(dir);
+    for (const core::ThemeDescriptor& x : all) {
+        QFileInfo fi(x.filePath);
+        EXPECT_NE(
+            QString::compare(fi.fileName(), QStringLiteral("template.toml"), Qt::CaseInsensitive),
+            0
+        ) << "discoverAll() returned template.toml — should be skipped";
+    }
+
+    rmDirContents(dir);
+    QDir().rmdir(dir);
 }
 
 // GoogleTest 自己有 main；但 Theme::byId 路径需要 QGuiApplication/QCoreApplication

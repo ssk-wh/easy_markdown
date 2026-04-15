@@ -22,6 +22,21 @@ target_link_libraries(FrontmatterRenderTest PRIVATE
 
 add_test(NAME FrontmatterRenderTest COMMAND FrontmatterRenderTest)
 
+# --- MarkdownParserTest ---
+# Spec: specs/模块-parser/README.md（基础 block/inline 节点回归测试）
+add_executable(MarkdownParserTest
+    parser/MarkdownParserTest.cpp
+)
+
+target_link_libraries(MarkdownParserTest PRIVATE
+    sm_parser
+    sm_core
+    Qt5::Core
+    gtest
+)
+
+add_test(NAME MarkdownParserTest COMMAND MarkdownParserTest)
+
 # --- ThemeLoaderTest ---
 # Spec: specs/模块-app/12-主题插件系统.md
 # 需要把项目 qrc 编进测试 exe 才能访问 :/themes/*.toml 资源。

@@ -311,6 +311,125 @@ Do you want to reload it?</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
+        <source>Theme Templates Created</source>
+        <translation>Theme Templates Created</translation>
+    </message>
+    <message>
+        <source>Generated theme template and guide in this folder:
+
+  %1
+
+Copy template.toml, rename it (e.g. my-theme.toml), edit and save, then click &quot;Rescan Themes&quot; in the Theme menu to load it.</source>
+        <translation>Generated theme template and guide in this folder:
+
+  %1
+
+Copy template.toml, rename it (e.g. my-theme.toml), edit and save, then click &quot;Rescan Themes&quot; in the Theme menu to load it.</translation>
+    </message>
+    <message>
+        <source>Failed to Create Theme Templates</source>
+        <translation>Failed to Create Theme Templates</translation>
+    </message>
+    <message>
+        <source>Could not write the following file(s) to the theme folder:
+
+  %1
+
+Please check that the folder is writable.</source>
+        <translation>Could not write the following file(s) to the theme folder:
+
+  %1
+
+Please check that the folder is writable.</translation>
+    </message>
+    <message>
+        <source>Auto Save</source>
+        <translation>Auto Save</translation>
+    </message>
+    <message>
+        <source>Auto Save Delay</source>
+        <translation>Auto Save Delay</translation>
+    </message>
+    <message>
+        <source>1.5 seconds</source>
+        <translation>1.5 seconds</translation>
+    </message>
+    <message>
+        <source>3 seconds</source>
+        <translation>3 seconds</translation>
+    </message>
+    <message>
+        <source>5 seconds</source>
+        <translation>5 seconds</translation>
+    </message>
+    <message>
+        <source>Auto save failed: %1</source>
+        <translation>Auto save failed: %1</translation>
+    </message>
+    <message>
+        <source>Unsaved (new file)</source>
+        <translation>Unsaved (new file)</translation>
+    </message>
+    <message>
+        <source>Unsaved changes</source>
+        <translation>Unsaved changes</translation>
+    </message>
+    <message>
+        <source>Saved · just now</source>
+        <translation>Saved · just now</translation>
+    </message>
+    <message numerus="yes">
+        <source>Saved · %1 min ago</source>
+        <translation>
+            <numerusform>Saved · %1 min ago</numerusform>
+            <numerusform>Saved · %1 min ago</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>Saved · %1 hour ago</source>
+        <translation>
+            <numerusform>Saved · %1 hour ago</numerusform>
+            <numerusform>Saved · %1 hours ago</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>Saved · %1 day ago</source>
+        <translation>
+            <numerusform>Saved · %1 day ago</numerusform>
+            <numerusform>Saved · %1 days ago</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Crash Report Found</source>
+        <translation>Crash Report Found</translation>
+    </message>
+    <message>
+        <source>Diagnostics</source>
+        <translation>Diagnostics</translation>
+    </message>
+    <message>
+        <source>Performance Log</source>
+        <translation>Performance Log</translation>
+    </message>
+    <message>
+        <source>Print parse/layout/paint timings to stderr</source>
+        <translation>Print parse/layout/paint timings to stderr</translation>
+    </message>
+    <message>
+        <source>SimpleMarkdown unexpectedly closed last time.
+A crash report has been saved at:
+
+  %1
+
+Open the crash reports folder?</source>
+        <translation>SimpleMarkdown unexpectedly closed last time.
+A crash report has been saved at:
+
+  %1
+
+Open the crash reports folder?</translation>
+    </message>
+    <message>
         <source>The following file(s) appear to be binary or unsupported. SimpleMarkdown only opens Markdown and plain text files:
 
   %1</source>

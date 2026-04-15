@@ -1,6 +1,7 @@
 #include "PreviewLayout.h"
 #include "MarkdownAst.h"
 #include "FontDefaults.h"
+#include "PerfProbe.h"
 
 #include <QFontMetricsF>
 #include <QtMath>
@@ -67,6 +68,7 @@ void PreviewLayout::setTheme(const Theme& theme)
 
 void PreviewLayout::buildFromAst(const std::shared_ptr<AstNode>& root)
 {
+    SM_PERF_SCOPE("preview.buildFromAst");
     m_root = LayoutBlock();
     m_root.type = LayoutBlock::Document;
 

@@ -21,4 +21,8 @@
         <file alias="mint-breeze.toml">themes/mint-breeze.toml</file>
         <file alias="monochrome-zen.toml">themes/monochrome-zen.toml</file>
     </qresource>
+    <qresource prefix="/theme_docs">
+        <file alias="template.toml">theme_docs/template.toml</file>
+        <file alias="HOW_TO.md">theme_docs/HOW_TO.md</file>
+    </qresource>
 </RCC>

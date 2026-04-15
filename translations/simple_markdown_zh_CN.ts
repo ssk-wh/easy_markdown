@@ -443,6 +443,122 @@ Do you want to reload it?</source>
         <translation>重新扫描主题</translation>
     </message>
     <message>
+        <source>Theme Templates Created</source>
+        <translation>已生成主题模板</translation>
+    </message>
+    <message>
+        <source>Generated theme template and guide in this folder:
+
+  %1
+
+Copy template.toml, rename it (e.g. my-theme.toml), edit and save, then click &quot;Rescan Themes&quot; in the Theme menu to load it.</source>
+        <translation>已在主题目录生成模板与说明文件：
+
+  %1
+
+复制 template.toml 并改名（例如 my-theme.toml），按需修改后保存，回到「主题」菜单点「重新扫描主题」即可看到。</translation>
+    </message>
+    <message>
+        <source>Failed to Create Theme Templates</source>
+        <translation>无法生成主题模板</translation>
+    </message>
+    <message>
+        <source>Could not write the following file(s) to the theme folder:
+
+  %1
+
+Please check that the folder is writable.</source>
+        <translation>以下文件写入主题目录失败：
+
+  %1
+
+请确认该目录有写入权限。</translation>
+    </message>
+    <message>
+        <source>Auto Save</source>
+        <translation>自动保存</translation>
+    </message>
+    <message>
+        <source>Auto Save Delay</source>
+        <translation>自动保存延迟</translation>
+    </message>
+    <message>
+        <source>1.5 seconds</source>
+        <translation>1.5 秒</translation>
+    </message>
+    <message>
+        <source>3 seconds</source>
+        <translation>3 秒</translation>
+    </message>
+    <message>
+        <source>5 seconds</source>
+        <translation>5 秒</translation>
+    </message>
+    <message>
+        <source>Auto save failed: %1</source>
+        <translation>自动保存失败：%1</translation>
+    </message>
+    <message>
+        <source>Unsaved (new file)</source>
+        <translation>未保存（新文件）</translation>
+    </message>
+    <message>
+        <source>Unsaved changes</source>
+        <translation>未保存修改</translation>
+    </message>
+    <message>
+        <source>Saved · just now</source>
+        <translation>已保存 · 刚刚</translation>
+    </message>
+    <message numerus="yes">
+        <source>Saved · %1 min ago</source>
+        <translation>
+            <numerusform>已保存 · %1 分钟前</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>Saved · %1 hour ago</source>
+        <translation>
+            <numerusform>已保存 · %1 小时前</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>Saved · %1 day ago</source>
+        <translation>
+            <numerusform>已保存 · %1 天前</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Crash Report Found</source>
+        <translation>发现崩溃报告</translation>
+    </message>
+    <message>
+        <source>Diagnostics</source>
+        <translation>诊断</translation>
+    </message>
+    <message>
+        <source>Performance Log</source>
+        <translation>性能日志</translation>
+    </message>
+    <message>
+        <source>Print parse/layout/paint timings to stderr</source>
+        <translation>向 stderr 打印解析 / 布局 / 绘制的耗时</translation>
+    </message>
+    <message>
+        <source>SimpleMarkdown unexpectedly closed last time.
+A crash report has been saved at:
+
+  %1
+
+Open the crash reports folder?</source>
+        <translation>SimpleMarkdown 上次异常退出。
+崩溃报告已保存到：
+
+  %1
+
+要打开崩溃报告目录吗？</translation>
+    </message>
+    <message>
         <source>Chars: %1</source>
         <translation>字符: %1</translation>
     </message>

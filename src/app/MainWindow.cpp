@@ -12,6 +12,7 @@
 #include "PreviewLayout.h"
 #include "FontDefaults.h"
 #include "SnapSplitter.h"
+#include "../core/PerfProbe.h"
 
 #include <QSplitter>
 #include <QMenuBar>
@@ -379,6 +380,41 @@ void MainWindow::setupMenuBar()
     // -- Settings menu --
     QMenu* settingsMenu = menuBar()->addMenu(tr("Settings"));
 
+    // Spec: specs/模块-app/14-自动保存.md
+    // 自动保存：开关 + 三档延迟（1.5s / 3s / 5s）
+    m_autoSaveEnabledAct = settingsMenu->addAction(tr("Auto Save"));
+    m_autoSaveEnabledAct->setCheckable(true);
+    m_autoSaveEnabledAct->setChecked(m_autoSaveEnabled);
+    connect(m_autoSaveEnabledAct, &QAction::toggled, this, [this](bool checked) {
+        m_autoSaveEnabled = checked;
+        if (!checked) m_autoSaveTimer.stop();
+        saveSessionLater();
+    });
+
+    QMenu* autoSaveDelayMenu = settingsMenu->addMenu(tr("Auto Save Delay"));
+    QActionGroup* autoSaveDelayGroup = new QActionGroup(this);
+    autoSaveDelayGroup->setExclusive(true);
+    struct DelayChoice { int ms; const char* label; };
+    static const DelayChoice kDelays[] = {
+        { 1500, QT_TR_NOOP("1.5 seconds") },
+        { 3000, QT_TR_NOOP("3 seconds") },
+        { 5000, QT_TR_NOOP("5 seconds") },
+    };
+    m_autoSaveDelayActions.clear();
+    for (const auto& dc : kDelays) {
+        QAction* a = autoSaveDelayMenu->addAction(tr(dc.label));
+        a->setCheckable(true);
+        autoSaveDelayGroup->addAction(a);
+        a->setData(dc.ms);
+        const int ms = dc.ms;
+        connect(a, &QAction::triggered, this, [this, ms]() {
+            m_autoSaveDelayMs = ms;
+            saveSessionLater();
+        });
+        m_autoSaveDelayActions.append(a);
+    }
+    settingsMenu->addSeparator();
+
     QMenu* languageMenu = settingsMenu->addMenu(tr("Language"));
     QActionGroup* langGroup = new QActionGroup(this);
     langGroup->setExclusive(true);
@@ -413,6 +449,21 @@ void MainWindow::setupMenuBar()
     helpMenu->addAction(tr("Update History"), this, [this]() {
         ChangelogDialog dialog(m_currentTheme, this);
         dialog.exec();
+    });
+
+    helpMenu->addSeparator();
+
+    // Spec: specs/模块-app/17-性能监控.md
+    // 帮助 → 诊断 → 性能日志：toggle 向 stderr 输出关键路径耗时
+    QMenu* diagMenu = helpMenu->addMenu(tr("Diagnostics"));
+    QAction* perfAct = diagMenu->addAction(tr("Performance Log"));
+    perfAct->setCheckable(true);
+    perfAct->setChecked(core::perfEnabled());
+    perfAct->setToolTip(tr("Print parse/layout/paint timings to stderr"));
+    connect(perfAct, &QAction::toggled, this, [](bool on) {
+        core::setPerfEnabled(on);
+        fprintf(stderr, "[perf] %s via menu\n", on ? "enabled" : "disabled");
+        fflush(stderr);
     });
 
     helpMenu->addSeparator();
@@ -720,6 +771,12 @@ MainWindow::TabData MainWindow::createTab()
     tab.splitter->addWidget(tab.preview);
     tab.splitter->setSizes({640, 640});
 
+    // Spec: specs/模块-app/13-分隔条吸附刻度.md INV-SNAP-NO-COLLAPSE
+    // 给 editor / preview 都兜底一个 minimumWidth，配合 setChildrenCollapsible(false)
+    // 阻止用户把 handle 拖到极端位置让任一侧消失、分隔条贴边无法抓回
+    tab.editor->setMinimumWidth(80);
+    tab.preview->setMinimumWidth(80);
+
     // Parse scheduler: connect document -> preview
     tab.scheduler = new ParseScheduler(tab.splitter);
     tab.scheduler->setDocument(tab.editor->document());
@@ -781,12 +838,14 @@ MainWindow::TabData MainWindow::createTab()
     // TocPanel 点击 → 当前 tab 的 preview 跳转
     // （在 MainWindow 构造中统一连接一次即可，不需要每个 tab 连接）
 
-    // Track modifications for tab title
+    // Track modifications for tab title + status bar save status
     connect(tab.editor->document(), &Document::modifiedChanged,
             this, [this](bool) {
         int idx = m_tabBar->currentIndex();
         if (idx >= 0)
             updateTabTitle(idx);
+        // Spec: specs/模块-app/15-状态栏布局.md
+        updateSaveStatusOnly();
     });
 
     // 状态栏信号连接
@@ -862,9 +921,34 @@ void MainWindow::applyThemeById(const QString& id)
 }
 
 // 打开用户主题目录（首次打开会自动创建）
+// Spec: specs/模块-app/12-主题插件系统.md INV-15
+// 核心 inject 逻辑在 core::ThemeLoader::injectThemeTemplatesIfEmpty —— 这里只负责弹窗 UI。
 void MainWindow::openThemeDirectory()
 {
     const QString dir = core::ThemeLoader::userThemeDir();
+
+    QStringList writtenNames;
+    QStringList failedNames;
+    core::ThemeLoader::injectThemeTemplatesIfEmpty(dir, &writtenNames, &failedNames);
+
+    if (!writtenNames.isEmpty()) {
+        QMessageBox::information(
+            this,
+            tr("Theme Templates Created"),
+            tr("Generated theme template and guide in this folder:\n\n  %1\n\n"
+               "Copy template.toml, rename it (e.g. my-theme.toml), edit and save, "
+               "then click \"Rescan Themes\" in the Theme menu to load it.")
+                .arg(writtenNames.join(QStringLiteral(", "))));
+    }
+    if (!failedNames.isEmpty()) {
+        QMessageBox::warning(
+            this,
+            tr("Failed to Create Theme Templates"),
+            tr("Could not write the following file(s) to the theme folder:\n\n  %1\n\n"
+               "Please check that the folder is writable.")
+                .arg(failedNames.join(QStringLiteral(", "))));
+    }
+
     QDesktopServices::openUrl(QUrl::fromLocalFile(dir));
 }
 
@@ -1155,6 +1239,10 @@ void MainWindow::applyTheme(const Theme& theme)
 #ifdef _WIN32
     setDarkTitleBar(theme.isDark);
 #endif
+
+    // Spec: specs/模块-app/15-状态栏布局.md
+    // 主题切换 → 刷新状态栏右区主题名（其它字段顺便也刷一次，零成本）
+    updateRightStatusBar();
 }
 
 MainWindow::TabData* MainWindow::currentTab()
@@ -1235,6 +1323,8 @@ void MainWindow::onSaveFile()
         updateTabTitle(m_tabBar->currentIndex());
         // 延迟重新监控，避免捕获自身保存产生的文件变更事件
         QTimer::singleShot(500, this, [this, fp]() { watchFile(fp); });
+        // Spec: specs/模块-app/15-状态栏布局.md
+        updateSaveStatusOnly();
     }
 }
 
@@ -1256,6 +1346,8 @@ void MainWindow::onSaveFileAs()
     QTimer::singleShot(500, this, [this, absFp]() { watchFile(absFp); });
     m_recentFiles->addFile(path);
     updateTabTitle(m_tabBar->currentIndex());
+    // Spec: specs/模块-app/15-状态栏布局.md
+    updateRightStatusBar();
 }
 
 void MainWindow::onCloseTab(int index)
@@ -1316,6 +1408,8 @@ void MainWindow::onTabChanged(int index)
         auto curPos = m_tabs[index].editor->document()->selection().cursorPosition();
         updateCursorPosition(curPos.line, curPos.column);
     }
+    // Spec: specs/模块-app/15-状态栏布局.md
+    updateRightStatusBar();
 }
 
 // -- Drag & Drop --
@@ -1519,6 +1613,10 @@ void MainWindow::showEvent(QShowEvent* event)
         // [Plan plans/2026-04-13-首次启动引导.md] 首次启动弹欢迎页
         // 延迟到下一个事件循环，避免和窗口初始化竞争
         QTimer::singleShot(100, this, &MainWindow::maybeShowWelcomeOnFirstLaunch);
+
+        // Spec: specs/模块-app/16-崩溃报告收集.md
+        // 上次崩溃后的 dump 检测：欢迎页之后再弹（避免对话框抢焦点）
+        QTimer::singleShot(500, this, &MainWindow::maybeShowCrashReportPrompt);
     }
 }
 
@@ -1577,6 +1675,9 @@ void MainWindow::saveSettings()
     s.setValue("view/wordWrap", m_wordWrapAct ? m_wordWrapAct->isChecked() : true);
     s.setValue("view/lineSpacing", m_lineSpacingFactor);
     s.setValue("view/fontSizeDelta", m_fontSizeDelta);
+    // Spec: specs/模块-app/14-自动保存.md
+    s.setValue("autoSave/enabled", m_autoSaveEnabled);
+    s.setValue("autoSave/delayMs", m_autoSaveDelayMs);
     // Spec: specs/模块-app/12-主题插件系统.md
     // 主题：follow_system / <theme-id>（如 light / dark / liquid-glass / 用户自定义）
     QString themeMode = "follow_system";
@@ -1650,6 +1751,20 @@ void MainWindow::loadSettings()
     }
     // 字体缩放
     m_fontSizeDelta = s.value("view/fontSizeDelta", 0).toInt();
+
+    // Spec: specs/模块-app/14-自动保存.md
+    m_autoSaveEnabled = s.value("autoSave/enabled", true).toBool();
+    m_autoSaveDelayMs = s.value("autoSave/delayMs", 1500).toInt();
+    // 兜底：只接受 1500/3000/5000 三档
+    if (m_autoSaveDelayMs != 1500 && m_autoSaveDelayMs != 3000 && m_autoSaveDelayMs != 5000)
+        m_autoSaveDelayMs = 1500;
+    if (m_autoSaveEnabledAct) m_autoSaveEnabledAct->setChecked(m_autoSaveEnabled);
+    for (QAction* a : m_autoSaveDelayActions) {
+        if (a->data().toInt() == m_autoSaveDelayMs) {
+            a->setChecked(true);
+            break;
+        }
+    }
 
     // 语言设置
     QString locale = s.value("language/locale", "zh_CN").toString();
@@ -1807,32 +1922,75 @@ void MainWindow::setupStatusBar()
     auto* sb = statusBar();
     sb->setSizeGripEnabled(true);
 
-    // 统一样式：QLabel 之间加竖线分隔
-    auto makeLabel = [sb](const QString& text) -> QLabel* {
+    // Spec: specs/模块-app/15-状态栏布局.md
+    // 左区：addWidget（贴左）；右区：addPermanentWidget（贴右）。中间 QStatusBar 自然 stretch。
+    auto makeLeftLabel = [sb](const QString& text) -> QLabel* {
+        auto* label = new QLabel(text, sb);
+        label->setContentsMargins(8, 0, 8, 0);
+        sb->addWidget(label);
+        return label;
+    };
+    auto makeRightLabel = [sb](const QString& text) -> QLabel* {
         auto* label = new QLabel(text, sb);
         label->setContentsMargins(8, 0, 8, 0);
         sb->addPermanentWidget(label);
         return label;
     };
 
-    m_statusCursorPos = makeLabel(tr("Ln %1, Col %2").arg(1).arg(1));
-    m_statusLineCount = makeLabel(tr("Lines: %1").arg(0));
-    m_statusWordCount = makeLabel(tr("Words: %1").arg(0));
-    m_statusCharCount = makeLabel(tr("Chars: %1").arg(0));
-    m_statusReadTime = makeLabel(tr("Read: <1 min"));
+    // 左区：当前编辑信息
+    m_statusCursorPos = makeLeftLabel(tr("Ln %1, Col %2").arg(1).arg(1));
+    m_statusLineCount = makeLeftLabel(tr("Lines: %1").arg(0));
+    m_statusWordCount = makeLeftLabel(tr("Words: %1").arg(0));
+    m_statusCharCount = makeLeftLabel(tr("Chars: %1").arg(0));
+    m_statusReadTime = makeLeftLabel(tr("Read: <1 min"));
+
+    // 右区：文档元数据 + 保存状态（不含主题名 — 主题从 UI 颜色直接感知）
+    m_statusEncoding   = makeRightLabel(QStringLiteral("UTF-8"));
+    m_statusLineEnding = makeRightLabel(QStringLiteral("LF"));
+    m_statusSaveStatus = makeRightLabel(tr("Unsaved (new file)"));
+
+    // Spec: specs/模块-app/14-自动保存.md
+    // 自动保存失败提示 label：默认空字符串、隐式占位；失败时填字 + 5s 后清空
+    m_statusAutoSaveMsg = makeRightLabel(QString());
+    m_statusAutoSaveMsg->setStyleSheet(QStringLiteral("color: #C62828;"));  // 醒目红
+    m_statusAutoSaveMsg->hide();  // 平时不占地
+
+    m_autoSaveMsgClearTimer.setSingleShot(true);
+    m_autoSaveMsgClearTimer.setInterval(5000);
+    connect(&m_autoSaveMsgClearTimer, &QTimer::timeout, this, [this]() {
+        if (m_statusAutoSaveMsg) {
+            m_statusAutoSaveMsg->setText(QString());
+            m_statusAutoSaveMsg->hide();
+        }
+    });
+
+    // Spec: specs/模块-app/14-自动保存.md
+    // 自动保存：debounce 定时器；textChanged → start，timeout → performAutoSave
+    m_autoSaveTimer.setSingleShot(true);
+    m_autoSaveTimer.setInterval(m_autoSaveDelayMs);
+    connect(&m_autoSaveTimer, &QTimer::timeout, this, &MainWindow::performAutoSave);
 
     // 防抖定时器：文本变化后 300ms 才更新统计（避免频繁计算）
     m_statsDebounceTimer.setSingleShot(true);
     m_statsDebounceTimer.setInterval(300);
     connect(&m_statsDebounceTimer, &QTimer::timeout, this, &MainWindow::updateStatusBarStats);
+
+    // Spec: specs/模块-app/15-状态栏布局.md
+    // 30s 周期重算"已保存 · X 分钟前"相对时间（不访问磁盘，只重算字符串）
+    m_relTimeRefreshTimer.setSingleShot(false);
+    m_relTimeRefreshTimer.setInterval(30 * 1000);
+    connect(&m_relTimeRefreshTimer, &QTimer::timeout, this, &MainWindow::updateSaveStatusOnly);
+    m_relTimeRefreshTimer.start();
 }
 
 void MainWindow::connectTabStatusBar(const TabData& tab)
 {
-    // 文本变化 → 防抖更新统计
+    // 文本变化 → 防抖更新统计 + 触发自动保存
+    // Spec: specs/模块-app/14-自动保存.md
     connect(tab.editor->document(), &Document::textChanged,
             this, [this]() {
         m_statsDebounceTimer.start();
+        scheduleAutoSave();
     });
 
     // 光标移动 → 立即更新光标位置
@@ -1918,6 +2076,169 @@ void MainWindow::updateStatusBarStats()
     }
     // frontmatter title/tags 留待 v2 从 AST 提取，当前传空
     m_tocPanel->setDocumentInfo(di);
+}
+
+// ---- 自动保存 ----
+// Spec: specs/模块-app/14-自动保存.md
+// INV-1: 仅保存有磁盘路径的 Tab；未命名（filePath 空）跳过、不弹文件对话框
+// INV-2: 失败不打断输入，状态栏右下显示瞬时提示
+// INV-3: textChanged 重置 timer，连续输入只在最后一次停顿后保存
+
+void MainWindow::scheduleAutoSave()
+{
+    if (!m_autoSaveEnabled) return;
+    // restart：每次编辑都重置 debounce
+    m_autoSaveTimer.start(m_autoSaveDelayMs);
+}
+
+void MainWindow::performAutoSave()
+{
+    if (!m_autoSaveEnabled) return;
+
+    QStringList failedNames;
+    for (int i = 0; i < m_tabs.size(); ++i) {
+        Document* doc = m_tabs[i].editor->document();
+        if (!doc) continue;
+        const QString fp = doc->filePath();
+        if (fp.isEmpty()) continue;            // INV-1：未命名跳过
+        if (!doc->isModified()) continue;      // 没改过的也跳过
+
+        // 与手动保存对齐：先 unwatch，避免 self-trigger 文件外部修改信号
+        unwatchFile(fp);
+        const bool ok = doc->saveToFile();     // 用当前 filePath 保存
+        if (ok) {
+            updateTabTitle(i);
+            // 异步 re-watch（与手动保存一致）
+            QTimer::singleShot(500, this, [this, fp]() { watchFile(fp); });
+        } else {
+            failedNames.append(QFileInfo(fp).fileName());
+        }
+    }
+
+    if (!failedNames.isEmpty()) {
+        // INV-2：失败不弹对话框，仅状态栏提示
+        showAutoSaveError(tr("Auto save failed: %1").arg(failedNames.join(QStringLiteral(", "))));
+    }
+
+    // Spec: specs/模块-app/15-状态栏布局.md
+    updateSaveStatusOnly();
+}
+
+void MainWindow::showAutoSaveError(const QString& message)
+{
+    if (!m_statusAutoSaveMsg) return;
+    m_statusAutoSaveMsg->setText(message);
+    m_statusAutoSaveMsg->show();
+    m_autoSaveMsgClearTimer.start();
+}
+
+// ---- 状态栏右区元数据 ----
+// Spec: specs/模块-app/15-状态栏布局.md
+
+namespace {
+
+// 把"距 ts 经过的秒数"格式化为相对时间字符串（中文 + 英文模板由 tr 处理）
+// 返回的是给 QObject::tr 用的 source 模板 + arg 值，由调用方 tr() arg() 补全。
+struct SaveStatusText {
+    enum Kind { JustSaved, MinutesAgo, HoursAgo, DaysAgo };
+    Kind kind = JustSaved;
+    int  value = 0;
+};
+
+SaveStatusText classifySaveTime(const QDateTime& mtime) {
+    SaveStatusText r;
+    if (!mtime.isValid()) {
+        r.kind = SaveStatusText::JustSaved;
+        return r;
+    }
+    const qint64 secs = mtime.secsTo(QDateTime::currentDateTime());
+    if (secs < 60) {
+        r.kind = SaveStatusText::JustSaved;
+    } else if (secs < 3600) {
+        r.kind = SaveStatusText::MinutesAgo;
+        r.value = static_cast<int>(secs / 60);
+    } else if (secs < 86400) {
+        r.kind = SaveStatusText::HoursAgo;
+        r.value = static_cast<int>(secs / 3600);
+    } else {
+        r.kind = SaveStatusText::DaysAgo;
+        r.value = static_cast<int>(secs / 86400);
+    }
+    return r;
+}
+
+} // namespace
+
+void MainWindow::updateRightStatusBar()
+{
+    if (!m_statusEncoding) return;  // 还未 setupStatusBar
+
+    // 编码：项目硬约束 UTF-8（参见 INV-CODE-UTF8 + Document::loadFromFile 行为）
+    m_statusEncoding->setText(QStringLiteral("UTF-8"));
+
+    auto* tab = currentTab();
+    if (!tab) {
+        m_statusLineEnding->setText(QStringLiteral("LF"));
+        m_statusSaveStatus->setText(tr("Unsaved (new file)"));
+        return;
+    }
+
+    // 换行风格
+    Document* doc = tab->editor->document();
+    const auto le = doc->detectedLineEnding();
+    m_statusLineEnding->setText(le == Document::CRLF
+        ? QStringLiteral("CRLF")
+        : QStringLiteral("LF"));
+
+    // 保存状态
+    updateSaveStatusOnly();
+}
+
+void MainWindow::updateSaveStatusOnly()
+{
+    if (!m_statusSaveStatus) return;
+    auto* tab = currentTab();
+    if (!tab) {
+        m_statusSaveStatus->setText(tr("Unsaved (new file)"));
+        return;
+    }
+    Document* doc = tab->editor->document();
+    const QString fp = doc->filePath();
+
+    if (fp.isEmpty()) {
+        // 未命名文档
+        m_statusSaveStatus->setText(tr("Unsaved (new file)"));
+        m_statusSaveStatus->setStyleSheet(QString());
+        return;
+    }
+    if (doc->isModified()) {
+        // 有路径但未保存修改
+        m_statusSaveStatus->setText(tr("Unsaved changes"));
+        m_statusSaveStatus->setStyleSheet(QStringLiteral("color: #C62828;"));
+        return;
+    }
+
+    // 已保存：计算相对时间（不访问磁盘多余字段，只读 lastModified）
+    QFileInfo fi(fp);
+    const QDateTime mtime = fi.exists() ? fi.lastModified() : QDateTime();
+    const auto t = classifySaveTime(mtime);
+    QString text;
+    switch (t.kind) {
+        case SaveStatusText::JustSaved:
+            text = tr("Saved · just now");
+            break;
+        case SaveStatusText::MinutesAgo:
+            text = tr("Saved · %1 min ago", "", t.value).arg(t.value);
+            break;
+        case SaveStatusText::HoursAgo:
+            text = tr("Saved · %1 hour ago", "", t.value).arg(t.value);
+            break;
+        case SaveStatusText::DaysAgo:
+            text = tr("Saved · %1 day ago", "", t.value).arg(t.value);
+            break;
+    }
+    m_statusSaveStatus->setText(text);
+    m_statusSaveStatus->setStyleSheet(QString());
 }
 
 // ---- 字体缩放 ----
@@ -2427,5 +2748,44 @@ void MainWindow::maybeShowWelcomeOnFirstLaunch()
         // 首次启动
         onShowWelcome();
         s.setValue("session/firstLaunchedVersion", "0.2.4");
+    }
+}
+
+// Spec: specs/模块-app/16-崩溃报告收集.md
+// 启动后检测 %APPDATA%/SimpleMarkdown/crashes/ 下的 crash.dmp，
+// 若 mtime 新于上次"已查看"标记 → 弹窗提示用户上次崩溃，并给"打开崩溃报告目录"按钮。
+void MainWindow::maybeShowCrashReportPrompt()
+{
+    // Spec: specs/模块-app/16-崩溃报告收集.md
+    // 路径必须与 main.cpp 的 prepareCrashDir 完全一致：<APPDATA>/SimpleMarkdown/crashes
+    // （单层 SimpleMarkdown，不走 QStandardPaths::AppDataLocation 的双层 <Org>/<App>）
+    const QByteArray appdata = qgetenv("APPDATA");
+    if (appdata.isEmpty()) return;
+    const QString crashDir = QString::fromLocal8Bit(appdata) + QStringLiteral("/SimpleMarkdown/crashes");
+    const QString dmpPath = crashDir + QStringLiteral("/crash.dmp");
+
+    QFileInfo fi(dmpPath);
+    if (!fi.exists()) return;
+
+    QSettings s;
+    const qint64 lastSeen = s.value(QStringLiteral("crashes/lastSeenMtimeMs"), 0).toLongLong();
+    const qint64 dumpMtime = fi.lastModified().toMSecsSinceEpoch();
+    if (dumpMtime <= lastSeen) return;  // 已经看过，不再打扰
+
+    // 标记已查看（即便用户点 No 也算"已通知"，避免反复弹）
+    s.setValue(QStringLiteral("crashes/lastSeenMtimeMs"), dumpMtime);
+
+    QMessageBox::StandardButton ret = QMessageBox::question(
+        this,
+        tr("Crash Report Found"),
+        tr("SimpleMarkdown unexpectedly closed last time.\n"
+           "A crash report has been saved at:\n\n  %1\n\n"
+           "Open the crash reports folder?")
+            .arg(QDir::toNativeSeparators(crashDir)),
+        QMessageBox::Yes | QMessageBox::No,
+        QMessageBox::No);
+
+    if (ret == QMessageBox::Yes) {
+        QDesktopServices::openUrl(QUrl::fromLocalFile(crashDir));
     }
 }

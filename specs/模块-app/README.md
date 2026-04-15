@@ -25,6 +25,11 @@
 | 11 | 演示模式 | draft | `MainWindow.h/cpp`, `PreviewWidget.cpp` |
 | 12 | 主题插件系统 | draft | `Theme.h/cpp`, `ThemeLoader.h/cpp`, `MainWindow.cpp` |
 | 13 | 编辑/预览分隔条吸附刻度 | draft | `SnapSplitter.h/cpp`, `MainWindow.cpp` |
+| 14 | 自动保存 | draft | `MainWindow.h/cpp` |
+| 15 | 状态栏布局 | draft | `MainWindow.h/cpp` |
+| 16 | 崩溃报告收集 | draft | `main.cpp`, `MainWindow.h/cpp` |
+| 17 | 性能监控 | draft | `core/PerfProbe.h`, `main.cpp`, `MainWindow.cpp` + 埋点源 |
+| 18 | 区域卡片化 | draft | `MainWindow.cpp` (applyTheme) |
 
 ## 依赖关系
 

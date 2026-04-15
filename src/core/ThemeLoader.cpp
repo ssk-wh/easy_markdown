@@ -452,6 +452,13 @@ QList<ThemeDescriptor> ThemeLoader::scanDirectory(const QString& dirPath, bool m
     const QStringList files = dir.entryList(QStringList() << QStringLiteral("*.toml"),
                                             QDir::Files | QDir::Readable, QDir::Name);
     for (const QString& f : files) {
+        // Spec: specs/模块-app/12-主题插件系统.md INV-16
+        // "template.toml" 是我们为"目录为空引导自定义"注入的样板，
+        // 它本身合法可加载，但不应作为一个可选主题出现在菜单里。
+        // 用户必须复制它并改名（例如 my-theme.toml）才会被识别。
+        if (QString::compare(f, QStringLiteral("template.toml"), Qt::CaseInsensitive) == 0) {
+            continue;
+        }
         ThemeDescriptor d;
         const QString full = dir.absoluteFilePath(f);
         d.filePath = full;
@@ -489,6 +496,70 @@ QString ThemeLoader::userThemeDir() {
     QDir t(themes);
     if (!t.exists()) t.mkpath(QStringLiteral("."));
     return themes;
+}
+
+// Spec: specs/模块-app/12-主题插件系统.md INV-15
+bool ThemeLoader::injectThemeTemplatesIfEmpty(const QString& dir,
+                                              QStringList* writtenOut,
+                                              QStringList* failedOut) {
+    if (writtenOut) writtenOut->clear();
+    if (failedOut) failedOut->clear();
+
+    QDir d(dir);
+    if (!d.exists()) {
+        // 目录不存在视为"空"，先创建
+        if (!d.mkpath(QStringLiteral("."))) {
+            if (failedOut) {
+                failedOut->append(QStringLiteral("template.toml"));
+                failedOut->append(QStringLiteral("HOW_TO.md"));
+            }
+            return false;
+        }
+    }
+
+    // 任何文件存在即视为"非空"，跳过注入（幂等：用户清空后再次打开仍会注入）
+    const QStringList files = d.entryList(QDir::Files | QDir::NoDotAndDotDot);
+    if (!files.isEmpty()) {
+        return false;
+    }
+
+    struct DocFile {
+        const char* resPath;
+        const char* destName;
+    };
+    static const DocFile kDocs[] = {
+        { ":/theme_docs/template.toml", "template.toml" },
+        { ":/theme_docs/HOW_TO.md",     "HOW_TO.md" },
+    };
+
+    bool anyWritten = false;
+    for (const auto& doc : kDocs) {
+        QFile src(QString::fromLatin1(doc.resPath));
+        if (!src.open(QIODevice::ReadOnly)) {
+            if (failedOut) failedOut->append(QString::fromLatin1(doc.destName));
+            continue;
+        }
+        const QByteArray bytes = src.readAll();
+        src.close();
+
+        const QString destPath = d.absoluteFilePath(QString::fromLatin1(doc.destName));
+        QFile dst(destPath);
+        if (!dst.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+            if (failedOut) failedOut->append(QString::fromLatin1(doc.destName));
+            continue;
+        }
+        const qint64 written = dst.write(bytes);
+        dst.close();
+        if (written != bytes.size()) {
+            // 写入不全，删除残文件
+            QFile::remove(destPath);
+            if (failedOut) failedOut->append(QString::fromLatin1(doc.destName));
+            continue;
+        }
+        if (writtenOut) writtenOut->append(QString::fromLatin1(doc.destName));
+        anyWritten = true;
+    }
+    return anyWritten;
 }
 
 QList<ThemeDescriptor> ThemeLoader::discoverAll(const QString& userDirPath) {
