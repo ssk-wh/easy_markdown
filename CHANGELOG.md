@@ -19,6 +19,7 @@ All notable changes to this project will be documented in this file.
 - Windows 崩溃报告收集：应用异常退出时自动在 `%APPDATA%\SimpleMarkdown\crashes\` 写入 `crash.dmp`（minidump）和 `crash_report.txt`（异常代码 / 崩溃模块 / 时间戳）；下次启动检测到新崩溃时弹窗提示，可一键打开崩溃报告目录；不会自动上传，完全本地保存
 - 性能监控（诊断用）：新增 `帮助 → 诊断 → 性能日志` 开关，启用后向 stderr 打印解析、预览布局、预览绘制三个关键路径的耗时（微秒），便于定位卡顿；默认关闭，Release 下几乎零开销；也可通过环境变量 `SM_PERF=1` 在启动时开启
 - MarkdownParser 单元测试：新增 12 个用例覆盖标题级别 / 列表 / 代码块 / 行内代码 / 链接 / 图片 / 引用 / GFM 表格 / 换行 / 强调 / 空输入 / 行号等基础契约，为后续 cmark-gfm 升级或解析层重构提供回归保护
+- Linux 下"跟随系统"主题检测：新增三级探测（GNOME `gsettings color-scheme` → KDE `~/.config/kdeglobals` → Qt Palette 亮度启发式），GNOME 42+ 和 KDE Plasma 现在能直接识别系统的深 / 浅偏好，其他 DE 沿用原 palette 启发式；gsettings 进程 500ms 超时保护，不阻塞启动
 
 ### Changed
 - 标签栏现在横跨整个窗口宽度，目录面板只占据编辑区与预览区的高度，顶部三栏顶端对齐

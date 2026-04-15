@@ -29,7 +29,8 @@
 | 15 | 状态栏布局 | draft | `MainWindow.h/cpp` |
 | 16 | 崩溃报告收集 | draft | `main.cpp`, `MainWindow.h/cpp` |
 | 17 | 性能监控 | draft | `core/PerfProbe.h`, `main.cpp`, `MainWindow.cpp` + 埋点源 |
-| 18 | 区域卡片化 | draft | `MainWindow.cpp` (applyTheme) |
+| 18 | 区域卡片化 | aborted | —（已中止，见 plan/抛弃CSS改全自绘） |
+| 19 | Linux 深色主题检测 | draft | `MainWindow.cpp::isSystemDarkMode` |
 
 ## 依赖关系
 

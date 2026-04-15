@@ -894,13 +894,62 @@ void MainWindow::updateRecentFilesMenu()
     m_recentMenu->addAction(tr("Clear"), m_recentFiles, &RecentFiles::clear);
 }
 
+// Spec: specs/模块-app/19-Linux深色主题检测.md
+// Linux 下综合 GNOME / KDE / Qt Palette 三级探测，取首个确定的结果。
+// Windows 直接读 AppsUseLightTheme 注册表项。
 bool MainWindow::isSystemDarkMode() const
 {
 #ifdef _WIN32
     QSettings reg("HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize",
                   QSettings::NativeFormat);
     return reg.value("AppsUseLightTheme", 1).toInt() == 0;
+#elif defined(__linux__)
+    // 1) GNOME / GTK 3.0+：gsettings get org.gnome.desktop.interface color-scheme
+    //    GNOME 42+ 返回 'prefer-dark' / 'default' / 'prefer-light'（GNOME <42 只返回 'default'）
+    {
+        QProcess proc;
+        proc.start(QStringLiteral("gsettings"),
+                   {QStringLiteral("get"),
+                    QStringLiteral("org.gnome.desktop.interface"),
+                    QStringLiteral("color-scheme")});
+        if (proc.waitForStarted(500) && proc.waitForFinished(500)) {
+            const QByteArray out = proc.readAllStandardOutput();
+            const QString s = QString::fromUtf8(out).trimmed().toLower();
+            // gsettings 输出带引号，如 "'prefer-dark'"
+            if (s.contains(QStringLiteral("prefer-dark")))
+                return true;
+            if (s.contains(QStringLiteral("prefer-light")) ||
+                s.contains(QStringLiteral("default"))) {
+                // GNOME <42 固定返回 'default'，含义模糊，不能凭此判浅色；
+                // 让路径继续跌落到 KDE / QPalette 判断
+                if (!s.contains(QStringLiteral("default")))
+                    return false;
+            }
+        }
+    }
+
+    // 2) KDE Plasma：~/.config/kdeglobals 的 [General]ColorScheme 字段
+    //    典型值 "BreezeDark" / "Breeze Dark" / "OxygenDark" → 深色
+    {
+        const QString kdeFile = QDir::homePath() + QStringLiteral("/.config/kdeglobals");
+        if (QFileInfo::exists(kdeFile)) {
+            QSettings s(kdeFile, QSettings::IniFormat);
+            s.beginGroup(QStringLiteral("General"));
+            const QString cs = s.value(QStringLiteral("ColorScheme")).toString().toLower();
+            s.endGroup();
+            if (!cs.isEmpty()) {
+                // 名字里含 dark 就判深色；否则判浅色
+                return cs.contains(QStringLiteral("dark"));
+            }
+        }
+    }
+
+    // 3) 其他 DE（Sway / Hyprland / XFCE / LXQt / KDE 未设 ColorScheme）：
+    //    回退到 Qt palette 亮度启发式
+    QPalette pal = QApplication::palette();
+    return pal.color(QPalette::Window).lightness() < 128;
 #else
+    // 其他平台（macOS 未实装）：Qt palette 启发式
     QPalette pal = QApplication::palette();
     return pal.color(QPalette::Window).lightness() < 128;
 #endif
