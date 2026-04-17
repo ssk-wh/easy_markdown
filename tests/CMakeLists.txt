@@ -82,6 +82,28 @@ target_link_libraries(SyntaxHighlighterThemeCacheTest PRIVATE
 )
 add_test(NAME SyntaxHighlighterThemeCacheTest COMMAND SyntaxHighlighterThemeCacheTest)
 
+# --- SyntaxHighlighterTokensTest ---
+# Spec: specs/模块-editor/README.md
+# 验收：T-STRIKE-1, T-BOLDITALIC-1, T-PRIORITY-1
+qt5_add_resources(TOKENS_TEST_RES ${CMAKE_SOURCE_DIR}/resources/resources.qrc)
+add_executable(SyntaxHighlighterTokensTest
+    editor/SyntaxHighlighterTokensTest.cpp
+    ${TOKENS_TEST_RES}
+)
+target_include_directories(SyntaxHighlighterTokensTest PRIVATE
+    ${CMAKE_SOURCE_DIR}/src
+    ${CMAKE_SOURCE_DIR}/src/core
+    ${CMAKE_SOURCE_DIR}/src/editor
+)
+target_link_libraries(SyntaxHighlighterTokensTest PRIVATE
+    sm_editor
+    sm_core
+    Qt5::Core
+    Qt5::Gui
+    gtest
+)
+add_test(NAME SyntaxHighlighterTokensTest COMMAND SyntaxHighlighterTokensTest)
+
 # --- TocPanelTest ---
 # Spec: specs/模块-preview/07-TOC面板.md
 # 验收：T-COLLAPSE-1/5, T-WIDTH-1/2

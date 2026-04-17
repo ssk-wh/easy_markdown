@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.2.6] - 2026-04-17
+
+### Added
+- 编辑器语法染色补齐 `~~删除线~~` 与 `***粗斜体***`：原本输入 `~~foo~~` 在编辑区无任何样式提示（虽然预览渲染正常、`Ctrl+D` 也能包裹），现在会直接画出删除线；`***foo***` 现可同时呈现粗体+斜体；两者都尊重 inline code 范围（`` `~~foo~~` `` 内部不触发）
+
 ## [0.2.5] - 2026-04-15
 
 ### Added

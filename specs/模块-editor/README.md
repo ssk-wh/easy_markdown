@@ -50,3 +50,33 @@ EditorWidget
 - 所有绘制必须在主线程
 - 不得在 `paintEvent` 中触发布局重算，布局必须预先完成
 - 搜索必须在 worker 线程，UI 不阻塞
+
+## 语法染色 Inline Token 清单（INV 摘要）
+
+`SyntaxHighlighter` 至少覆盖以下 inline 标记，均尊重 inline code 范围（即 `` `...` `` 内部不触发）：
+
+| Token | 触发 | 格式 | INV |
+|-------|------|------|-----|
+| heading | `^#{1,6}\s` | `syntaxHeading` + Bold | INV-EDIT-HEADING |
+| blockquote | `^>\s?` | `syntaxBlockQuote` | INV-EDIT-QUOTE |
+| list marker | `^\s*(-\|\*\|\+\|\d+\.)\s` | `syntaxList` | INV-EDIT-LIST |
+| inline code | `` `([^`]+)` `` | `syntaxCode` + bg | INV-EDIT-CODE |
+| bold-italic | `\*\*\*([^*]+)\*\*\*` | Bold + Italic | **INV-EDIT-BOLDITALIC** |
+| bold | `\*\*([^*]+)\*\*` | Bold | INV-EDIT-BOLD |
+| italic | `(?<!\*)\*([^*]+)\*(?!\*)` | Italic | INV-EDIT-ITALIC |
+| strikethrough | `~~([^~]+)~~` | FontStrikeOut | **INV-EDIT-STRIKE** |
+| link | `\[...\]\(...\)` | `syntaxLink` + Underline | INV-EDIT-LINK |
+| fence | `^\s*` ` ``` ` | `syntaxFence` + bg | INV-EDIT-FENCE |
+
+- **INV-EDIT-BOLDITALIC**：`***text***` 必须在 bold / italic 之前匹配，其范围内不再额外产生 bold 或 italic token，避免子串重复着色。
+- **INV-EDIT-STRIKE**：`~~text~~` 视觉等价于预览侧 `AstNodeType::Strikethrough` 的渲染——编辑器必须产生一个 `FontStrikeOut==true` 的 token，让用户在编辑时就能看到删除效果（与 `Ctrl+D` 快捷键呼应）。
+- 所有 inline token 与 inline code 互斥：code 范围内不触发 bold / italic / bold-italic / strikethrough / link。
+
+### 验收 T 条目
+
+- **T-STRIKE-1**：`a ~~foo~~ b` 高亮包含一个 `fontStrikeOut==true` 的 token 覆盖 `~~foo~~`
+- **T-BOLDITALIC-1**：`pre ***foo*** post` 高亮包含一个粗体+斜体 token 覆盖 `***foo***`
+- **T-BOLDITALIC-NoDuplicate**：`***foo***` 高亮只产生 1 个粗斜体 token，不同时产生 bold 和 italic
+- **T-PRIORITY-1**：`` `~~foo~~ and ***bar***` `` 整段在 inline code 范围内，不产生 strikethrough 或 bold-italic token
+
+测试文件：`tests/editor/SyntaxHighlighterTokensTest.cpp`

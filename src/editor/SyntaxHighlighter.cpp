@@ -1,3 +1,11 @@
+// src/editor/SyntaxHighlighter.cpp
+//
+// Spec: specs/模块-editor/README.md
+// Invariants enforced here: INV-EDIT-HEADING, INV-EDIT-QUOTE, INV-EDIT-LIST,
+//   INV-EDIT-CODE, INV-EDIT-BOLD, INV-EDIT-ITALIC, INV-EDIT-BOLDITALIC,
+//   INV-EDIT-STRIKE, INV-EDIT-LINK, INV-EDIT-FENCE
+// Last synced: 2026-04-15
+
 #include "SyntaxHighlighter.h"
 #include <QFont>
 #include <QRegularExpression>
@@ -41,6 +49,13 @@ void SyntaxHighlighter::setupFormats(const Theme& theme)
 
     // 斜体
     m_italicFormat.setFontItalic(true);
+
+    // 粗斜体（`***text***`）
+    m_boldItalicFormat.setFontWeight(QFont::Bold);
+    m_boldItalicFormat.setFontItalic(true);
+
+    // 删除线（`~~text~~`）
+    m_strikethroughFormat.setFontStrikeOut(true);
 
     // 行内代码
     m_codeFormat.setForeground(theme.syntaxCode);
@@ -160,12 +175,25 @@ QVector<HighlightToken> SyntaxHighlighter::highlightNormal(const QString& text)
         codeRanges.append({match.capturedStart(), match.capturedEnd()});
     }
 
+    // 粗斜体（`***text***`），必须在 bold / italic 之前匹配，避免子串重复染色
+    static QRegularExpression boldItalicRe(QStringLiteral("\\*\\*\\*([^*]+)\\*\\*\\*"));
+    QVector<QPair<int,int>> boldItalicRanges;
+    iter = boldItalicRe.globalMatch(text);
+    while (iter.hasNext()) {
+        auto match = iter.next();
+        if (!isInRanges(match.capturedStart(), codeRanges)) {
+            tokens.append({match.capturedStart(), match.capturedLength(), m_boldItalicFormat});
+            boldItalicRanges.append({match.capturedStart(), match.capturedEnd()});
+        }
+    }
+
     // 粗体
     static QRegularExpression boldRe(QStringLiteral("\\*\\*([^*]+)\\*\\*"));
     iter = boldRe.globalMatch(text);
     while (iter.hasNext()) {
         auto match = iter.next();
-        if (!isInRanges(match.capturedStart(), codeRanges))
+        if (!isInRanges(match.capturedStart(), codeRanges)
+            && !isInRanges(match.capturedStart(), boldItalicRanges))
             tokens.append({match.capturedStart(), match.capturedLength(), m_boldFormat});
     }
 
@@ -174,8 +202,18 @@ QVector<HighlightToken> SyntaxHighlighter::highlightNormal(const QString& text)
     iter = italicRe.globalMatch(text);
     while (iter.hasNext()) {
         auto match = iter.next();
-        if (!isInRanges(match.capturedStart(), codeRanges))
+        if (!isInRanges(match.capturedStart(), codeRanges)
+            && !isInRanges(match.capturedStart(), boldItalicRanges))
             tokens.append({match.capturedStart(), match.capturedLength(), m_italicFormat});
+    }
+
+    // 删除线（`~~text~~`）
+    static QRegularExpression strikeRe(QStringLiteral("~~([^~]+)~~"));
+    iter = strikeRe.globalMatch(text);
+    while (iter.hasNext()) {
+        auto match = iter.next();
+        if (!isInRanges(match.capturedStart(), codeRanges))
+            tokens.append({match.capturedStart(), match.capturedLength(), m_strikethroughFormat});
     }
 
     // 链接

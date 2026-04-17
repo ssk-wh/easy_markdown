@@ -46,6 +46,8 @@ private:
     QTextCharFormat m_headingFormat;
     QTextCharFormat m_boldFormat;
     QTextCharFormat m_italicFormat;
+    QTextCharFormat m_boldItalicFormat;
+    QTextCharFormat m_strikethroughFormat;
     QTextCharFormat m_codeFormat;
     QTextCharFormat m_linkFormat;
     QTextCharFormat m_codeBlockFormat;
