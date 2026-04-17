@@ -25,6 +25,7 @@ public:
     void scrollToSourceLine(int line);
     void smoothScrollToSourceLine(int line);
     void setTheme(const Theme& theme);
+    void setDocumentDir(const QString& dir);
     void setWordWrap(bool enabled);
     bool wordWrap() const { return m_wordWrap; }
     void rebuildLayout();

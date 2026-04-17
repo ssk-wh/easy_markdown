@@ -1,4 +1,5 @@
 #include "PreviewLayout.h"
+#include "ImageCache.h"
 #include "MarkdownAst.h"
 #include "FontDefaults.h"
 #include "PerfProbe.h"
@@ -29,6 +30,11 @@ PreviewLayout::~PreviewLayout() = default;
 void PreviewLayout::setViewportWidth(qreal width)
 {
     m_viewportWidth = width;
+}
+
+void PreviewLayout::setImageCache(ImageCache* cache)
+{
+    m_imageCache = cache;
 }
 
 void PreviewLayout::setFont(const QFont& baseFont)
@@ -102,6 +108,23 @@ LayoutBlock PreviewLayout::layoutBlock(const AstNode* node, qreal maxWidth)
 
     switch (node->type) {
     case AstNodeType::Paragraph: {
+        // 检测段落是否只包含一个 Image 子节点（cmark 把图片放在段落里）
+        // 如果是，提升为块级图片渲染
+        if (node->children.size() == 1 && node->children[0]->type == AstNodeType::Image) {
+            const auto& imgNode = node->children[0];
+            block.type = LayoutBlock::Image;
+            block.imageUrl = imgNode->url;
+            qreal imgHeight = 200.0;
+            if (m_imageCache) {
+                QPixmap* pix = m_imageCache->get(block.imageUrl);
+                if (pix && !pix->isNull() && pix->width() > 0) {
+                    qreal scale = qMin(1.0, maxWidth / static_cast<qreal>(pix->width()));
+                    imgHeight = pix->height() * scale;
+                }
+            }
+            block.bounds = QRectF(0, 0, maxWidth, imgHeight);
+            break;
+        }
         block.type = LayoutBlock::Paragraph;
         collectInlineRuns(node, block.inlineRuns, m_baseFont, m_theme.previewFg);
         qreal h = estimateParagraphHeight(block.inlineRuns, maxWidth);
@@ -242,7 +265,16 @@ LayoutBlock PreviewLayout::layoutBlock(const AstNode* node, qreal maxWidth)
     case AstNodeType::Image: {
         block.type = LayoutBlock::Image;
         block.imageUrl = node->url;
-        block.bounds = QRectF(0, 0, maxWidth, 200.0);
+        // 查询缓存获取实际图片尺寸，按 maxWidth 等比缩放
+        qreal imgHeight = 200.0; // 默认高度（未加载时）
+        if (m_imageCache) {
+            QPixmap* pix = m_imageCache->get(block.imageUrl);
+            if (pix && !pix->isNull() && pix->width() > 0) {
+                qreal scale = qMin(1.0, maxWidth / static_cast<qreal>(pix->width()));
+                imgHeight = pix->height() * scale;
+            }
+        }
+        block.bounds = QRectF(0, 0, maxWidth, imgHeight);
         break;
     }
     case AstNodeType::ThematicBreak: {

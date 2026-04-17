@@ -741,6 +741,7 @@ void MainWindow::openFile(const QString& path)
     m_tabBar->setCurrentIndex(index);
 
     tab.editor->document()->loadFromFile(path);
+    tab.preview->setDocumentDir(QFileInfo(path).absolutePath());
     tab.scheduler->parseNow();
 
     m_recentFiles->addFile(path);
@@ -1402,6 +1403,8 @@ void MainWindow::onSaveFileAs()
     if (!oldPath.isEmpty())
         unwatchFile(oldPath);
     tab->editor->document()->saveToFile(path);
+    // 另存为后更新预览区文档目录（图片相对路径可能变化）
+    tab->preview->setDocumentDir(QFileInfo(path).absolutePath());
     QString absFp = QFileInfo(path).absoluteFilePath();
     QTimer::singleShot(500, this, [this, absFp]() { watchFile(absFp); });
     m_recentFiles->addFile(path);
@@ -1443,6 +1446,8 @@ void MainWindow::onTabChanged(int index)
         // Spec: specs/模块-preview/07-TOC面板.md INV-TOC-COLLAPSE
         // 切 Tab 先更新 fileKey（触发折叠状态 load），再 setEntries
         QString fp = m_tabs[index].editor->document()->filePath();
+        // 更新预览区文档目录，用于解析图片相对路径
+        preview->setDocumentDir(fp.isEmpty() ? QString() : QFileInfo(fp).absolutePath());
         m_tocPanel->setCurrentFileKey(fp);
         m_tocPanel->setEntries(preview->tocEntries());
         m_tocPanel->setHighlightedEntries(preview->tocHighlightedIndices());

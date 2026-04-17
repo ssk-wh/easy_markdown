@@ -12,6 +12,7 @@ class QPaintDevice;
 #include "Theme.h"
 
 class AstNode;
+class ImageCache;
 
 struct InlineRun {
     QString text;
@@ -70,6 +71,7 @@ public:
     ~PreviewLayout();
 
     void setViewportWidth(qreal width);
+    void setImageCache(ImageCache* cache);
     void setFont(const QFont& baseFont);
     bool updateMetrics(QPaintDevice* device);  // 返回 true 表示度量有变化
     void setTheme(const Theme& theme);
@@ -103,4 +105,5 @@ private:
     qreal m_lineHeight = 24.0;
     qreal m_codeLineHeight = 20.0;
     QPaintDevice* m_device = nullptr;  // [高 DPI 修复] 用于高度估计中的字体度量
+    ImageCache* m_imageCache = nullptr;
 };

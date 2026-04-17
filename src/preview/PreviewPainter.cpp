@@ -331,15 +331,17 @@ void PreviewPainter::paintBlock(QPainter* p, const LayoutBlock& block,
             int lastBackslash = url.lastIndexOf('\\');
             int pos = qMax(lastSlash, lastBackslash);
             basename = (pos >= 0) ? url.mid(pos + 1) : url;
+            // data URI 不显示 basename
+            if (url.startsWith("data:")) basename.clear();
         }
 
         // Check image cache state
         QPixmap* pixmap = m_imageCache ? m_imageCache->get(url) : nullptr;
         bool isFailed = m_imageCache && !url.isEmpty() && m_imageCache->isFailed(url);
-        bool isNetwork = m_imageCache && m_imageCache->isNetworkUrl(url);
+        bool isLoading = m_imageCache && m_imageCache->isLoading(url);
 
-        if (isFailed || (isNetwork && !pixmap)) {
-            // Error / unsupported state
+        if (isFailed) {
+            // === 加载失败状态 ===
             p->fillRect(rect, m_theme.previewImageErrorBg);
             p->setPen(QPen(m_theme.previewImageErrorBorder, 1.5));
             p->drawRect(rect);
@@ -363,10 +365,7 @@ void PreviewPainter::paintBlock(QPainter* p, const LayoutBlock& block,
             labelFont.setPointSizeF(labelFont.pointSizeF() * 0.83);
             p->setFont(labelFont);
             p->setPen(m_theme.previewImageErrorText);
-            // 使用 QCoreApplication::translate 绑定 context 名称，符合 Spec INV-2
-            QString errorLabel = isNetwork
-                ? QCoreApplication::translate("PreviewPainter", "Network images not supported")
-                : QCoreApplication::translate("PreviewPainter", "Failed to load image");
+            QString errorLabel = QCoreApplication::translate("PreviewPainter", "Failed to load image");
             p->drawText(QRectF(rect.x(), cy + iconH * 0.3, rect.width(), iconH),
                         Qt::AlignHCenter | Qt::AlignTop, errorLabel);
 
@@ -382,8 +381,22 @@ void PreviewPainter::paintBlock(QPainter* p, const LayoutBlock& block,
                                    rect.width(), nameFm.height()),
                             Qt::AlignHCenter | Qt::AlignTop, elidedName);
             }
-        } else if (pixmap) {
-            // Image loaded successfully - show placeholder with size info
+        } else if (pixmap && !pixmap->isNull()) {
+            // === 图片已加载：渲染实际像素 ===
+            qreal imgW = pixmap->width();
+            qreal imgH = pixmap->height();
+            qreal scale = qMin(1.0, rect.width() / imgW);
+            qreal drawW = imgW * scale;
+            qreal drawH = imgH * scale;
+            // 水平居中
+            qreal imgX = drawX + (rect.width() - drawW) / 2.0;
+            qreal imgY = drawY;
+
+            p->setRenderHint(QPainter::SmoothPixmapTransform, true);
+            p->drawPixmap(QRectF(imgX, imgY, drawW, drawH), *pixmap,
+                          QRectF(0, 0, imgW, imgH));
+        } else if (isLoading) {
+            // === 网络图片加载中 ===
             p->fillRect(rect, m_theme.previewImagePlaceholderBg);
             p->setPen(QPen(m_theme.previewImagePlaceholderBorder, 1));
             p->drawRect(rect);
@@ -391,43 +404,26 @@ void PreviewPainter::paintBlock(QPainter* p, const LayoutBlock& block,
             qreal cx = rect.center().x();
             qreal cy = rect.center().y();
 
-            // Image icon [Spec INV-8: 比例 1.66]
+            // Loading spinner placeholder [Spec INV-8: 比例 1.33]
             QFont iconFont = m_layout ? m_layout->baseFont() : QFont("Segoe UI", 12);
-            iconFont.setPointSizeF(iconFont.pointSizeF() * 1.66);
+            iconFont.setPointSizeF(iconFont.pointSizeF() * 1.33);
             p->setFont(iconFont);
             p->setPen(m_theme.previewImagePlaceholderText);
             QFontMetricsF iconFm(iconFont, p->device());
-            qreal iconW = iconFm.horizontalAdvance(QStringLiteral("\u25A3"));
-            p->drawText(QPointF(cx - iconW / 2, cy - 6), QStringLiteral("\u25A3"));
+            qreal iconW = iconFm.horizontalAdvance(QStringLiteral("\u21BB"));
+            p->drawText(QPointF(cx - iconW / 2, cy - 4), QStringLiteral("\u21BB"));
 
-            // File name [Spec INV-8: 比例 0.83]
-            QFont nameFont = m_layout ? m_layout->baseFont() : QFont("Segoe UI", 12);
-            nameFont.setPointSizeF(nameFont.pointSizeF() * 0.83);
-            nameFont.setBold(true);
-            p->setFont(nameFont);
-            p->setPen(m_theme.previewFg);
-            QFontMetricsF nameFm(nameFont, p->device());
-            QString displayName = basename.isEmpty()
-                ? QCoreApplication::translate("PreviewPainter", "Image")
-                : basename;
-            QString elidedName = nameFm.elidedText(displayName, Qt::ElideMiddle, rect.width() - 16);
-            qreal nameY = cy + iconFm.height() * 0.3;
-            p->drawText(QRectF(rect.x(), nameY, rect.width(), nameFm.height()),
-                        Qt::AlignHCenter | Qt::AlignTop, elidedName);
-
-            // Image dimensions [Spec INV-8: 比例 0.75]
-            QFont dimFont = m_layout ? m_layout->baseFont() : QFont("Segoe UI", 12);
-            dimFont.setPointSizeF(dimFont.pointSizeF() * 0.75);
-            p->setFont(dimFont);
-            p->setPen(m_theme.previewImageInfoText);
-            QString dimText = QString("%1 \u00D7 %2 px")
-                                  .arg(pixmap->width())
-                                  .arg(pixmap->height());
-            p->drawText(QRectF(rect.x(), nameY + nameFm.height() + 2,
-                               rect.width(), nameFm.height()),
-                        Qt::AlignHCenter | Qt::AlignTop, dimText);
+            // "Loading..." label [Spec INV-8: 比例 0.83]
+            QFont labelFont = m_layout ? m_layout->baseFont() : QFont("Segoe UI", 12);
+            labelFont.setPointSizeF(labelFont.pointSizeF() * 0.83);
+            p->setFont(labelFont);
+            p->setPen(m_theme.previewImagePlaceholderText);
+            QString loadingLabel = QCoreApplication::translate("PreviewPainter", "Loading image...");
+            p->drawText(QRectF(rect.x(), cy + iconFm.height() * 0.3,
+                               rect.width(), iconFm.height()),
+                        Qt::AlignHCenter | Qt::AlignTop, loadingLabel);
         } else {
-            // Not yet loaded / URL empty - neutral placeholder
+            // === URL 为空或未知状态 ===
             p->fillRect(rect, m_theme.previewImagePlaceholderBg);
             p->setPen(QPen(m_theme.previewImagePlaceholderBorder, 1));
             p->drawRect(rect);
@@ -435,7 +431,6 @@ void PreviewPainter::paintBlock(QPainter* p, const LayoutBlock& block,
             qreal cx = rect.center().x();
             qreal cy = rect.center().y();
 
-            // Image icon [Spec INV-8: 比例 1.66]
             QFont iconFont = m_layout ? m_layout->baseFont() : QFont("Segoe UI", 12);
             iconFont.setPointSizeF(iconFont.pointSizeF() * 1.66);
             p->setFont(iconFont);
@@ -444,7 +439,6 @@ void PreviewPainter::paintBlock(QPainter* p, const LayoutBlock& block,
             qreal iconW = iconFm.horizontalAdvance(QStringLiteral("\u25A3"));
             p->drawText(QPointF(cx - iconW / 2, cy - 6), QStringLiteral("\u25A3"));
 
-            // File name or "Image" [Spec INV-8: 比例 0.83]
             QFont nameFont = m_layout ? m_layout->baseFont() : QFont("Segoe UI", 12);
             nameFont.setPointSizeF(nameFont.pointSizeF() * 0.83);
             p->setFont(nameFont);

@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.2.8] - 2026-04-17
+
+### Added
+- 预览区支持渲染本地图片（相对路径 / 绝对路径 / file:// URI）、在线图片（http/https 异步下载）和 data URI 内嵌图片
+- 在线图片异步加载不阻塞 UI，加载中显示"Loading image..."占位符，失败显示错误提示
+- 图片按预览区宽度等比缩放、水平居中显示
+- 单图最大 20MB 限制，超过自动拒绝
+
 ## [0.2.7] - 2026-04-17
 
 ### Added

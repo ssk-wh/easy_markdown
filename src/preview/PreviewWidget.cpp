@@ -29,6 +29,18 @@ PreviewWidget::PreviewWidget(QWidget* parent)
     m_painter->setLayout(m_layout);  // Spec 模块-preview/03 INV-9
     m_imageCache = new ImageCache(this);
     m_painter->setImageCache(m_imageCache);
+    m_layout->setImageCache(m_imageCache);
+
+    // 图片异步加载完成后刷新预览
+    connect(m_imageCache, &ImageCache::imageReady, this, [this](const QString& /*url*/) {
+        // 重新布局以更新图片尺寸，然后刷新视口
+        if (m_currentAst) {
+            rebuildLayout();
+            m_plainText = extractPlainText();
+            updateScrollBars();
+        }
+        viewport()->update();
+    });
 
     viewport()->setAutoFillBackground(true);
     QPalette pal = viewport()->palette();
@@ -182,6 +194,11 @@ void PreviewWidget::setTheme(const Theme& theme)
     viewport()->setPalette(pal);
 
     viewport()->update();
+}
+
+void PreviewWidget::setDocumentDir(const QString& dir)
+{
+    m_imageCache->setDocumentDir(dir);
 }
 
 void PreviewWidget::setWordWrap(bool enabled)
