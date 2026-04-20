@@ -132,7 +132,7 @@ Please ensure CHANGELOG.md is installed with the application.</source>
     </message>
     <message>
         <source>Show Welcome</source>
-        <translation>重新显示欢迎页</translation>
+        <translation>显示欢迎页</translation>
     </message>
     <message>
         <source>Welcome to SimpleMarkdown</source>
@@ -199,8 +199,16 @@ Please ensure CHANGELOG.md is installed with the application.</source>
         <translation>另存为...</translation>
     </message>
     <message>
-        <source>Recent Files</source>
-        <translation>最近文件</translation>
+        <source>Open Folder...</source>
+        <translation>打开文件夹...</translation>
+    </message>
+    <message>
+        <source>Open Folder</source>
+        <translation>打开文件夹</translation>
+    </message>
+    <message>
+        <source>Recent</source>
+        <translation>最近打开</translation>
     </message>
     <message>
         <source>Export HTML...</source>
@@ -827,6 +835,97 @@ Open the crash reports folder?</source>
     <message>
         <source>Collapse</source>
         <translation>折叠</translation>
+    </message>
+</context>
+<context>
+    <name>FolderPanel</name>
+    <message>
+        <source>Explorer</source>
+        <translation>资源管理器</translation>
+    </message>
+    <message>
+        <source>Close Folder</source>
+        <translation>关闭文件夹</translation>
+    </message>
+    <message>
+        <source>New File...</source>
+        <translation>新建文件...</translation>
+    </message>
+    <message>
+        <source>New Folder...</source>
+        <translation>新建文件夹...</translation>
+    </message>
+    <message>
+        <source>Rename...</source>
+        <translation>重命名...</translation>
+    </message>
+    <message>
+        <source>Delete</source>
+        <translation>删除</translation>
+    </message>
+    <message>
+        <source>Reveal in Explorer</source>
+        <translation>在资源管理器中显示</translation>
+    </message>
+    <message>
+        <source>Reveal in File Manager</source>
+        <translation>在文件管理器中显示</translation>
+    </message>
+    <message>
+        <source>New File</source>
+        <translation>新建文件</translation>
+    </message>
+    <message>
+        <source>File name:</source>
+        <translation>文件名：</translation>
+    </message>
+    <message>
+        <source>New Folder</source>
+        <translation>新建文件夹</translation>
+    </message>
+    <message>
+        <source>Folder name:</source>
+        <translation>文件夹名：</translation>
+    </message>
+    <message>
+        <source>Error</source>
+        <translation>错误</translation>
+    </message>
+    <message>
+        <source>File already exists: %1</source>
+        <translation>文件已存在：%1</translation>
+    </message>
+    <message>
+        <source>Failed to create folder: %1</source>
+        <translation>创建文件夹失败：%1</translation>
+    </message>
+    <message>
+        <source>Rename</source>
+        <translation>重命名</translation>
+    </message>
+    <message>
+        <source>New name:</source>
+        <translation>新名称：</translation>
+    </message>
+    <message>
+        <source>A file with that name already exists.</source>
+        <translation>同名文件已存在。</translation>
+    </message>
+    <message>
+        <source>Failed to rename.</source>
+        <translation>重命名失败。</translation>
+    </message>
+    <message>
+        <source>Delete folder &quot;%1&quot; and all its contents?</source>
+        <translation>删除文件夹 &quot;%1&quot; 及其所有内容？</translation>
+    </message>
+    <message>
+        <source>Delete file &quot;%1&quot;?</source>
+        <translation>删除文件 &quot;%1&quot;？</translation>
+    </message>
+    <message>
+        <source>Confirm Delete</source>
+        <translation>确认删除</translation>
     </message>
 </context>
 </TS>

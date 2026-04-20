@@ -151,6 +151,12 @@ TEST(PreviewLayoutTest, T2_NestedListAbsoluteCoordinates) { ... }
 - **[INV-THREAD-MAIN]** QPainter 和所有 QWidget 方法必须在主线程
 - **[INV-THREAD-IMMUTABLE]** 跨线程共享必须是 immutable 或加锁
 
+### 国际化（i18n）
+- **[INV-I18N-TR]** 所有用户可见的字符串必须用 `tr()` 包裹，禁止硬编码中文或英文
+- **[INV-I18N-TS]** 新增或修改 `tr()` 字符串后，必须同步更新 `translations/simple_markdown_zh_CN.ts` 和 `translations/simple_markdown_en_US.ts`，添加对应的 `<message>` 条目及翻译
+- **[INV-I18N-QM]** 更新 .ts 文件后必须运行 `lrelease` 生成 .qm 文件，或依赖 cmake build 自动生成
+- **[INV-I18N-CHECKLIST]** 新增 UI 功能的完成检查项：`tr()` 包裹 → .ts 补翻译 → lrelease → 构建验证
+
 ### 代码质量
 - **[INV-CODE-UTF8]** C++ 源文件必须是 UTF-8 无 BOM（项目现状），修改时严禁变更 BOM 状态
 - **[INV-CODE-RAII]** 禁止裸 new/delete

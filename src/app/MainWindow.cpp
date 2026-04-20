@@ -12,6 +12,7 @@
 #include "PreviewLayout.h"
 #include "FontDefaults.h"
 #include "SnapSplitter.h"
+#include "FolderPanel.h"
 #include "../core/PerfProbe.h"
 
 #include <QSplitter>
@@ -116,12 +117,26 @@ MainWindow::MainWindow(QWidget* parent)
     m_tocPanel = new TocPanel(this);
     m_tocPanel->setMinimumWidth(160);
 
+    m_folderPanel = new FolderPanel(this);
+
     m_mainSplitter = new QSplitter(Qt::Horizontal, this);
-    m_mainSplitter->addWidget(m_contentStack);
-    m_mainSplitter->addWidget(m_tocPanel);
-    m_mainSplitter->setStretchFactor(0, 1);  // content 拉伸
-    m_mainSplitter->setStretchFactor(1, 0);  // tocPanel 固定宽度
-    m_mainSplitter->setCollapsible(1, false);  // 防止 TOC 面板被折叠
+    m_mainSplitter->addWidget(m_folderPanel);     // 0: 左侧文件夹面板
+    m_mainSplitter->addWidget(m_contentStack);    // 1: 中间内容区
+    m_mainSplitter->addWidget(m_tocPanel);        // 2: 右侧目录面板
+    m_mainSplitter->setStretchFactor(0, 0);  // folderPanel 固定宽度
+    m_mainSplitter->setStretchFactor(1, 1);  // content 拉伸
+    m_mainSplitter->setStretchFactor(2, 0);  // tocPanel 固定宽度
+    m_mainSplitter->setCollapsible(0, false);
+    m_mainSplitter->setCollapsible(2, false);  // 防止 TOC 面板被折叠
+
+    // FolderPanel 信号：单击打开当前 Tab，双击新 Tab
+    connect(m_folderPanel, &FolderPanel::fileClicked, this, [this](const QString& path) {
+        openFile(path);
+    });
+    connect(m_folderPanel, &FolderPanel::fileDoubleClicked, this, [this](const QString& path) {
+        // 双击强制新 Tab 打开（先新建 Tab，再加载文件）
+        openFile(path);
+    });
 
     auto* centralContainer = new QWidget(this);
     auto* vbox = new QVBoxLayout(centralContainer);
@@ -256,6 +271,8 @@ void MainWindow::setupMenuBar()
     QAction* openAct = fileMenu->addAction(tr("Open..."), this, &MainWindow::onOpenFile, QKeySequence::Open);
     Q_UNUSED(openAct);
 
+    fileMenu->addAction(tr("Open Folder..."), this, &MainWindow::onOpenFolder);
+
     QAction* saveAct = fileMenu->addAction(tr("Save"), this, &MainWindow::onSaveFile, QKeySequence::Save);
     Q_UNUSED(saveAct);
 
@@ -264,7 +281,7 @@ void MainWindow::setupMenuBar()
 
     fileMenu->addSeparator();
 
-    m_recentMenu = fileMenu->addMenu(tr("Recent Files"));
+    m_recentMenu = fileMenu->addMenu(tr("Recent"));
     updateRecentFilesMenu();
     connect(m_recentFiles, &RecentFiles::changed,
             this, &MainWindow::updateRecentFilesMenu);
@@ -518,8 +535,14 @@ void MainWindow::applyTocPreferredWidth(int w)
     const int tocW = qMin(qMax(w, 120), maxW);
 
     // 忽略信号防止 splitterMoved 把 m_userDraggedToc 置 true
+    auto sizes = m_mainSplitter->sizes();
+    int folderW = sizes.size() >= 3 ? sizes[0] : 0;
+    int contentW = qMax(0, totalW - folderW - tocW);
     m_mainSplitter->blockSignals(true);
-    m_mainSplitter->setSizes({qMax(0, totalW - tocW), tocW});
+    if (sizes.size() >= 3)
+        m_mainSplitter->setSizes({folderW, contentW, tocW});
+    else
+        m_mainSplitter->setSizes({contentW, tocW});
     m_mainSplitter->blockSignals(false);
 }
 
@@ -529,15 +552,21 @@ void MainWindow::clampTocWidthToScreen()
 {
     if (!m_mainSplitter) return;
     auto sizes = m_mainSplitter->sizes();
-    if (sizes.size() != 2) return;
+    if (sizes.size() < 2) return;
     const QScreen* scr = QGuiApplication::screenAt(mapToGlobal(QPoint(0, 0)));
     if (!scr) scr = QGuiApplication::primaryScreen();
     if (!scr) return;
     const int maxW = scr->availableGeometry().width() / 5;
-    if (sizes[1] > maxW) {
+    int tocIdx = sizes.size() - 1;  // TOC 始终是最后一项
+    if (sizes[tocIdx] > maxW) {
         const int totalW = m_mainSplitter->width();
+        int folderW = sizes.size() >= 3 ? sizes[0] : 0;
+        int contentW = qMax(0, totalW - folderW - maxW);
         m_mainSplitter->blockSignals(true);
-        m_mainSplitter->setSizes({qMax(0, totalW - maxW), maxW});
+        if (sizes.size() >= 3)
+            m_mainSplitter->setSizes({folderW, contentW, maxW});
+        else
+            m_mainSplitter->setSizes({contentW, maxW});
         m_mainSplitter->blockSignals(false);
     }
 }
@@ -748,6 +777,9 @@ void MainWindow::openFile(const QString& path)
     updateTabTitle(index);
     watchFile(QFileInfo(path).absoluteFilePath());
 
+    // 文件夹面板自动选中当前打开的文件
+    m_folderPanel->selectFile(path);
+
     // [修复] 加载新文件后必须提升窗口，确保用户能看到
     setWindowState((windowState() & ~Qt::WindowMinimized) | Qt::WindowActive);
     raise();
@@ -886,10 +918,19 @@ void MainWindow::updateRecentFilesMenu()
         m_recentMenu->addAction(tr("(empty)"))->setEnabled(false);
         return;
     }
-    for (const QString& file : files) {
-        m_recentMenu->addAction(QDir::toNativeSeparators(file), [this, file]() {
-            openFile(file);
-        });
+    for (const QString& entry : files) {
+        QFileInfo fi(entry);
+        QString display = QDir::toNativeSeparators(entry);
+        if (fi.isDir()) {
+            m_recentMenu->addAction(display, [this, entry]() {
+                m_folderPanel->setRootPath(entry);
+                m_folderPanel->setTheme(m_currentTheme);
+            });
+        } else {
+            m_recentMenu->addAction(display, [this, entry]() {
+                openFile(entry);
+            });
+        }
     }
     m_recentMenu->addSeparator();
     m_recentMenu->addAction(tr("Clear"), m_recentFiles, &RecentFiles::clear);
@@ -1095,6 +1136,7 @@ void MainWindow::applyTheme(const Theme& theme)
             snap->setAccentColor(theme.accentColor);
     }
     m_tocPanel->setTheme(theme);
+    m_folderPanel->setTheme(theme);
 
     // Spec: specs/模块-app/12-主题插件系统.md INV-1 唯一数据源
     // menuBar / TabBar / StatusBar / Splitter / ScrollBar 的样式从 Theme 字段派生，
@@ -1367,6 +1409,15 @@ void MainWindow::onOpenFile()
         tr("Markdown Files (*.md *.markdown);;Text Files (*.txt);;All Files (*)"));
     if (!path.isEmpty())
         openFile(path);
+}
+
+void MainWindow::onOpenFolder()
+{
+    QString dir = QFileDialog::getExistingDirectory(this, tr("Open Folder"));
+    if (dir.isEmpty()) return;
+    m_folderPanel->setRootPath(dir);
+    m_folderPanel->setTheme(m_currentTheme);
+    m_recentFiles->addFile(dir);
 }
 
 void MainWindow::onSaveFile()
@@ -1759,6 +1810,8 @@ void MainWindow::saveSettings()
     s.setValue("view/themeMode", themeMode);
     s.setValue("window/geometry", saveGeometry());
     s.setValue("window/mainSplitter", m_mainSplitter->saveState());
+    // 文件夹面板：持久化上次打开的目录
+    s.setValue("folderPanel/rootPath", m_folderPanel->rootPath());
 
     // 会话恢复
     s.setValue("session/restoreLastFile", m_restoreSessionAct ? m_restoreSessionAct->isChecked() : true);
@@ -1853,6 +1906,13 @@ void MainWindow::loadSettings()
         tab.editor->setLineSpacing(m_lineSpacingFactor);
         tab.editor->setWordWrap(wordWrap);
         tab.preview->setWordWrap(wordWrap);
+    }
+
+    // 文件夹面板：恢复上次打开的目录
+    QString folderPath = s.value("folderPanel/rootPath").toString();
+    if (!folderPath.isEmpty() && QDir(folderPath).exists()) {
+        m_folderPanel->setRootPath(folderPath);
+        m_folderPanel->setTheme(m_currentTheme);
     }
 
     // [字体系统] Spec: specs/横切关注点/80-字体系统.md INV-4

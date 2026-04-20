@@ -11,6 +11,7 @@ class ParseScheduler;
 class ScrollSync;
 class RecentFiles;
 class TocPanel;
+class FolderPanel;
 class TabBarWithAdd;  // Spec: specs/模块-preview/07-TOC面板.md INV-TOC-VALIGN
 class QSplitter;
 class QStackedWidget;
@@ -42,6 +43,7 @@ protected:
 private slots:
     void onNewFile();
     void onOpenFile();
+    void onOpenFolder();
     void onSaveFile();
     void onSaveFileAs();
     void onCloseTab(int index);
@@ -79,6 +81,7 @@ private:
     QStackedWidget* m_contentStack = nullptr;
     QSplitter* m_mainSplitter = nullptr;
     TocPanel* m_tocPanel = nullptr;
+    FolderPanel* m_folderPanel = nullptr;
     // Tab 页与 stack 页一一对应的便利函数
     int  addPage(QWidget* page, const QString& title);
     void removePage(int index);

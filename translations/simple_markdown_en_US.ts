@@ -57,7 +57,7 @@ Please ensure CHANGELOG.md is installed with the application.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Recent Files</source>
+        <source>Recent</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
