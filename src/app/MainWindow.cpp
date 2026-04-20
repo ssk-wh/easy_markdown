@@ -13,6 +13,7 @@
 #include "FontDefaults.h"
 #include "SnapSplitter.h"
 #include "FolderPanel.h"
+#include "SideTabBar.h"
 #include "../core/PerfProbe.h"
 
 #include <QSplitter>
@@ -118,12 +119,27 @@ MainWindow::MainWindow(QWidget* parent)
     m_tocPanel->setMinimumWidth(160);
 
     m_folderPanel = new FolderPanel(this);
+    m_folderPanel->installEventFilter(this);  // 监听 Show/Hide 以联动左侧面板
+
+    // 侧边 Tab 栏（默认隐藏，切换到左侧模式时显示）
+    m_sideTabBar = new SideTabBar(this);
+    connect(m_sideTabBar, &SideTabBar::currentChanged, this, [this](int index) {
+        m_tabBar->setCurrentIndex(index);
+    });
+    connect(m_sideTabBar, &SideTabBar::tabCloseRequested, this, &MainWindow::onCloseTab);
+    connect(m_sideTabBar, &SideTabBar::addClicked, this, &MainWindow::onNewFile);
+
+    // 左侧面板容器：包裹 FolderPanel（+ 可选的侧边 Tab 栏）
+    m_leftPaneSplitter = new QSplitter(Qt::Vertical, this);
+    m_leftPaneSplitter->addWidget(m_folderPanel);
+    m_leftPaneSplitter->setCollapsible(0, false);
+    m_leftPaneSplitter->hide();  // 默认隐藏，跟随 FolderPanel 可见性
 
     m_mainSplitter = new QSplitter(Qt::Horizontal, this);
-    m_mainSplitter->addWidget(m_folderPanel);     // 0: 左侧文件夹面板
-    m_mainSplitter->addWidget(m_contentStack);    // 1: 中间内容区
-    m_mainSplitter->addWidget(m_tocPanel);        // 2: 右侧目录面板
-    m_mainSplitter->setStretchFactor(0, 0);  // folderPanel 固定宽度
+    m_mainSplitter->addWidget(m_leftPaneSplitter); // 0: 左侧面板容器
+    m_mainSplitter->addWidget(m_contentStack);     // 1: 中间内容区
+    m_mainSplitter->addWidget(m_tocPanel);         // 2: 右侧目录面板
+    m_mainSplitter->setStretchFactor(0, 0);  // leftPane 固定宽度
     m_mainSplitter->setStretchFactor(1, 1);  // content 拉伸
     m_mainSplitter->setStretchFactor(2, 0);  // tocPanel 固定宽度
     m_mainSplitter->setCollapsible(0, false);
@@ -139,11 +155,11 @@ MainWindow::MainWindow(QWidget* parent)
     });
 
     auto* centralContainer = new QWidget(this);
-    auto* vbox = new QVBoxLayout(centralContainer);
-    vbox->setContentsMargins(0, 0, 0, 0);
-    vbox->setSpacing(0);
-    vbox->addWidget(m_tabBar);
-    vbox->addWidget(m_mainSplitter, /*stretch=*/1);
+    m_centralLayout = new QVBoxLayout(centralContainer);
+    m_centralLayout->setContentsMargins(0, 0, 0, 0);
+    m_centralLayout->setSpacing(0);
+    m_centralLayout->addWidget(m_tabBar);
+    m_centralLayout->addWidget(m_mainSplitter, /*stretch=*/1);
     setCentralWidget(centralContainer);
 
     // TocPanel 点击 → 跳转到当前 tab 的 preview 对应位置
@@ -383,6 +399,29 @@ void MainWindow::setupMenuBar()
     m_focusModeAct->setShortcut(QKeySequence(Qt::Key_F11));
     connect(m_focusModeAct, &QAction::triggered, this, &MainWindow::toggleFocusMode);
 
+    // Tab 栏位置子菜单
+    {
+        QMenu* tabPosMenu = viewMenu->addMenu(tr("Tab Bar Position"));
+        auto* tabPosGroup = new QActionGroup(this);
+        tabPosGroup->setExclusive(true);
+
+        m_tabBarOnSideAct = tabPosMenu->addAction(tr("Show on Side"));
+        m_tabBarOnSideAct->setCheckable(true);
+        connect(m_tabBarOnSideAct, &QAction::triggered, this, [this]() {
+            // 显示左侧，但保留顶部 tab 栏
+            setTabBarPosition(true, /*hideTopBar=*/false);
+        });
+
+        m_tabBarSideHideTopAct = tabPosMenu->addAction(tr("Show on Side, Hide Top"));
+        m_tabBarSideHideTopAct->setCheckable(true);
+        connect(m_tabBarSideHideTopAct, &QAction::triggered, this, [this]() {
+            setTabBarPosition(true, /*hideTopBar=*/true);
+        });
+
+        tabPosGroup->addAction(m_tabBarOnSideAct);
+        tabPosGroup->addAction(m_tabBarSideHideTopAct);
+    }
+
     viewMenu->addSeparator();
 
     // [Spec/Plan 文档统计信息] 弹窗显示标题/段落/代码块/图片/链接统计
@@ -577,6 +616,7 @@ int MainWindow::addPage(QWidget* page, const QString& title)
 {
     int i = m_tabBar->addTab(title);
     m_contentStack->insertWidget(i, page);
+    if (m_tabBarOnSide) m_sideTabBar->addTab(title);
     // 首个 tab 添加后手动同步 current，避免 stack 未定位
     if (m_tabBar->count() == 1) {
         m_contentStack->setCurrentIndex(0);
@@ -591,6 +631,7 @@ void MainWindow::removePage(int index)
     QWidget* w = m_contentStack->widget(index);
     m_tabBar->removeTab(index);
     if (w) m_contentStack->removeWidget(w);
+    if (m_tabBarOnSide) m_sideTabBar->removeTab(index);
 }
 
 void MainWindow::newTab()
@@ -904,6 +945,7 @@ void MainWindow::updateTabTitle(int index)
 
     m_tabBar->setTabText(index, title);
     m_tabBar->setTabToolTip(index, doc->filePath().isEmpty() ? tr("Untitled") : QFileInfo(doc->filePath()).absoluteFilePath());
+    if (m_tabBarOnSide) m_sideTabBar->setTabText(index, title);
 
     // Update window title
     if (index == m_tabBar->currentIndex())
@@ -1137,6 +1179,7 @@ void MainWindow::applyTheme(const Theme& theme)
     }
     m_tocPanel->setTheme(theme);
     m_folderPanel->setTheme(theme);
+    m_sideTabBar->setTheme(theme);
 
     // Spec: specs/模块-app/12-主题插件系统.md INV-1 唯一数据源
     // menuBar / TabBar / StatusBar / Splitter / ScrollBar 的样式从 Theme 字段派生，
@@ -1489,6 +1532,9 @@ void MainWindow::onCloseTab(int index)
 
 void MainWindow::onTabChanged(int index)
 {
+    // 同步侧边 Tab 栏选中状态
+    if (m_tabBarOnSide) m_sideTabBar->setCurrentIndex(index);
+
     updateTabTitle(index);
 
     // 切换 tab 时更新 TOC 面板
@@ -1502,6 +1548,9 @@ void MainWindow::onTabChanged(int index)
         m_tocPanel->setCurrentFileKey(fp);
         m_tocPanel->setEntries(preview->tocEntries());
         m_tocPanel->setHighlightedEntries(preview->tocHighlightedIndices());
+
+        // 文件夹面板同步选中当前文件
+        m_folderPanel->selectFile(fp);
 
         // 切换到有待重载标记的 tab 时弹窗提示
         if (m_tabs[index].pendingReload)
@@ -1701,6 +1750,13 @@ bool MainWindow::eventFilter(QObject* obj, QEvent* event)
         }
     }
 #endif
+
+    // FolderPanel 显隐联动左侧面板容器
+    if (obj == m_folderPanel &&
+        (event->type() == QEvent::Show || event->type() == QEvent::Hide)) {
+        updateLeftPaneVisibility();
+    }
+
     return QMainWindow::eventFilter(obj, event);
 }
 
@@ -1810,6 +1866,9 @@ void MainWindow::saveSettings()
     s.setValue("view/themeMode", themeMode);
     s.setValue("window/geometry", saveGeometry());
     s.setValue("window/mainSplitter", m_mainSplitter->saveState());
+    // Tab 栏位置
+    s.setValue("view/tabBarOnSide", m_tabBarOnSide);
+    s.setValue("view/hideTopBarWhenSide", m_hideTopBarWhenSide);
     // 文件夹面板：持久化上次打开的目录
     s.setValue("folderPanel/rootPath", m_folderPanel->rootPath());
 
@@ -1863,6 +1922,11 @@ void MainWindow::loadSettings()
     // 自动换行
     bool wordWrap = s.value("view/wordWrap", true).toBool();
     m_wordWrapAct->setChecked(wordWrap);
+
+    // Tab 栏位置
+    bool tabOnSide = s.value("view/tabBarOnSide", false).toBool();
+    bool hideTop = s.value("view/hideTopBarWhenSide", true).toBool();
+    if (tabOnSide) setTabBarPosition(true, hideTop);
 
     // 会话恢复选项
     if (m_restoreSessionAct)
@@ -2563,6 +2627,76 @@ void MainWindow::retranslateUi()
 // [Spec 模块-app/11-演示模式] Plan 裁定方案 A：替换原 Focus Mode
 // 进入时：全屏 + 隐藏编辑器/菜单/Tab/TOC，只显示当前 Tab 的预览
 // 退出时：恢复所有原布局
+// ---- Tab 栏位置切换 ----
+
+void MainWindow::setTabBarPosition(bool onSide, bool hideTopBar)
+{
+    // 关闭侧边模式
+    if (!onSide) {
+        if (!m_tabBarOnSide) return;  // 已经是顶部模式
+        m_tabBarOnSide = false;
+        m_hideTopBarWhenSide = true;
+        m_sideTabBar->hide();
+        m_sideTabBar->setParent(this);
+        m_tabBar->setVisible(true);
+        updateLeftPaneVisibility();
+        // 取消所有子菜单的勾选
+        if (m_tabBarOnSideAct) m_tabBarOnSideAct->setChecked(false);
+        if (m_tabBarSideHideTopAct) m_tabBarSideHideTopAct->setChecked(false);
+        saveSessionLater();
+        return;
+    }
+
+    // 开启或切换侧边模式
+    m_hideTopBarWhenSide = hideTopBar;
+
+    if (!m_tabBarOnSide) {
+        // 首次切换到侧边模式
+        m_tabBarOnSide = true;
+        syncSideTabBar();
+        m_leftPaneSplitter->addWidget(m_sideTabBar);
+        m_leftPaneSplitter->setCollapsible(m_leftPaneSplitter->indexOf(m_sideTabBar), false);
+        m_sideTabBar->show();
+        m_sideTabBar->setTheme(m_currentTheme);
+        int totalH = m_leftPaneSplitter->height();
+        if (totalH < 100) totalH = 600;
+        m_leftPaneSplitter->setSizes({totalH * 2 / 3, totalH / 3});
+        m_leftPaneSplitter->show();
+        QList<int> mainSizes = m_mainSplitter->sizes();
+        if (mainSizes.size() >= 2 && mainSizes[0] < 150) {
+            mainSizes[0] = 200;
+            m_mainSplitter->setSizes(mainSizes);
+        }
+    }
+
+    // 顶部 tab 栏：根据 hideTopBar 决定显隐
+    m_tabBar->setVisible(!hideTopBar);
+
+    updateLeftPaneVisibility();
+    if (m_tabBarOnSideAct) m_tabBarOnSideAct->setChecked(onSide && !hideTopBar);
+    if (m_tabBarSideHideTopAct) m_tabBarSideHideTopAct->setChecked(onSide && hideTopBar);
+    saveSessionLater();
+}
+
+void MainWindow::syncSideTabBar()
+{
+    m_sideTabBar->clear();
+    for (int i = 0; i < m_tabBar->count(); ++i)
+        m_sideTabBar->addTab(m_tabBar->tabText(i));
+    m_sideTabBar->setCurrentIndex(m_tabBar->currentIndex());
+}
+
+void MainWindow::updateLeftPaneVisibility()
+{
+    if (m_tabBarOnSide) {
+        // 左侧模式：Tab 栏在里面，始终显示
+        m_leftPaneSplitter->show();
+    } else {
+        // 顶部模式：跟随 FolderPanel 可见性
+        m_leftPaneSplitter->setVisible(m_folderPanel->isVisible());
+    }
+}
+
 // 兼容：保留 m_focusMode / enterFocusMode / exitFocusMode 字段名避免大面积改动，
 //       但实际行为已改为 Presentation Mode
 

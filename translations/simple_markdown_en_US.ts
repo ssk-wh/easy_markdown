@@ -275,6 +275,22 @@ Do you want to reload it?</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
+        <source>Tab Bar on Side</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Tab Bar Position</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Show on Side</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Show on Side, Hide Top</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>Document Statistics...</source>
         <translation type="unfinished"></translation>
     </message>
@@ -824,6 +840,13 @@ Open the crash reports folder?</translation>
     <message>
         <source>Collapse</source>
         <translation>Collapse</translation>
+    </message>
+</context>
+<context>
+    <name>SideTabBar</name>
+    <message>
+        <source>Recent Documents</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 </TS>

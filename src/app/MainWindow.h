@@ -20,6 +20,8 @@ class QActionGroup;
 class QLocalServer;
 class QLabel;
 class QStatusBar;
+class QVBoxLayout;
+class SideTabBar;
 
 class MainWindow : public QMainWindow {
     Q_OBJECT
@@ -80,6 +82,8 @@ private:
     TabBarWithAdd* m_tabBar = nullptr;
     QStackedWidget* m_contentStack = nullptr;
     QSplitter* m_mainSplitter = nullptr;
+    QSplitter* m_leftPaneSplitter = nullptr;   // 左侧面板容器（文件夹 + 可选侧边 Tab 栏）
+    QVBoxLayout* m_centralLayout = nullptr;     // 顶层 vbox，切换 Tab 位置时需引用
     TocPanel* m_tocPanel = nullptr;
     FolderPanel* m_folderPanel = nullptr;
     // Tab 页与 stack 页一一对应的便利函数
@@ -144,6 +148,16 @@ private:
     void onExportPdf();
     void onPrint();
     void onShowShortcuts();
+
+    // Tab 栏位置（顶部 / 左侧）
+    bool m_tabBarOnSide = false;
+    bool m_hideTopBarWhenSide = true;  // 侧边模式时是否隐藏顶部 tab 栏
+    QAction* m_tabBarOnSideAct = nullptr;
+    QAction* m_tabBarSideHideTopAct = nullptr;
+    SideTabBar* m_sideTabBar = nullptr;
+    void setTabBarPosition(bool onSide, bool hideTopBar = true);
+    void updateLeftPaneVisibility();
+    void syncSideTabBar();           // 从 m_tabBar 全量同步到 m_sideTabBar
 
     // 专注模式
     bool m_focusMode = false;

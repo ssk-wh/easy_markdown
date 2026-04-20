@@ -339,6 +339,22 @@ Please ensure CHANGELOG.md is installed with the application.</source>
         <translation>演示模式</translation>
     </message>
     <message>
+        <source>Tab Bar on Side</source>
+        <translation>侧边标签栏</translation>
+    </message>
+    <message>
+        <source>Tab Bar Position</source>
+        <translation>标签栏位置</translation>
+    </message>
+    <message>
+        <source>Show on Side</source>
+        <translation>显示在左侧</translation>
+    </message>
+    <message>
+        <source>Show on Side, Hide Top</source>
+        <translation>显示在左侧并隐藏顶部</translation>
+    </message>
+    <message>
         <source>Untitled</source>
         <translation>未命名</translation>
     </message>
@@ -926,6 +942,13 @@ Open the crash reports folder?</source>
     <message>
         <source>Confirm Delete</source>
         <translation>确认删除</translation>
+    </message>
+</context>
+<context>
+    <name>SideTabBar</name>
+    <message>
+        <source>Recent Documents</source>
+        <translation>最近使用文档</translation>
     </message>
 </context>
 </TS>
