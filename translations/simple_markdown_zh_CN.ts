@@ -255,6 +255,14 @@ Please ensure CHANGELOG.md is installed with the application.</source>
         <translation>跟随系统</translation>
     </message>
     <message>
+        <source>Light Mode</source>
+        <translation>浅色模式</translation>
+    </message>
+    <message>
+        <source>Dark Mode</source>
+        <translation>深色模式</translation>
+    </message>
+    <message>
         <source>Word Wrap</source>
         <translation>自动换行</translation>
     </message>
@@ -353,6 +361,46 @@ Please ensure CHANGELOG.md is installed with the application.</source>
     <message>
         <source>Show on Side, Hide Top</source>
         <translation>显示在左侧并隐藏顶部</translation>
+    </message>
+    <message>
+        <source>Show All</source>
+        <translation>全部显示</translation>
+    </message>
+    <message>
+        <source>Top Only</source>
+        <translation>仅顶部</translation>
+    </message>
+    <message>
+        <source>Side Only</source>
+        <translation>仅左侧</translation>
+    </message>
+    <message>
+        <source>Hide All</source>
+        <translation>全部隐藏</translation>
+    </message>
+    <message>
+        <source>Display Area</source>
+        <translation>显示区域</translation>
+    </message>
+    <message>
+        <source>Editor and Preview</source>
+        <translation>编辑器和预览</translation>
+    </message>
+    <message>
+        <source>Editor Only</source>
+        <translation>仅编辑器</translation>
+    </message>
+    <message>
+        <source>Preview Only</source>
+        <translation>仅预览</translation>
+    </message>
+    <message>
+        <source>Preview hidden. Restore via View > Display Area.</source>
+        <translation>预览区已隐藏，可通过 视图 → 显示区域 恢复</translation>
+    </message>
+    <message>
+        <source>Editor hidden. Restore via View > Display Area.</source>
+        <translation>编辑器已隐藏，可通过 视图 → 显示区域 恢复</translation>
     </message>
     <message>
         <source>Untitled</source>
@@ -625,6 +673,10 @@ Open the crash reports folder?</source>
         <translation>清除所有标记</translation>
     </message>
     <message>
+        <source>Clear Current Mark</source>
+        <translation>清除当前标记</translation>
+    </message>
+    <message>
         <source>Open in Browser</source>
         <translation>在浏览器中打开</translation>
     </message>
@@ -852,6 +904,10 @@ Open the crash reports folder?</source>
         <source>Collapse</source>
         <translation>折叠</translation>
     </message>
+    <message>
+        <source>Clear Section Marks</source>
+        <translation>清除章节标记</translation>
+    </message>
 </context>
 <context>
     <name>FolderPanel</name>
@@ -949,6 +1005,49 @@ Open the crash reports folder?</source>
     <message>
         <source>Recent Documents</source>
         <translation>最近使用文档</translation>
+    </message>
+</context>
+<context>
+    <name>EditorWidget</name>
+    <message>
+        <source>Cut</source>
+        <translation>剪切</translation>
+    </message>
+    <message>
+        <source>Copy</source>
+        <translation>复制</translation>
+    </message>
+    <message>
+        <source>Paste</source>
+        <translation>粘贴</translation>
+    </message>
+    <message>
+        <source>Insert</source>
+        <translation>插入</translation>
+    </message>
+    <message>
+        <source>Image...</source>
+        <translation>图片...</translation>
+    </message>
+    <message>
+        <source>Select Image</source>
+        <translation>选择图片</translation>
+    </message>
+    <message>
+        <source>Link</source>
+        <translation>链接</translation>
+    </message>
+    <message>
+        <source>Table</source>
+        <translation>表格</translation>
+    </message>
+    <message>
+        <source>Code Block</source>
+        <translation>代码块</translation>
+    </message>
+    <message>
+        <source>Horizontal Rule</source>
+        <translation>分隔线</translation>
     </message>
 </context>
 </TS>

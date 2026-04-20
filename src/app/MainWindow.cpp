@@ -45,6 +45,8 @@
 #include <QApplication>
 #include <QTabBar>
 #include <QStackedWidget>
+#include <QPropertyAnimation>
+#include <QGraphicsOpacityEffect>
 #include <QVBoxLayout>
 #include <QScreen>
 #include <QGuiApplication>
@@ -129,15 +131,31 @@ MainWindow::MainWindow(QWidget* parent)
     connect(m_sideTabBar, &SideTabBar::tabCloseRequested, this, &MainWindow::onCloseTab);
     connect(m_sideTabBar, &SideTabBar::addClicked, this, &MainWindow::onNewFile);
 
-    // 左侧面板容器：包裹 FolderPanel（+ 可选的侧边 Tab 栏）
+    // folderPanel 包在容器中：容器始终在 splitter 中可见，folderPanel 在容器内 hide/show
+    // 这样 QSplitter 不会因 folderPanel 隐藏而回收空间导致 sideTabBar 跳动
+    m_folderContainer = new QWidget(this);
+    m_folderContainer->setMinimumHeight(100);  // 防止拖拽侧边 Tab 时过度压缩
+    auto* folderContainerLayout = new QVBoxLayout(m_folderContainer);
+    folderContainerLayout->setContentsMargins(0, 0, 0, 0);
+    folderContainerLayout->setSpacing(0);
+    folderContainerLayout->addWidget(m_folderPanel);
+
     m_leftPaneSplitter = new QSplitter(Qt::Vertical, this);
-    m_leftPaneSplitter->addWidget(m_folderPanel);
+    m_leftPaneSplitter->addWidget(m_folderContainer);
     m_leftPaneSplitter->setCollapsible(0, false);
-    m_leftPaneSplitter->hide();  // 默认隐藏，跟随 FolderPanel 可见性
+    m_leftPaneSplitter->hide();
+
+    // 中间内容容器：tabBar + contentStack 竖排，使 tabBar 与左侧面板平级
+    auto* contentContainer = new QWidget(this);
+    m_centralLayout = new QVBoxLayout(contentContainer);
+    m_centralLayout->setContentsMargins(0, 0, 0, 0);
+    m_centralLayout->setSpacing(0);
+    m_centralLayout->addWidget(m_tabBar);
+    m_centralLayout->addWidget(m_contentStack, /*stretch=*/1);
 
     m_mainSplitter = new QSplitter(Qt::Horizontal, this);
     m_mainSplitter->addWidget(m_leftPaneSplitter); // 0: 左侧面板容器
-    m_mainSplitter->addWidget(m_contentStack);     // 1: 中间内容区
+    m_mainSplitter->addWidget(contentContainer);   // 1: 中间（tabBar + content）
     m_mainSplitter->addWidget(m_tocPanel);         // 2: 右侧目录面板
     m_mainSplitter->setStretchFactor(0, 0);  // leftPane 固定宽度
     m_mainSplitter->setStretchFactor(1, 1);  // content 拉伸
@@ -154,19 +172,19 @@ MainWindow::MainWindow(QWidget* parent)
         openFile(path);
     });
 
-    auto* centralContainer = new QWidget(this);
-    m_centralLayout = new QVBoxLayout(centralContainer);
-    m_centralLayout->setContentsMargins(0, 0, 0, 0);
-    m_centralLayout->setSpacing(0);
-    m_centralLayout->addWidget(m_tabBar);
-    m_centralLayout->addWidget(m_mainSplitter, /*stretch=*/1);
-    setCentralWidget(centralContainer);
+    setCentralWidget(m_mainSplitter);
 
     // TocPanel 点击 → 跳转到当前 tab 的 preview 对应位置
     connect(m_tocPanel, &TocPanel::headingClicked, this, [this](int sourceLine) {
         auto* tab = currentTab();
         if (tab)
             tab->preview->smoothScrollToSourceLine(sourceLine);
+    });
+
+    connect(m_tocPanel, &TocPanel::clearSectionMarksRequested, this, [this](int entryIndex) {
+        auto* tab = currentTab();
+        if (tab)
+            tab->preview->clearHighlightsInSection(entryIndex);
     });
 
     // Spec: specs/模块-preview/07-TOC面板.md INV-TOC-WIDTH-AUTO
@@ -399,27 +417,68 @@ void MainWindow::setupMenuBar()
     m_focusModeAct->setShortcut(QKeySequence(Qt::Key_F11));
     connect(m_focusModeAct, &QAction::triggered, this, &MainWindow::toggleFocusMode);
 
-    // Tab 栏位置子菜单
+    // Tab 栏位置子菜单（4项互斥）
     {
         QMenu* tabPosMenu = viewMenu->addMenu(tr("Tab Bar Position"));
-        auto* tabPosGroup = new QActionGroup(this);
-        tabPosGroup->setExclusive(true);
+        m_tabPosGroup = new QActionGroup(this);
+        m_tabPosGroup->setExclusive(true);
 
-        m_tabBarOnSideAct = tabPosMenu->addAction(tr("Show on Side"));
-        m_tabBarOnSideAct->setCheckable(true);
-        connect(m_tabBarOnSideAct, &QAction::triggered, this, [this]() {
-            // 显示左侧，但保留顶部 tab 栏
+        m_tabPosShowAllAct = tabPosMenu->addAction(tr("Show All"));
+        m_tabPosShowAllAct->setCheckable(true);
+        m_tabPosShowAllAct->setChecked(true);  // 默认
+        connect(m_tabPosShowAllAct, &QAction::triggered, this, [this]() {
             setTabBarPosition(true, /*hideTopBar=*/false);
         });
 
-        m_tabBarSideHideTopAct = tabPosMenu->addAction(tr("Show on Side, Hide Top"));
-        m_tabBarSideHideTopAct->setCheckable(true);
-        connect(m_tabBarSideHideTopAct, &QAction::triggered, this, [this]() {
+        m_tabPosTopAct = tabPosMenu->addAction(tr("Top Only"));
+        m_tabPosTopAct->setCheckable(true);
+        connect(m_tabPosTopAct, &QAction::triggered, this, [this]() {
+            setTabBarPosition(false);
+        });
+
+        m_tabPosSideAct = tabPosMenu->addAction(tr("Side Only"));
+        m_tabPosSideAct->setCheckable(true);
+        connect(m_tabPosSideAct, &QAction::triggered, this, [this]() {
             setTabBarPosition(true, /*hideTopBar=*/true);
         });
 
-        tabPosGroup->addAction(m_tabBarOnSideAct);
-        tabPosGroup->addAction(m_tabBarSideHideTopAct);
+        m_tabPosHideAllAct = tabPosMenu->addAction(tr("Hide All"));
+        m_tabPosHideAllAct->setCheckable(true);
+        connect(m_tabPosHideAllAct, &QAction::triggered, this, [this]() {
+            setTabBarPosition(false);
+            m_tabBar->hide();
+            m_tabPosHideAllAct->setChecked(true);
+        });
+
+        m_tabPosGroup->addAction(m_tabPosShowAllAct);
+        m_tabPosGroup->addAction(m_tabPosTopAct);
+        m_tabPosGroup->addAction(m_tabPosSideAct);
+        m_tabPosGroup->addAction(m_tabPosHideAllAct);
+    }
+
+    // 显示区域子菜单：编辑器+预览 / 仅编辑器 / 仅预览
+    {
+        QMenu* displayMenu = viewMenu->addMenu(tr("Display Area"));
+        m_displayGroup = new QActionGroup(this);
+        m_displayGroup->setExclusive(true);
+
+        m_displayBothAct = displayMenu->addAction(tr("Editor and Preview"));
+        m_displayBothAct->setCheckable(true);
+        m_displayBothAct->setChecked(true);
+
+        m_displayEditorAct = displayMenu->addAction(tr("Editor Only"));
+        m_displayEditorAct->setCheckable(true);
+
+        m_displayPreviewAct = displayMenu->addAction(tr("Preview Only"));
+        m_displayPreviewAct->setCheckable(true);
+
+        m_displayGroup->addAction(m_displayBothAct);
+        m_displayGroup->addAction(m_displayEditorAct);
+        m_displayGroup->addAction(m_displayPreviewAct);
+
+        connect(m_displayBothAct, &QAction::triggered, this, [this]() { setDisplayMode(0); });
+        connect(m_displayEditorAct, &QAction::triggered, this, [this]() { setDisplayMode(1); });
+        connect(m_displayPreviewAct, &QAction::triggered, this, [this]() { setDisplayMode(2); });
     }
 
     viewMenu->addSeparator();
@@ -731,48 +790,66 @@ void MainWindow::restoreSession(const QString& requestedFile)
     // 无命令行文件：恢复整个会话
     if (restore) {
         struct TabState {
+            QString filePath;
             int editorScroll, editorHScroll, previewScroll, previewHScroll;
             int cursorLine, cursorColumn;
         };
         int count = s.beginReadArray("session/tabs");
         QVector<TabState> tabStates;
-        bool opened = false;
         for (int i = 0; i < count; ++i) {
             s.setArrayIndex(i);
             QString fp = s.value("file").toString();
             if (!fp.isEmpty() && QFileInfo::exists(fp)) {
-                openFile(fp);
-                tabStates.append({s.value("editorScroll", 0).toInt(),
+                tabStates.append({fp,
+                                  s.value("editorScroll", 0).toInt(),
                                   s.value("editorHScroll", 0).toInt(),
                                   s.value("previewScroll", 0).toInt(),
                                   s.value("previewHScroll", 0).toInt(),
                                   s.value("cursorLine", 0).toInt(),
                                   s.value("cursorColumn", 0).toInt()});
-                opened = true;
             }
         }
         s.endArray();
 
-        if (opened) {
-            // 恢复当前标签
+        if (!tabStates.isEmpty()) {
             int activeTab = s.value("session/activeTab", 0).toInt();
+            if (activeTab < 0 || activeTab >= tabStates.size())
+                activeTab = 0;
+
+            // 创建所有标签页：活跃 tab 立即加载，其余懒加载
+            for (int i = 0; i < tabStates.size(); ++i) {
+                const auto& st = tabStates[i];
+                if (i == activeTab) {
+                    openFile(st.filePath);
+                } else {
+                    // 懒加载：创建 tab 但不加载文件内容
+                    TabData tab = createTab();
+                    int idx = addPage(tab.splitter, QFileInfo(st.filePath).fileName());
+                    tab.lazyPending = true;
+                    tab.lazyFilePath = st.filePath;
+                    m_tabs.append(tab);
+                    setTabCloseButton(idx);
+                    watchFile(QFileInfo(st.filePath).absoluteFilePath());
+                }
+            }
+
+            // 设置活跃标签
             if (activeTab >= 0 && activeTab < m_tabBar->count())
                 m_tabBar->setCurrentIndex(activeTab);
 
-            // 延迟恢复所有标签页的光标位置和滚动位置
-            QTimer::singleShot(200, this, [this, tabStates]() {
-                for (int i = 0; i < tabStates.size() && i < m_tabs.size(); ++i) {
-                    const auto& st = tabStates[i];
-                    m_tabs[i].editor->document()->selection().setCursorPosition(
-                        {st.cursorLine, st.cursorColumn});
-                    m_tabs[i].editor->verticalScrollBar()->setValue(st.editorScroll);
-                    m_tabs[i].editor->horizontalScrollBar()->setValue(st.editorHScroll);
-                    m_tabs[i].preview->verticalScrollBar()->setValue(st.previewScroll);
-                    m_tabs[i].preview->horizontalScrollBar()->setValue(st.previewHScroll);
-                }
-                // 当前标签页需确保光标可见
-                if (auto* tab = currentTab())
+            // 延迟恢复活跃标签页的光标和滚动位置
+            const auto& activeSt = tabStates[activeTab];
+            QTimer::singleShot(200, this, [this, activeSt]() {
+                if (auto* tab = currentTab()) {
+                    tab->editor->document()->selection().setCursorPosition(
+                        {activeSt.cursorLine, activeSt.cursorColumn});
                     tab->editor->ensureCursorVisible();
+                    tab->editor->verticalScrollBar()->setValue(activeSt.editorScroll);
+                    tab->editor->horizontalScrollBar()->setValue(activeSt.editorHScroll);
+                    tab->preview->verticalScrollBar()->setValue(activeSt.previewScroll);
+                    tab->preview->horizontalScrollBar()->setValue(activeSt.previewHScroll);
+                    m_folderPanel->selectFile(tab->editor->document()->filePath());
+                }
             });
             reapplyTheme();
             return;
@@ -785,9 +862,13 @@ void MainWindow::restoreSession(const QString& requestedFile)
 
 void MainWindow::openFile(const QString& path)
 {
-    // 检查文件是否已在某个标签页打开
+    // 检查文件是否已在某个标签页打开（包括懒加载未加载的 tab）
+    QString absPath = QFileInfo(path).absoluteFilePath();
     for (int i = 0; i < m_tabs.size(); ++i) {
-        if (m_tabs[i].editor->document()->filePath() == QFileInfo(path).absoluteFilePath()) {
+        QString tabFp = m_tabs[i].editor->document()->filePath();
+        if (tabFp.isEmpty() && m_tabs[i].lazyPending)
+            tabFp = m_tabs[i].lazyFilePath;
+        if (tabFp == absPath) {
             m_tabBar->setCurrentIndex(i);
 
             // [修复] 如果文件已打开，切换到该标签页后必须提升窗口
@@ -845,11 +926,35 @@ MainWindow::TabData MainWindow::createTab()
     tab.splitter->addWidget(tab.preview);
     tab.splitter->setSizes({640, 640});
 
-    // Spec: specs/模块-app/13-分隔条吸附刻度.md INV-SNAP-NO-COLLAPSE
-    // 给 editor / preview 都兜底一个 minimumWidth，配合 setChildrenCollapsible(false)
-    // 阻止用户把 handle 拖到极端位置让任一侧消失、分隔条贴边无法抓回
-    tab.editor->setMinimumWidth(80);
-    tab.preview->setMinimumWidth(80);
+    // 允许拖拽到底完全隐藏编辑器或预览区
+    tab.editor->setMinimumWidth(0);
+    tab.preview->setMinimumWidth(0);
+    tab.splitter->setChildrenCollapsible(true);
+
+    // splitter 拖拽联动 displayMode 菜单状态
+    // splitter 拖拽联动 displayMode（debounce 200ms，松手后才判断）
+    connect(tab.splitter, &QSplitter::splitterMoved, this, [this, splitter = tab.splitter]() {
+        if (m_focusMode) return;
+        // 每次 splitterMoved 重启 debounce timer
+        QTimer::singleShot(200, this, [this, splitter]() {
+            if (m_focusMode) return;
+            QList<int> sizes = splitter->sizes();
+            if (sizes.size() < 2) return;
+            int newMode = 0;
+            if (sizes[0] == 0) newMode = 2;
+            else if (sizes[1] == 0) newMode = 1;
+            if (newMode != m_displayMode) {
+                m_displayMode = newMode;
+                if (m_displayBothAct) m_displayBothAct->setChecked(newMode == 0);
+                if (m_displayEditorAct) m_displayEditorAct->setChecked(newMode == 1);
+                if (m_displayPreviewAct) m_displayPreviewAct->setChecked(newMode == 2);
+                if (newMode == 1)
+                    showToast(tr("Preview hidden. Restore via View > Display Area."));
+                else if (newMode == 2)
+                    showToast(tr("Editor hidden. Restore via View > Display Area."));
+            }
+        });
+    });
 
     // Parse scheduler: connect document -> preview
     tab.scheduler = new ParseScheduler(tab.splitter);
@@ -934,17 +1039,22 @@ void MainWindow::updateTabTitle(int index)
         return;
 
     Document* doc = m_tabs[index].editor->document();
+    QString fp = doc->filePath();
+    // 懒加载 tab 尚未加载文件，从 lazyFilePath 获取路径
+    if (fp.isEmpty() && m_tabs[index].lazyPending)
+        fp = m_tabs[index].lazyFilePath;
+
     QString title;
-    if (doc->filePath().isEmpty()) {
+    if (fp.isEmpty()) {
         title = tr("Untitled");
     } else {
-        title = QFileInfo(doc->filePath()).fileName();
+        title = QFileInfo(fp).fileName();
     }
     if (doc->isModified())
         title = "* " + title;
 
     m_tabBar->setTabText(index, title);
-    m_tabBar->setTabToolTip(index, doc->filePath().isEmpty() ? tr("Untitled") : QFileInfo(doc->filePath()).absoluteFilePath());
+    m_tabBar->setTabToolTip(index, fp.isEmpty() ? tr("Untitled") : QFileInfo(fp).absoluteFilePath());
     if (m_tabBarOnSide) m_sideTabBar->setTabText(index, title);
 
     // Update window title
@@ -965,8 +1075,10 @@ void MainWindow::updateRecentFilesMenu()
         QString display = QDir::toNativeSeparators(entry);
         if (fi.isDir()) {
             m_recentMenu->addAction(display, [this, entry]() {
-                m_folderPanel->setRootPath(entry);
+                m_folderPanel->addFolder(entry);
                 m_folderPanel->setTheme(m_currentTheme);
+                updateLeftPaneVisibility();
+                saveSettings();  // 文件夹路径是关键状态，立即持久化
             });
         } else {
             m_recentMenu->addAction(display, [this, entry]() {
@@ -1043,6 +1155,7 @@ void MainWindow::applySystemTheme()
 {
     m_currentThemeId.clear();  // 空表示跟随系统
     applyTheme(isSystemDarkMode() ? Theme::dark() : Theme::light());
+    saveSessionLater();  // 主题切换后持久化
 }
 
 // Spec: specs/模块-app/12-主题插件系统.md
@@ -1051,6 +1164,7 @@ void MainWindow::applyThemeById(const QString& id)
 {
     m_currentThemeId = id;
     applyTheme(Theme::byId(id));
+    saveSessionLater();  // 主题切换后持久化
 }
 
 // 打开用户主题目录（首次打开会自动创建）
@@ -1104,7 +1218,7 @@ void MainWindow::rebuildThemeMenu()
     m_lightThemeAct = nullptr;
     m_darkThemeAct = nullptr;
 
-    // 1) Follow System
+    // 1) 基础三项：跟随系统 / 浅色模式 / 深色模式
     m_followSystemThemeAct = m_themeMenu->addAction(tr("Follow System"));
     m_followSystemThemeAct->setCheckable(true);
     m_themeGroup->addAction(m_followSystemThemeAct);
@@ -1112,12 +1226,28 @@ void MainWindow::rebuildThemeMenu()
         applySystemTheme();
     });
 
+    m_lightThemeAct = m_themeMenu->addAction(tr("Light Mode"));
+    m_lightThemeAct->setCheckable(true);
+    m_themeGroup->addAction(m_lightThemeAct);
+    connect(m_lightThemeAct, &QAction::triggered, this, [this]() {
+        applyThemeById("light");
+    });
+
+    m_darkThemeAct = m_themeMenu->addAction(tr("Dark Mode"));
+    m_darkThemeAct->setCheckable(true);
+    m_themeGroup->addAction(m_darkThemeAct);
+    connect(m_darkThemeAct, &QAction::triggered, this, [this]() {
+        applyThemeById("dark");
+    });
+
     m_themeMenu->addSeparator();
 
-    // 2) 所有已发现的主题（内置 + 用户）
+    // 2) 其他已发现的主题（跳过 light/dark，已单独添加）
     const QString userDir = core::ThemeLoader::userThemeDir();
     const auto all = core::ThemeLoader::discoverAll(userDir);
     for (const auto& d : all) {
+        if (d.id == QLatin1String("light") || d.id == QLatin1String("dark"))
+            continue;
         QAction* act = m_themeMenu->addAction(d.displayName);
         act->setCheckable(true);
         const QString id = d.id;
@@ -1125,9 +1255,6 @@ void MainWindow::rebuildThemeMenu()
         connect(act, &QAction::triggered, this, [this, id]() {
             applyThemeById(id);
         });
-        // 保留对 light/dark 指针的引用，便于旧代码访问
-        if (id == QLatin1String("light"))  m_lightThemeAct = act;
-        else if (id == QLatin1String("dark")) m_darkThemeAct = act;
         m_dynamicThemeActs.append(act);
     }
 
@@ -1458,9 +1585,11 @@ void MainWindow::onOpenFolder()
 {
     QString dir = QFileDialog::getExistingDirectory(this, tr("Open Folder"));
     if (dir.isEmpty()) return;
-    m_folderPanel->setRootPath(dir);
+    m_folderPanel->addFolder(dir);
     m_folderPanel->setTheme(m_currentTheme);
+    updateLeftPaneVisibility();
     m_recentFiles->addFile(dir);
+    saveSettings();  // 文件夹路径是关键状态，立即持久化
 }
 
 void MainWindow::onSaveFile()
@@ -1514,6 +1643,8 @@ void MainWindow::onCloseTab(int index)
 
     // 取消文件监控
     QString fp = m_tabs[index].editor->document()->filePath();
+    if (fp.isEmpty() && m_tabs[index].lazyPending)
+        fp = m_tabs[index].lazyFilePath;
     if (!fp.isEmpty())
         unwatchFile(fp);
 
@@ -1537,6 +1668,18 @@ void MainWindow::onTabChanged(int index)
 
     updateTabTitle(index);
 
+    // 懒加载：切换到尚未加载的 tab 时触发文件加载
+    if (index >= 0 && index < m_tabs.size() && m_tabs[index].lazyPending) {
+        m_tabs[index].lazyPending = false;
+        QString fp = m_tabs[index].lazyFilePath;
+        m_tabs[index].lazyFilePath.clear();
+        if (!fp.isEmpty() && QFileInfo::exists(fp)) {
+            m_tabs[index].editor->document()->loadFromFile(fp);
+            m_tabs[index].preview->setDocumentDir(QFileInfo(fp).absolutePath());
+            m_tabs[index].scheduler->parseNow();
+        }
+    }
+
     // 切换 tab 时更新 TOC 面板
     if (index >= 0 && index < m_tabs.size()) {
         auto* preview = m_tabs[index].preview;
@@ -1555,6 +1698,9 @@ void MainWindow::onTabChanged(int index)
         // 切换到有待重载标记的 tab 时弹窗提示
         if (m_tabs[index].pendingReload)
             QTimer::singleShot(0, this, [this, index]() { promptReloadTab(index); });
+
+        // 应用当前显示区域模式（仅编辑器/仅预览/双栏）
+        if (!m_focusMode) applyDisplayMode();
 
         // [演示模式] 切换 tab 时：隐藏编辑器、预览占满
         if (m_focusMode) {
@@ -1575,6 +1721,24 @@ void MainWindow::onTabChanged(int index)
     }
     // Spec: specs/模块-app/15-状态栏布局.md
     updateRightStatusBar();
+
+    // P1 微交互：切换 tab 时内容区淡入（150ms，0.6→1.0）
+    if (index >= 0 && index < m_tabs.size() && !m_focusMode) {
+        auto* page = m_contentStack->currentWidget();
+        if (page) {
+            auto* effect = new QGraphicsOpacityEffect(page);
+            page->setGraphicsEffect(effect);
+            auto* anim = new QPropertyAnimation(effect, "opacity", this);
+            anim->setDuration(150);
+            anim->setStartValue(0.6);
+            anim->setEndValue(1.0);
+            anim->setEasingCurve(QEasingCurve::OutCubic);
+            connect(anim, &QPropertyAnimation::finished, this, [page]() {
+                page->setGraphicsEffect(nullptr);  // 动画结束移除 effect，避免持续性能开销
+            });
+            anim->start(QAbstractAnimation::DeleteWhenStopped);
+        }
+    }
 }
 
 // -- Drag & Drop --
@@ -1754,6 +1918,8 @@ bool MainWindow::eventFilter(QObject* obj, QEvent* event)
     // FolderPanel 显隐联动左侧面板容器
     if (obj == m_folderPanel &&
         (event->type() == QEvent::Show || event->type() == QEvent::Hide)) {
+        // folderPanel 在容器内 hide/show，不影响 splitter 布局
+        // 不需要额外处理
         updateLeftPaneVisibility();
     }
 
@@ -1776,19 +1942,22 @@ void MainWindow::showEvent(QShowEvent* event)
         if (!m_pendingSplitterState.isEmpty()) {
             m_mainSplitter->restoreState(m_pendingSplitterState);
         } else {
+            // 自适应 TOC 默认宽度：窗口宽度 15%，夹紧到 [160, 320]
             int totalW = m_mainSplitter->width();
-            m_mainSplitter->setSizes({totalW - 220, 220});
+            int defaultTocW = qBound(160, totalW * 15 / 100, 320);
+            m_mainSplitter->setSizes({totalW - defaultTocW, defaultTocW});
         }
         m_pendingSplitterState.clear();
 
         // Spec: specs/模块-preview/07-TOC面板.md 风险条目
         // 拆 QTabWidget 后，旧 restoreState 的 sizes 可能把 TOC 挤到 <= 0
-        // 此处 sanity clamp：若 TOC 宽度 < 100，强制恢复成默认 220
+        // 此处 sanity clamp：若 TOC 宽度 < minimumTocW，强制恢复默认
         auto sizes = m_mainSplitter->sizes();
+        int minimumTocW = qBound(160, m_mainSplitter->width() * 15 / 100, 320);
         if (sizes.size() == 2 && sizes[1] < 100) {
             int totalW = m_mainSplitter->width();
             if (totalW <= 0) totalW = width();
-            m_mainSplitter->setSizes({qMax(0, totalW - 220), 220});
+            m_mainSplitter->setSizes({qMax(0, totalW - minimumTocW), minimumTocW});
         }
 
         // [Plan plans/2026-04-13-首次启动引导.md] 首次启动弹欢迎页
@@ -1869,8 +2038,8 @@ void MainWindow::saveSettings()
     // Tab 栏位置
     s.setValue("view/tabBarOnSide", m_tabBarOnSide);
     s.setValue("view/hideTopBarWhenSide", m_hideTopBarWhenSide);
-    // 文件夹面板：持久化上次打开的目录
-    s.setValue("folderPanel/rootPath", m_folderPanel->rootPath());
+    // 文件夹面板：持久化所有打开的目录
+    s.setValue("folderPanel/rootPaths", m_folderPanel->rootPaths());
 
     // 会话恢复
     s.setValue("session/restoreLastFile", m_restoreSessionAct ? m_restoreSessionAct->isChecked() : true);
@@ -1881,6 +2050,9 @@ void MainWindow::saveSettings()
     int written = 0;
     for (int i = 0; i < m_tabs.size(); ++i) {
         QString fp = m_tabs[i].editor->document()->filePath();
+        // 懒加载 tab 尚未加载文件，从 lazyFilePath 获取路径
+        if (fp.isEmpty() && m_tabs[i].lazyPending)
+            fp = m_tabs[i].lazyFilePath;
         if (fp.isEmpty()) continue; // 跳过未保存的空文档
         s.setArrayIndex(written++);
         s.setValue("file", fp);
@@ -1972,12 +2144,19 @@ void MainWindow::loadSettings()
         tab.preview->setWordWrap(wordWrap);
     }
 
-    // 文件夹面板：恢复上次打开的目录
-    QString folderPath = s.value("folderPanel/rootPath").toString();
-    if (!folderPath.isEmpty() && QDir(folderPath).exists()) {
-        m_folderPanel->setRootPath(folderPath);
-        m_folderPanel->setTheme(m_currentTheme);
+    // 文件夹面板：恢复上次打开的目录（兼容旧版单路径和新版多路径）
+    QStringList folderPaths = s.value("folderPanel/rootPaths").toStringList();
+    if (folderPaths.isEmpty()) {
+        // 兼容旧版配置
+        QString single = s.value("folderPanel/rootPath").toString();
+        if (!single.isEmpty()) folderPaths.append(single);
     }
+    for (const auto& fp : folderPaths) {
+        if (!fp.isEmpty() && QDir(fp).exists())
+            m_folderPanel->addFolder(fp);
+    }
+    if (!m_folderPanel->rootPaths().isEmpty())
+        m_folderPanel->setTheme(m_currentTheme);
 
     // [字体系统] Spec: specs/横切关注点/80-字体系统.md INV-4
     // 无条件调用：即使 delta==0 也要同步两侧字体，避免两边走各自构造函数的默认值而出现差异
@@ -2627,6 +2806,77 @@ void MainWindow::retranslateUi()
 // [Spec 模块-app/11-演示模式] Plan 裁定方案 A：替换原 Focus Mode
 // 进入时：全屏 + 隐藏编辑器/菜单/Tab/TOC，只显示当前 Tab 的预览
 // 退出时：恢复所有原布局
+// ---- 底部居中 toast 通知 ----
+
+void MainWindow::showToast(const QString& message, int durationMs)
+{
+    auto* toast = new QLabel(message, this);
+    toast->setAlignment(Qt::AlignCenter);
+    toast->setWordWrap(true);
+    toast->setAttribute(Qt::WA_TransparentForMouseEvents);
+    toast->setStyleSheet(QStringLiteral(
+        "QLabel {"
+        "  background: %1; color: %2;"
+        "  border-radius: 6px; padding: 8px 20px;"
+        "  font-size: 13px;"
+        "}"
+    ).arg(m_currentTheme.isDark ? "rgba(255,255,255,0.15)" : "rgba(0,0,0,0.75)",
+          m_currentTheme.isDark ? "#ddd" : "#fff"));
+
+    toast->adjustSize();
+    int x = (width() - toast->width()) / 2;
+    int y = height() - toast->height() - 40;
+    toast->move(x, y);
+    toast->show();
+
+    // 3s 后淡出
+    QTimer::singleShot(durationMs, this, [toast]() {
+        auto* effect = new QGraphicsOpacityEffect(toast);
+        toast->setGraphicsEffect(effect);
+        auto* anim = new QPropertyAnimation(effect, "opacity", toast);
+        anim->setDuration(300);
+        anim->setStartValue(1.0);
+        anim->setEndValue(0.0);
+        anim->setEasingCurve(QEasingCurve::OutCubic);
+        connect(anim, &QPropertyAnimation::finished, toast, &QLabel::deleteLater);
+        anim->start(QAbstractAnimation::DeleteWhenStopped);
+    });
+}
+
+// ---- 显示区域切换 ----
+
+void MainWindow::setDisplayMode(int mode)
+{
+    m_displayMode = mode;
+    applyDisplayMode();
+    saveSessionLater();
+}
+
+void MainWindow::applyDisplayMode()
+{
+    auto* tab = currentTab();
+    if (!tab) return;
+    switch (m_displayMode) {
+    case 0: // 双栏
+        tab->editor->show();
+        tab->preview->show();
+        // 恢复 50/50 比例（如果某侧被隐藏过）
+        if (tab->splitter->sizes()[0] == 0 || tab->splitter->sizes()[1] == 0)
+            tab->splitter->setSizes({1, 1});
+        break;
+    case 1: // 仅编辑器
+        tab->editor->show();
+        tab->preview->hide();
+        tab->splitter->setSizes({1, 0});
+        break;
+    case 2: // 仅预览
+        tab->editor->hide();
+        tab->preview->show();
+        tab->splitter->setSizes({0, 1});
+        break;
+    }
+}
+
 // ---- Tab 栏位置切换 ----
 
 void MainWindow::setTabBarPosition(bool onSide, bool hideTopBar)
@@ -2640,9 +2890,7 @@ void MainWindow::setTabBarPosition(bool onSide, bool hideTopBar)
         m_sideTabBar->setParent(this);
         m_tabBar->setVisible(true);
         updateLeftPaneVisibility();
-        // 取消所有子菜单的勾选
-        if (m_tabBarOnSideAct) m_tabBarOnSideAct->setChecked(false);
-        if (m_tabBarSideHideTopAct) m_tabBarSideHideTopAct->setChecked(false);
+        if (m_tabPosTopAct) m_tabPosTopAct->setChecked(true);
         saveSessionLater();
         return;
     }
@@ -2658,13 +2906,16 @@ void MainWindow::setTabBarPosition(bool onSide, bool hideTopBar)
         m_leftPaneSplitter->setCollapsible(m_leftPaneSplitter->indexOf(m_sideTabBar), false);
         m_sideTabBar->show();
         m_sideTabBar->setTheme(m_currentTheme);
+        // 默认比例：文件夹 2/3，Tab 栏 1/3
         int totalH = m_leftPaneSplitter->height();
         if (totalH < 100) totalH = 600;
         m_leftPaneSplitter->setSizes({totalH * 2 / 3, totalH / 3});
         m_leftPaneSplitter->show();
         QList<int> mainSizes = m_mainSplitter->sizes();
         if (mainSizes.size() >= 2 && mainSizes[0] < 150) {
-            mainSizes[0] = 200;
+            // 自适应左侧面板宽度：窗口宽度 18%，夹紧到 [180, 350]
+            int totalW = m_mainSplitter->width();
+            mainSizes[0] = qBound(180, totalW * 18 / 100, 350);
             m_mainSplitter->setSizes(mainSizes);
         }
     }
@@ -2673,8 +2924,9 @@ void MainWindow::setTabBarPosition(bool onSide, bool hideTopBar)
     m_tabBar->setVisible(!hideTopBar);
 
     updateLeftPaneVisibility();
-    if (m_tabBarOnSideAct) m_tabBarOnSideAct->setChecked(onSide && !hideTopBar);
-    if (m_tabBarSideHideTopAct) m_tabBarSideHideTopAct->setChecked(onSide && hideTopBar);
+    // 更新菜单勾选状态
+    if (onSide && !hideTopBar && m_tabPosShowAllAct) m_tabPosShowAllAct->setChecked(true);
+    else if (onSide && hideTopBar && m_tabPosSideAct) m_tabPosSideAct->setChecked(true);
     saveSessionLater();
 }
 
@@ -2688,12 +2940,17 @@ void MainWindow::syncSideTabBar()
 
 void MainWindow::updateLeftPaneVisibility()
 {
+    // 演示模式下左侧面板始终隐藏
+    if (m_focusMode) {
+        m_leftPaneSplitter->hide();
+        return;
+    }
     if (m_tabBarOnSide) {
         // 左侧模式：Tab 栏在里面，始终显示
         m_leftPaneSplitter->show();
     } else {
-        // 顶部模式：跟随 FolderPanel 可见性
-        m_leftPaneSplitter->setVisible(m_folderPanel->isVisible());
+        // 顶部模式：跟随 FolderPanel 可见性（判断是否有打开的文件夹）
+        m_leftPaneSplitter->setVisible(!m_folderPanel->rootPath().isEmpty());
     }
 }
 
@@ -2721,10 +2978,11 @@ void MainWindow::enterFocusMode()
     if (tab)
         m_savedTabSplitterSizes = tab->splitter->sizes();
 
-    // 隐藏菜单栏、状态栏、tab 栏
+    // 隐藏菜单栏、状态栏、tab 栏、左侧面板
     menuBar()->hide();
     statusBar()->hide();
     m_tabBar->hide();
+    m_leftPaneSplitter->hide();
 
     // 隐藏 TOC 面板
     m_tocPanel->hide();
@@ -2740,6 +2998,9 @@ void MainWindow::enterFocusMode()
     if (tab) {
         tab->splitter->setSizes({0, 1});  // 编辑器 0，预览 1
     }
+
+    // mainSplitter：所有宽度给 contentStack（中间）
+    m_mainSplitter->setSizes({0, 1, 0});
 
     // 进入全屏
     showFullScreen();
@@ -2758,19 +3019,23 @@ void MainWindow::exitFocusMode()
     // 退出全屏
     showNormal();
 
-    // 恢复菜单栏、状态栏、tab 栏
+    // 恢复菜单栏、状态栏
     menuBar()->show();
     statusBar()->show();
-    m_tabBar->show();
+    // 恢复 tab 栏（根据侧边模式决定显隐）
+    m_tabBar->setVisible(!m_tabBarOnSide || !m_hideTopBarWhenSide);
+    // 恢复左侧面板
+    updateLeftPaneVisibility();
 
     // 恢复 TOC 面板
     m_tocPanel->setVisible(m_savedTocVisible);
 
-    // [演示模式] 恢复编辑器显示
+    // [演示模式] 恢复编辑器显示（根据 displayMode）
     for (auto& t : m_tabs) {
         t.editor->show();
         t.preview->show();
     }
+    applyDisplayMode();
 
     // 恢复 splitter 状态
     if (!m_savedMainSplitterState.isEmpty())

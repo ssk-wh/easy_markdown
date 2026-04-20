@@ -26,6 +26,11 @@ Unicode True
 !define MUI_ICON "..\resources\app-icon.ico"
 !define MUI_UNICON "..\resources\app-icon.ico"
 
+; 安装完成页：立即启动选项（默认勾选）
+!define MUI_FINISHPAGE_RUN "$INSTDIR\${APP_EXE}"
+!define MUI_FINISHPAGE_RUN_TEXT "立即启动 ${APP_NAME}"
+!define MUI_FINISHPAGE_RUN_CHECKED
+
 ; ============== Variables ==============
 Var WasRunning
 
@@ -146,10 +151,7 @@ Section "!$(^Name)" SecMain
 
     System::Call 'shell32::SHChangeNotify(i 0x08000000, i 0x0000, p 0, p 0)'
 
-    ; 如果安装前进程在运行，安装完成后自动重启
-    ${If} $WasRunning == "1"
-        Exec '"$INSTDIR\${APP_EXE}"'
-    ${EndIf}
+    ; 安装完成后的启动由 MUI_FINISHPAGE_RUN 复选框统一控制
 SectionEnd
 
 Section "Start Menu" SecStartMenu

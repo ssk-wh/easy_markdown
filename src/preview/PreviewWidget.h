@@ -29,6 +29,7 @@ public:
     void setWordWrap(bool enabled);
     bool wordWrap() const { return m_wordWrap; }
     void rebuildLayout();
+    void clearHighlightsInSection(int sectionIdx);
 
     qreal highlightOpacity() const { return m_highlightOpacity; }
     void setHighlightOpacity(qreal opacity) { m_highlightOpacity = opacity; }

@@ -59,6 +59,8 @@ private:
         ParseScheduler* scheduler = nullptr;
         ScrollSync* scrollSync = nullptr;
         bool pendingReload = false;  // 文件被外部修改，等切换到此 tab 时提示
+        bool lazyPending = false;    // 懒加载：尚未加载文件内容
+        QString lazyFilePath;        // 懒加载时记录的文件路径
     };
 
     // [Spec 模块-preview/09] 预览区链接 Ctrl+click 处理
@@ -82,7 +84,8 @@ private:
     TabBarWithAdd* m_tabBar = nullptr;
     QStackedWidget* m_contentStack = nullptr;
     QSplitter* m_mainSplitter = nullptr;
-    QSplitter* m_leftPaneSplitter = nullptr;   // 左侧面板容器（文件夹 + 可选侧边 Tab 栏）
+    QSplitter* m_leftPaneSplitter = nullptr;     // 左侧面板容器（文件夹 + 可选侧边 Tab 栏）
+    QWidget* m_folderContainer = nullptr;      // folderPanel 的容器（始终在 splitter 中可见）
     QVBoxLayout* m_centralLayout = nullptr;     // 顶层 vbox，切换 Tab 位置时需引用
     TocPanel* m_tocPanel = nullptr;
     FolderPanel* m_folderPanel = nullptr;
@@ -152,12 +155,27 @@ private:
     // Tab 栏位置（顶部 / 左侧）
     bool m_tabBarOnSide = false;
     bool m_hideTopBarWhenSide = true;  // 侧边模式时是否隐藏顶部 tab 栏
-    QAction* m_tabBarOnSideAct = nullptr;
-    QAction* m_tabBarSideHideTopAct = nullptr;
+    QActionGroup* m_tabPosGroup = nullptr;
+    QAction* m_tabPosShowAllAct = nullptr;
+    QAction* m_tabPosTopAct = nullptr;
+    QAction* m_tabPosSideAct = nullptr;
+    QAction* m_tabPosHideAllAct = nullptr;
     SideTabBar* m_sideTabBar = nullptr;
     void setTabBarPosition(bool onSide, bool hideTopBar = true);
     void updateLeftPaneVisibility();
     void syncSideTabBar();           // 从 m_tabBar 全量同步到 m_sideTabBar
+
+    // 底部居中 toast 通知
+    void showToast(const QString& message, int durationMs = 3000);
+
+    // 显示区域模式：0=双栏, 1=仅编辑器, 2=仅预览
+    int m_displayMode = 0;
+    QActionGroup* m_displayGroup = nullptr;
+    QAction* m_displayBothAct = nullptr;
+    QAction* m_displayEditorAct = nullptr;
+    QAction* m_displayPreviewAct = nullptr;
+    void setDisplayMode(int mode);
+    void applyDisplayMode();  // 应用到当前 tab
 
     // 专注模式
     bool m_focusMode = false;

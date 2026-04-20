@@ -1,40 +1,45 @@
 // src/app/FolderPanel.h
 //
-// Plan: plans/2026-04-14-文件夹侧栏.md
-// 左侧文件夹面板：QTreeView + QFileSystemModel，显示目录下的 Markdown 文件
+// 左侧文件夹面板：单 QTreeView，多文件夹作为顶层节点
 #pragma once
 
 #include <QWidget>
+#include <QVector>
+#include <QStringList>
 #include "Theme.h"
 
 class QTreeView;
-class QFileSystemModel;
+class QStandardItemModel;
+class QStandardItem;
 class QLabel;
-class QToolButton;
+class QFileSystemWatcher;
 
 class FolderPanel : public QWidget {
     Q_OBJECT
 public:
     explicit FolderPanel(QWidget* parent = nullptr);
 
-    void setRootPath(const QString& path);
-    QString rootPath() const { return m_rootPath; }
+    void setRootPath(const QString& path);   // 兼容：清除已有，设置单个
+    void addFolder(const QString& path);     // 追加文件夹节点
+    void removeFolder(const QString& path);
+    QString rootPath() const;
+    QStringList rootPaths() const;
     void setTheme(const Theme& theme);
     void clearRoot();
     void selectFile(const QString& filePath);
 
 signals:
-    // 单击文件 → 用当前 Tab 打开
     void fileClicked(const QString& filePath);
-    // 双击文件 → 新 Tab 打开
     void fileDoubleClicked(const QString& filePath);
 
 protected:
     void contextMenuEvent(QContextMenuEvent* event) override;
 
 private:
+    void populateFolder(QStandardItem* folderItem, const QString& dirPath);
     void onItemClicked(const QModelIndex& index);
     void onItemDoubleClicked(const QModelIndex& index);
+    void onDirectoryChanged(const QString& path);
     void applyThemeStyles();
 
     // 右键菜单操作
@@ -45,9 +50,9 @@ private:
     void revealInExplorer(const QString& path);
 
     QLabel* m_titleLabel = nullptr;
-    QToolButton* m_closeBtn = nullptr;
     QTreeView* m_treeView = nullptr;
-    QFileSystemModel* m_model = nullptr;
-    QString m_rootPath;
+    QStandardItemModel* m_model = nullptr;
+    QFileSystemWatcher* m_watcher = nullptr;
+    QStringList m_rootPaths;
     Theme m_theme;
 };

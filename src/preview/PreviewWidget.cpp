@@ -345,6 +345,15 @@ void PreviewWidget::mousePressEvent(QMouseEvent* event)
 void PreviewWidget::mouseMoveEvent(QMouseEvent* event)
 {
     if (m_selecting && (event->buttons() & Qt::LeftButton)) {
+        // 选中拖拽时自动滚动：鼠标在 viewport 上/下方时滚动
+        int y = event->pos().y();
+        int vh = viewport()->height();
+        if (y < 0) {
+            verticalScrollBar()->setValue(verticalScrollBar()->value() + y / 2);
+        } else if (y > vh) {
+            verticalScrollBar()->setValue(verticalScrollBar()->value() + (y - vh) / 2);
+        }
+
         // 同 mousePressEvent：坐标变换规则与 paintEvent 中的 translate 对应
         qreal scrollXVal = m_wordWrap ? 0 : horizontalScrollBar()->value();
         QPointF pt(event->pos().x() - 20 + scrollXVal, event->pos().y());
@@ -456,6 +465,27 @@ void PreviewWidget::contextMenuEvent(QContextMenuEvent* event)
     // 标记相关
     QAction* hlAct = menu.addAction(tr("Mark"), this, &PreviewWidget::addHighlight);
     hlAct->setEnabled(hasSelection);
+
+    // 检测右键位置是否落在某个标记内
+    qreal scrollXVal = m_wordWrap ? 0 : horizontalScrollBar()->value();
+    QPointF clickPt(event->pos().x() - 20 + scrollXVal, event->pos().y());
+    int clickIdx = textIndexAtPoint(clickPt);
+    int hitMarkIdx = -1;
+    for (int i = 0; i < m_highlights.size(); ++i) {
+        if (clickIdx >= m_highlights[i].first && clickIdx < m_highlights[i].second) {
+            hitMarkIdx = i;
+            break;
+        }
+    }
+
+    QAction* clearCurrentAct = menu.addAction(tr("Clear Current Mark"), [this, hitMarkIdx]() {
+        if (hitMarkIdx >= 0 && hitMarkIdx < m_highlights.size()) {
+            m_highlights.removeAt(hitMarkIdx);
+            updateTocHighlights();
+            viewport()->update();
+        }
+    });
+    clearCurrentAct->setEnabled(hitMarkIdx >= 0);
 
     QAction* clearHlAct = menu.addAction(tr("Clear All Marks"), this, &PreviewWidget::clearHighlights);
     clearHlAct->setEnabled(!m_highlights.isEmpty());
@@ -658,17 +688,20 @@ void PreviewWidget::addHighlight()
     int e = qMax(m_selStart, m_selEnd);
     if (s < 0 || e <= s) return;
 
-    // 检查是否已存在重叠的标记
+    // 合并重叠的标记区域
+    QVector<QPair<int,int>> merged;
+    bool inserted = false;
     for (const auto& hl : m_highlights) {
-        if ((s >= hl.first && s < hl.second) ||
-            (e > hl.first && e <= hl.second) ||
-            (s <= hl.first && e >= hl.second)) {
-            // 已存在重叠标记，不重复添加
-            return;
+        if (hl.second < s || hl.first > e) {
+            merged.append(hl);  // 不重叠，保留
+        } else {
+            // 重叠：扩展新标记的范围
+            s = qMin(s, hl.first);
+            e = qMax(e, hl.second);
         }
     }
-
-    m_highlights.append({s, e});
+    merged.append({s, e});
+    m_highlights = merged;
     updateTocHighlights();
     viewport()->update();
 }
@@ -681,26 +714,45 @@ void PreviewWidget::clearHighlights()
     viewport()->update();
 }
 
+void PreviewWidget::clearHighlightsInSection(int sectionIdx)
+{
+    if (sectionIdx < 0 || sectionIdx >= m_headingCharOffsets.size()) return;
+
+    int secStart = m_headingCharOffsets[sectionIdx];
+    int secEnd = (sectionIdx + 1 < m_headingCharOffsets.size())
+                 ? m_headingCharOffsets[sectionIdx + 1]
+                 : m_plainText.length();
+
+    // 移除所有与该章节有交集的标记
+    QVector<QPair<int,int>> remaining;
+    for (const auto& hl : m_highlights) {
+        if (hl.first >= secEnd || hl.second <= secStart) {
+            remaining.append(hl);  // 不在该章节内
+        }
+    }
+    m_highlights = remaining;
+    updateTocHighlights();
+    viewport()->update();
+}
+
 void PreviewWidget::updateTocHighlights()
 {
     QSet<int> highlighted;
 
-    // 对每个高亮范围，找到所属的标题
+    // 对每个高亮范围，找到所有跨越的章节标题
     for (const auto& hl : m_highlights) {
         int hlStart = hl.first;
+        int hlEnd = hl.second;
 
-        // 找到最后一个 <= hlStart 的标题
-        int titleIdx = -1;
         for (int i = 0; i < m_headingCharOffsets.size(); ++i) {
-            if (m_headingCharOffsets[i] <= hlStart) {
-                titleIdx = i;
-            } else {
-                break;
+            int headStart = m_headingCharOffsets[i];
+            int headEnd = (i + 1 < m_headingCharOffsets.size())
+                          ? m_headingCharOffsets[i + 1]
+                          : m_plainText.length();
+            // 标记范围与章节范围有交集则高亮该章节
+            if (hlStart < headEnd && hlEnd > headStart) {
+                highlighted.insert(i);
             }
-        }
-
-        if (titleIdx >= 0) {
-            highlighted.insert(titleIdx);
         }
     }
 

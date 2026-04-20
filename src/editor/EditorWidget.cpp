@@ -11,6 +11,11 @@
 #include <QPainter>
 #include <QPaintEvent>
 #include <QMouseEvent>
+#include <QMenu>
+#include <QContextMenuEvent>
+#include <QFileDialog>
+#include <QApplication>
+#include <QClipboard>
 #include <QScrollBar>
 #include <QFontDatabase>
 #include <QMimeData>
@@ -851,4 +856,51 @@ void EditorWidget::insertImageMarkdown(const QString& imagePath)
     m_input->insertText(markdown);
     ensureCursorVisible();
     viewport()->update();
+}
+
+void EditorWidget::contextMenuEvent(QContextMenuEvent* event)
+{
+    QMenu menu(this);
+
+    // 基本编辑操作（通过模拟按键触发，避免访问 private 方法）
+    bool hasSelection = m_doc && m_doc->selection().hasSelection();
+    menu.addAction(tr("Cut"), this, [this]() {
+        QKeyEvent ev(QEvent::KeyPress, Qt::Key_X, Qt::ControlModifier);
+        keyPressEvent(&ev);
+    })->setEnabled(hasSelection);
+    menu.addAction(tr("Copy"), this, [this]() {
+        QKeyEvent ev(QEvent::KeyPress, Qt::Key_C, Qt::ControlModifier);
+        keyPressEvent(&ev);
+    })->setEnabled(hasSelection);
+    menu.addAction(tr("Paste"), this, [this]() {
+        QKeyEvent ev(QEvent::KeyPress, Qt::Key_V, Qt::ControlModifier);
+        keyPressEvent(&ev);
+    });
+    menu.addSeparator();
+
+    // 插入 Markdown 元素
+    QMenu* insertMenu = menu.addMenu(tr("Insert"));
+    insertMenu->addAction(tr("Image..."), this, [this]() {
+        QString path = QFileDialog::getOpenFileName(this, tr("Select Image"),
+            QString(), tr("Images (*.png *.jpg *.jpeg *.gif *.bmp *.svg *.webp)"));
+        if (!path.isEmpty()) insertImageMarkdown(path);
+    });
+    insertMenu->addAction(tr("Link"), this, [this]() {
+        m_input->insertText("[link text](url)");
+        ensureCursorVisible(); viewport()->update();
+    });
+    insertMenu->addAction(tr("Table"), this, [this]() {
+        m_input->insertText("| Column 1 | Column 2 | Column 3 |\n| --- | --- | --- |\n| cell | cell | cell |\n");
+        ensureCursorVisible(); viewport()->update();
+    });
+    insertMenu->addAction(tr("Code Block"), this, [this]() {
+        m_input->insertText("```\n\n```\n");
+        ensureCursorVisible(); viewport()->update();
+    });
+    insertMenu->addAction(tr("Horizontal Rule"), this, [this]() {
+        m_input->insertText("\n---\n");
+        ensureCursorVisible(); viewport()->update();
+    });
+
+    menu.exec(event->globalPos());
 }

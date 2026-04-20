@@ -10,6 +10,7 @@
 
 #include <QPushButton>
 #include <QToolButton>
+#include <QMenu>
 #include <QScrollArea>
 #include <QVBoxLayout>
 #include <QHBoxLayout>
@@ -512,8 +513,8 @@ void TocPanel::buildList()
     const QColor subFg = m_theme.previewImageInfoText;       // 次级标题色（H3+）
     // hover：借用 previewHighlightToc 为 active 背景；hover 用更淡的背景（半透明 accent）
     const QColor accent = m_theme.accentColor;
-    QColor hoverBg = accent;
-    hoverBg.setAlpha(m_theme.isDark ? 50 : 36);
+    // 使用统一 hover 背景色
+    QString hoverBgStr = m_theme.hoverBgCss();
     // active 底（滚动焦点对应条目）
     const QColor activeBg = m_theme.previewHighlightToc;
     const QColor activeFg = m_theme.previewHeading;
@@ -522,7 +523,8 @@ void TocPanel::buildList()
     // Theme v1 没有独立的 accentSecondary 字段，这里用主题判断作为 fallback。
     // TOC-5 视觉规格，Spec INV-TOC-THEME-ONLY 允许通过 Theme 派生。
     QColor bulletDefault = m_theme.previewTableBorder;
-    QColor bulletActive = m_theme.isDark ? accent : QColor(0xFF, 0xDC, 0x7A);
+    // 标记圆点使用 accentColor 加深，确保可辨识
+    QColor bulletActive = m_theme.isDark ? accent.lighter(130) : accent.darker(120);
 
     // mock 视觉规格（Spec INV-TOC-VISUAL）
     constexpr int kRowPaddingV = 5;
@@ -589,21 +591,17 @@ void TocPanel::buildList()
         // 缩进：lvl1 基础 padding 8；lvl>=2 多 (level-1)*12
         const int padLeft = kRowPaddingH + qMax(0, (entry.level - 1) * kStepIndent);
 
-        // 高亮态（active）颜色与粗体
+        // 高亮态（active）：仅圆点变色 + 文字加粗，不加整行背景色
         QColor btnFg = itemFg;
         QString fontWeight = QStringLiteral("normal");
         QString normalBg = QStringLiteral("transparent");
         if (isActive) {
-            btnFg = activeFg;
             fontWeight = QStringLiteral("600");
-            normalBg = activeBg.name(QColor::HexArgb);
         }
 
         // 焦点环（键盘）
-        const bool hasFocus = (m_focusIdx == i);
-        QString borderRule = hasFocus
-            ? QStringLiteral("1px solid %1").arg(accent.name())
-            : QStringLiteral("none");
+        // 始终不画边框（避免任何焦点/选中边框）
+        QString borderRule = QStringLiteral("none");
 
         // hover 只改背景不改字色（Spec T-VISUAL-2）
         btn->setStyleSheet(QString(
@@ -614,15 +612,27 @@ void TocPanel::buildList()
             "  text-align: left;"
             "}"
             "QPushButton:hover { background: %9; }"
+            "QPushButton:focus { outline: none; }"
         ).arg(kRowPaddingV).arg(kRowPaddingH).arg(padLeft)
          .arg(btnFg.name()).arg(fontSize).arg(fontWeight)
-         .arg(borderRule, normalBg, hoverBg.name(QColor::HexArgb)));
+         .arg(borderRule, normalBg, hoverBgStr));
 
         const int sourceLine = entry.sourceLine;
         const int idx = i;
         connect(btn, &QPushButton::clicked, this, [this, sourceLine, idx]() {
             m_focusIdx = idx;
             emit headingClicked(sourceLine);
+        });
+
+        // 右键菜单：清除章节标记
+        btn->setContextMenuPolicy(Qt::CustomContextMenu);
+        connect(btn, &QPushButton::customContextMenuRequested, this, [this, idx, btn](const QPoint& pos) {
+            if (!m_highlightedEntries.contains(idx)) return;
+            QMenu menu(btn);
+            menu.addAction(tr("Clear Section Marks"), [this, idx]() {
+                emit clearSectionMarksRequested(idx);
+            });
+            menu.exec(btn->mapToGlobal(pos));
         });
 
         rowLayout->addWidget(arrow, 0);

@@ -172,6 +172,9 @@ build_on_win.bat release    :: Windows
 ./build_on_linux.sh release  # Linux
 ```
 
+> **注意**：编译前 taskkill 仅在目标进程锁定了 build 目录下的 exe 时才需要。
+> 如果用户启动的是从其他位置（如安装目录）运行的 SimpleMarkdown，不要杀死它。
+
 ### 打包
 
 ```bat

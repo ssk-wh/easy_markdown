@@ -8,6 +8,7 @@
 #include <QKeyEvent>
 #include <QPainter>
 #include <QMouseEvent>
+#include <QTimer>
 
 static constexpr int kBtnW = 28;
 static constexpr int kBtnGap = 2;
@@ -90,7 +91,7 @@ void SearchBar::applyThemeStyles()
         "  border-color: %4;"
         "}"
     ).arg(inputBg.name(), inputFg.name(), inputBorder.name(),
-          dark ? "#0078D7" : "#0366D6");
+          m_theme.accentColor.name());
 
     m_findEdit->setStyleSheet(editStyle);
     m_replaceEdit->setStyleSheet(editStyle);
@@ -130,6 +131,21 @@ bool SearchBar::eventFilter(QObject* obj, QEvent* event)
             hideBar();
             return true;
         }
+        // F3 下一个，Shift+F3 上一个
+        if (ke->key() == Qt::Key_F3) {
+            if (ke->modifiers() & Qt::ShiftModifier)
+                emit findPrev(m_findEdit->text());
+            else
+                emit findNext(m_findEdit->text());
+            return true;
+        }
+    }
+    // 失去焦点自动隐藏（延迟检查，避免在内部控件间切换时误关）
+    if (event->type() == QEvent::FocusOut) {
+        QTimer::singleShot(100, this, [this]() {
+            if (!m_findEdit->hasFocus() && !m_replaceEdit->hasFocus() && isVisible())
+                hideBar();
+        });
     }
     return QWidget::eventFilter(obj, event);
 }
@@ -240,7 +256,18 @@ void SearchBar::mouseMoveEvent(QMouseEvent* event)
         }
     }
     if (needUpdate) {
-        setCursor(hitTest(event->pos()) ? Qt::PointingHandCursor : Qt::ArrowCursor);
+        auto* hit = hitTest(event->pos());
+        setCursor(hit ? Qt::PointingHandCursor : Qt::ArrowCursor);
+        // 按钮 tooltip
+        if (hit == &m_btnPrev) setToolTip(tr("Previous Match (Shift+F3)"));
+        else if (hit == &m_btnNext) setToolTip(tr("Next Match (F3)"));
+        else if (hit == &m_btnClose) setToolTip(tr("Close (Escape)"));
+        else if (hit == &m_btnCaseSensitive) setToolTip(tr("Match Case"));
+        else if (hit == &m_btnWholeWord) setToolTip(tr("Match Whole Word"));
+        else if (hit == &m_btnRegex) setToolTip(tr("Use Regular Expression"));
+        else if (hit == &m_btnReplace) setToolTip(tr("Replace"));
+        else if (hit == &m_btnReplaceAll) setToolTip(tr("Replace All"));
+        else setToolTip(QString());
         update();
     }
 }
@@ -297,9 +324,10 @@ void SearchBar::paintEvent(QPaintEvent*)
 
     bool dark = m_theme.isDark;
 
-    // 面板背景
-    QColor bgColor = dark ? QColor(48, 48, 48, 235) : QColor(255, 255, 255, 245);
-    QColor borderColor = dark ? QColor(64, 64, 64, 200) : QColor(200, 200, 200, 200);
+    // 面板背景：跟随主题，稍重
+    QColor bgColor = dark ? m_theme.editorGutterBg.darker(110) : m_theme.editorGutterBg;
+    bgColor.setAlpha(245);
+    QColor borderColor = dark ? QColor(64, 64, 64, 200) : QColor(180, 180, 180, 200);
 
     p.setPen(QPen(borderColor, 1));
     p.setBrush(bgColor);
@@ -311,10 +339,15 @@ void SearchBar::paintEvent(QPaintEvent*)
     QColor pressBg = dark ? QColor(255, 255, 255, 50) : QColor(0, 0, 0, 40);
 
     auto drawBtn = [&](const ToolButton& btn) {
-        if (btn.pressed)
-            p.fillRect(btn.rect, pressBg);
-        else if (btn.hovered)
-            p.fillRect(btn.rect, hoverBg);
+        if (btn.pressed) {
+            p.setPen(Qt::NoPen);
+            p.setBrush(pressBg);
+            p.drawRoundedRect(btn.rect, 4, 4);
+        } else if (btn.hovered) {
+            p.setPen(Qt::NoPen);
+            p.setBrush(hoverBg);
+            p.drawRoundedRect(btn.rect, 4, 4);
+        }
     };
 
     auto drawIcon = [&](const ToolButton& btn, auto drawFunc) {
@@ -349,10 +382,13 @@ void SearchBar::paintEvent(QPaintEvent*)
     });
 
     // Case sensitive button: Aa
+    QColor accentBg = m_theme.accentColor;
+    accentBg.setAlpha(dark ? 100 : 80);
     auto drawOptionBtn = [&](const ToolButton& btn, bool active) {
         if (active) {
-            QColor activeBg = dark ? QColor(0, 120, 215, 100) : QColor(0, 102, 214, 100);
-            p.fillRect(btn.rect, activeBg);
+            p.setPen(Qt::NoPen);
+            p.setBrush(accentBg);
+            p.drawRoundedRect(btn.rect.adjusted(2, 2, -2, -2), 4, 4);
         }
         drawBtn(btn);
     };

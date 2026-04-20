@@ -166,7 +166,7 @@ void PreviewPainter::paintBlock(QPainter* p, const LayoutBlock& block,
                 break;
 
             qreal w = fm.horizontalAdvance(line);
-            QRectF segRect(textX, textY, w, textHeight);
+            QRectF segRect(textX, textY, w, lineH);
 
             int segStart = m_charCounter;
             int segEnd = segStart + line.length();
@@ -307,7 +307,6 @@ void PreviewPainter::paintBlock(QPainter* p, const LayoutBlock& block,
 
                 if (!cell.inlineRuns.empty()) {
                     paintInlineRuns(p, cell, cellX + 4, cellY + 4, cell.bounds.width() - 8);
-                    m_charCounter++;  // 每个 cell 结尾的 '\n'，与 extractBlockText 一致
                 }
             }
 

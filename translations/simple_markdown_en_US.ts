@@ -291,6 +291,46 @@ Do you want to reload it?</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
+        <source>Show All</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Top Only</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Side Only</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Hide All</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Display Area</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Editor and Preview</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Editor Only</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Preview Only</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Preview hidden. Restore via View > Display Area.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Editor hidden. Restore via View > Display Area.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>Document Statistics...</source>
         <translation type="unfinished"></translation>
     </message>
@@ -614,6 +654,10 @@ Open the crash reports folder?</translation>
         <translation type="unfinished"></translation>
     </message>
     <message>
+        <source>Clear Current Mark</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>Open in Browser</source>
         <translation type="unfinished"></translation>
     </message>
@@ -840,6 +884,10 @@ Open the crash reports folder?</translation>
     <message>
         <source>Collapse</source>
         <translation>Collapse</translation>
+    </message>
+    <message>
+        <source>Clear Section Marks</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>

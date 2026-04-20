@@ -77,6 +77,7 @@ public:
 
 signals:
     void headingClicked(int sourceLine);
+    void clearSectionMarksRequested(int entryIndex);
     void preferredWidthChanged(int widthPx);
 
 protected:

@@ -201,14 +201,15 @@ void SideTabBar::setTheme(const Theme& theme)
     // hover 项 padding-left 增加模拟文字右移效果
     QString listStyle = QStringLiteral(
         "QListWidget { background: %1; border: none; outline: none; }"
-        "QListWidget::item { color: %2; padding: 0px; border: none; }"
-        "QListWidget::item:selected { background: %3; }"
+        "QListWidget::item { color: %2; padding: 0px; border-left: 3px solid transparent; }"
+        "QListWidget::item:selected { background: %3; border-left: 3px solid %5; }"
         "QListWidget::item:hover:!selected { background: %4; padding-left: 4px; }"
         "QListWidget::item:hover:selected { padding-left: 4px; }"
     ).arg(theme.editorBg.name(),
           theme.editorFg.name(),
           theme.editorGutterBg.name(),
-          theme.isDark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.04)");
+          theme.hoverBgCss(),
+          theme.accentColor.name());
     m_list->setStyleSheet(listStyle);
 
     // 同步 label 颜色
@@ -233,7 +234,7 @@ void SideTabBar::setTheme(const Theme& theme)
         "QToolButton:hover { background: %3; }"
     ).arg(theme.editorBg.name(),
           theme.editorFg.name(),
-          theme.isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.06)");
+          theme.hoverBgCss());
     m_addBtn->setStyleSheet(btnStyle);
 
     updateItemStyles();

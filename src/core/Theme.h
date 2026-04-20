@@ -84,6 +84,11 @@ struct Theme {
     QColor frontmatterKeyForeground = QColor("#1F5A8A");     // 偏 accent
     QColor frontmatterValueForeground = QColor("#333333");   // 与 previewCodeFg 一致
 
+    // 统一的 hover 背景色（用于列表 item、菜单 action、TOC 条目等）
+    QString hoverBgCss() const {
+        return isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.06)";
+    }
+
     // 内置主题（V1 从 :/themes/*.toml 加载，保持 API 向后兼容）
     // Spec: specs/模块-app/12-主题插件系统.md 内置主题通过 ThemeLoader
     static Theme light();
