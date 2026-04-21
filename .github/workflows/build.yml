@@ -183,16 +183,46 @@ jobs:
       - name: Build DEB package
         run: dpkg-buildpackage -us -uc -b
 
+      - name: CMake build for AppImage
+        run: |
+          cmake -S . -B build-appimage -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr
+          cmake --build build-appimage -j$(nproc)
+          DESTDIR=$PWD/AppDir cmake --install build-appimage
+
+      - name: Build AppImage
+        run: |
+          # Download linuxdeploy and Qt plugin
+          wget -q https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
+          wget -q https://github.com/linuxdeploy/linuxdeploy-plugin-qt/releases/download/continuous/linuxdeploy-plugin-qt-x86_64.AppImage
+          chmod +x linuxdeploy-x86_64.AppImage linuxdeploy-plugin-qt-x86_64.AppImage
+
+          export QMAKE=$(which qmake)
+          export VERSION=${{ steps.version.outputs.version }}
+
+          ./linuxdeploy-x86_64.AppImage \
+            --appdir AppDir \
+            --plugin qt \
+            --desktop-file AppDir/usr/share/applications/simplemarkdown.desktop \
+            --icon-file resources/simplemarkdown_256.png \
+            --output appimage
+
       - name: Collect artifacts
         run: |
           mkdir -p dist
           cp ../simplemarkdown_*.deb dist/
+          cp SimpleMarkdown-*.AppImage dist/ 2>/dev/null || true
 
       - name: Upload DEB artifact
         uses: actions/upload-artifact@v4
         with:
           name: simplemarkdown_${{ steps.version.outputs.version }}_amd64
           path: dist/*.deb
+
+      - name: Upload AppImage artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: SimpleMarkdown-${{ steps.version.outputs.version }}-x86_64.AppImage
+          path: dist/*.AppImage
 
   release:
     needs: [build-windows, build-linux]
@@ -214,4 +244,5 @@ jobs:
             artifacts/**/*-Setup.exe
             artifacts/**/*-Portable.zip
             artifacts/**/*.deb
+            artifacts/**/*.AppImage
           generate_release_notes: true
