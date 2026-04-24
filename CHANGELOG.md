@@ -9,6 +9,13 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed
 - "全部显示"标签栏模式下重启应用时左侧面板可能不显示（restoreState 覆盖了面板宽度）
+- 无打开文件夹时不再显示空的左侧面板
+- 深色主题下 Tab 栏 "+" 按钮和侧边 Tab 关闭按钮颜色不可见
+- 侧边 Tab 栏新增标签页文字颜色未跟随深色主题
+- 默认 Tab 栏位置与菜单勾选状态不一致
+
+### Changed
+- 左侧面板默认宽度改为窗口宽度 1/8，最大可拖至 1/5
 
 ## [1.0.4] - 2026-04-22
 

@@ -1312,6 +1312,10 @@ void MainWindow::applyTheme(const Theme& theme)
     m_tocPanel->setTheme(theme);
     m_folderPanel->setTheme(theme);
     m_sideTabBar->setTheme(theme);
+    // "+" 按钮前景色和 hover 背景跟随主题
+    m_tabBar->setAddButtonColors(
+        theme.editorFg,
+        theme.isDark ? QColor(255, 255, 255, 26) : QColor(0, 0, 0, 26));
 
     // Spec: specs/模块-app/12-主题插件系统.md INV-1 唯一数据源
     // menuBar / TabBar / StatusBar / Splitter / ScrollBar 的样式从 Theme 字段派生，
@@ -1975,7 +1979,7 @@ void MainWindow::showEvent(QShowEvent* event)
             // 无保存状态时的默认分配（mainSplitter 有 3 个子 widget：左面板 | 内容 | TOC）
             int totalW = m_mainSplitter->width();
             int defaultTocW = qBound(120, totalW * 12 / 100, 240);
-            int leftW = m_leftPaneSplitter->isVisible() ? qBound(totalW / 8, totalW * 15 / 100, totalW / 6) : 0;
+            int leftW = m_leftPaneSplitter->isVisible() ? qBound(totalW / 8, totalW / 8, totalW / 5) : 0;
             m_mainSplitter->setSizes({leftW, totalW - leftW - defaultTocW, defaultTocW});
         }
         m_pendingSplitterState.clear();
@@ -1990,9 +1994,9 @@ void MainWindow::showEvent(QShowEvent* event)
                                   (!m_folderPanel->rootPaths().isEmpty() && !m_sidebarHidden);
             // 左侧面板宽度：窗口宽度的 1/8 ~ 1/6
             int minW = totalW / 8;
-            int maxW = totalW / 6;
+            int maxW = totalW / 5;
             if (sizes.size() >= 3 && leftShouldShow && sizes[0] < minW) {
-                sizes[0] = qBound(minW, totalW * 15 / 100, maxW);
+                sizes[0] = qBound(minW, totalW / 8, maxW);
                 sizes[1] = qMax(100, totalW - sizes[0] - sizes[2]);
                 m_mainSplitter->setSizes(sizes);
             }
@@ -3010,11 +3014,11 @@ void MainWindow::setTabBarPosition(bool onSide, bool hideTopBar)
         m_leftPaneSplitter->show();
         QList<int> mainSizes = m_mainSplitter->sizes();
         int totalW = m_mainSplitter->width();
-        // 左侧面板宽度：窗口宽度的 1/8 ~ 1/6
+        // 左侧面板宽度：默认 1/8，最大 1/5
         int minW = totalW / 8;
-        int maxW = totalW / 6;
+        int maxW = totalW / 5;
         if (mainSizes.size() >= 2 && mainSizes[0] < minW) {
-            mainSizes[0] = qBound(minW, totalW * 15 / 100, maxW);
+            mainSizes[0] = qBound(minW, totalW / 8, maxW);
             m_mainSplitter->setSizes(mainSizes);
         }
     }
@@ -3060,9 +3064,9 @@ void MainWindow::updateLeftPaneVisibility()
         int totalW = m_mainSplitter->width();
         if (totalW > 0 && sizes.size() >= 2) {
             int minW = totalW / 8;
-            int maxW = totalW / 6;
+            int maxW = totalW / 5;
             if (sizes[0] < minW) {
-                sizes[0] = qBound(minW, totalW * 15 / 100, maxW);
+                sizes[0] = qBound(minW, totalW / 8, maxW);
                 // 调整中间区域宽度以补偿
                 int otherW = 0;
                 for (int i = 2; i < sizes.size(); ++i) otherW += sizes[i];

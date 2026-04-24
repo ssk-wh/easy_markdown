@@ -47,6 +47,7 @@ private:
     bool m_updatingIndex = false;  // 防止信号递归
     Theme const* m_cachedTheme = nullptr;  // 缓存主题指针用于样式刷新
     QColor m_fgColor;  // 缓存的前景色
+    bool m_isDark = false;  // 缓存当前是否深色主题
 
     void rebuildItem(int row, const QString& text);
     void updateItemStyles();  // 刷新所有 item 的选中/未选中样式

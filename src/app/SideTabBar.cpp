@@ -169,8 +169,12 @@ void SideTabBar::rebuildItem(int row, const QString& text)
     closeBtn->setFixedSize(16, 16);
     closeBtn->setCursor(Qt::PointingHandCursor);
     closeBtn->setAutoRaise(true);
-    closeBtn->setStyleSheet("QToolButton { border: none; font-size: 14px; }"
-                            "QToolButton:hover { background: rgba(0,0,0,0.1); border-radius: 3px; }");
+    // 关闭按钮样式：前景色和 hover 背景跟随主题
+    QString hoverRgba = m_isDark ? "rgba(255,255,255,0.15)" : "rgba(0,0,0,0.1)";
+    closeBtn->setStyleSheet(QStringLiteral(
+        "QToolButton { border: none; font-size: 14px; color: %1; }"
+        "QToolButton:hover { background: %2; border-radius: 3px; }")
+        .arg(m_fgColor.isValid() ? m_fgColor.name() : "inherit", hoverRgba));
     closeBtn->setVisible(false);  // 默认隐藏，hover 时显示
     hbox->addWidget(closeBtn);
 
@@ -200,6 +204,7 @@ void SideTabBar::updateItemStyles()
 void SideTabBar::setTheme(const Theme& theme)
 {
     m_fgColor = theme.editorFg;
+    m_isDark = theme.isDark;
 
     // hover 项 padding-left 增加模拟文字右移效果
     QString listStyle = QStringLiteral(

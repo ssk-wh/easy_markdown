@@ -19,7 +19,9 @@ TabBarWithAdd::TabBarWithAdd(QWidget* parent)
     setMouseTracking(true);
     // Qt 默认 palette()，通常能在没显式 setAddButtonColors 时也给出合理默认
     m_addFg = palette().color(QPalette::WindowText);
-    m_addHoverBg = QColor(0, 0, 0, 26);
+    // hover 背景：深色主题用白色半透明，浅色主题用黑色半透明
+    bool isDark = palette().color(QPalette::Window).lightnessF() < 0.5;
+    m_addHoverBg = isDark ? QColor(255, 255, 255, 26) : QColor(0, 0, 0, 26);
 }
 
 void TabBarWithAdd::setAddButtonColors(const QColor& fg, const QColor& hoverBg)
