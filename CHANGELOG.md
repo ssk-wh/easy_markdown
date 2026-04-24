@@ -7,6 +7,9 @@ All notable changes to this project will be documented in this file.
 ### Added
 - 快捷键 Ctrl+B 切换左侧资源管理器（文件夹面板 + 侧边 Tab 栏）的显示/隐藏，会话级状态不跨重启保留；打开新文件夹或切换 Tab 栏位置时自动恢复显示
 
+### Fixed
+- "全部显示"标签栏模式下重启应用时左侧面板可能不显示（restoreState 覆盖了面板宽度）
+
 ## [1.0.4] - 2026-04-22
 
 ### Added

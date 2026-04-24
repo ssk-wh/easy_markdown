@@ -14,6 +14,7 @@
 3. **代码必须引用 Spec**：源文件头部注释 `Spec: specs/xxx.md`
 4. **测试用例嵌入 T 编号**：`TEST(PreviewLayoutTest, T1_HighDpiNoExtraSpace)`
 5. **改完立即更新 CHANGELOG.md**：bug 修复 / 功能新增 / 可感知的行为改动，完成后立即记录到 CHANGELOG，不要拖到推送前
+6. **新增交互行为必须写入 Spec**：涉及用户可感知的交互逻辑（显隐规则、快捷键、默认状态、宽度策略等）时，先在 `specs/` 对应模块下创建或更新 Spec，再写代码。交互规则不在 Spec 中 = 未定义行为
 
 ---
 

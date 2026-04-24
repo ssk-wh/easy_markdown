@@ -159,6 +159,9 @@ void SideTabBar::rebuildItem(int row, const QString& text)
     label->setObjectName("tabLabel");
     label->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
     label->setMinimumWidth(0);
+    // 使用缓存的主题前景色，避免新增 item 时使用系统默认色（深色主题下为黑色）
+    if (m_fgColor.isValid())
+        label->setStyleSheet(QStringLiteral("color: %1;").arg(m_fgColor.name()));
     hbox->addWidget(label, 1);
 
     auto* closeBtn = new QToolButton();

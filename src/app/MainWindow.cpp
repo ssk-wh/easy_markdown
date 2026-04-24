@@ -1972,23 +1972,48 @@ void MainWindow::showEvent(QShowEvent* event)
         if (!m_pendingSplitterState.isEmpty()) {
             m_mainSplitter->restoreState(m_pendingSplitterState);
         } else {
-            // 自适应 TOC 默认宽度：窗口宽度 12%，夹紧到 [120, 240]
+            // 无保存状态时的默认分配（mainSplitter 有 3 个子 widget：左面板 | 内容 | TOC）
             int totalW = m_mainSplitter->width();
             int defaultTocW = qBound(120, totalW * 12 / 100, 240);
-            m_mainSplitter->setSizes({totalW - defaultTocW, defaultTocW});
+            int leftW = m_leftPaneSplitter->isVisible() ? qBound(totalW / 8, totalW * 15 / 100, totalW / 6) : 0;
+            m_mainSplitter->setSizes({leftW, totalW - leftW - defaultTocW, defaultTocW});
         }
         m_pendingSplitterState.clear();
 
-        // Spec: specs/模块-preview/07-TOC面板.md 风险条目
-        // 拆 QTabWidget 后，旧 restoreState 的 sizes 可能把 TOC 挤到 <= 0
-        // 此处 sanity clamp：若 TOC 宽度 < minimumTocW，强制恢复默认
-        auto sizes = m_mainSplitter->sizes();
-        int minimumTocW = qBound(120, m_mainSplitter->width() * 12 / 100, 240);
-        if (sizes.size() == 2 && sizes[1] < 100) {
+        // restoreState 后修正：左侧面板应可见但被恢复成 0 宽度的情况
+        // 场景：上次保存时左侧面板隐藏，本次启动切回 Show All 模式
+        {
+            auto sizes = m_mainSplitter->sizes();
             int totalW = m_mainSplitter->width();
             if (totalW <= 0) totalW = width();
-            m_mainSplitter->setSizes({qMax(0, totalW - minimumTocW), minimumTocW});
+            bool leftShouldShow = (m_tabBarOnSide && !m_sidebarHidden) ||
+                                  (!m_folderPanel->rootPaths().isEmpty() && !m_sidebarHidden);
+            // 左侧面板宽度：窗口宽度的 1/8 ~ 1/6
+            int minW = totalW / 8;
+            int maxW = totalW / 6;
+            if (sizes.size() >= 3 && leftShouldShow && sizes[0] < minW) {
+                sizes[0] = qBound(minW, totalW * 15 / 100, maxW);
+                sizes[1] = qMax(100, totalW - sizes[0] - sizes[2]);
+                m_mainSplitter->setSizes(sizes);
+            }
         }
+
+        // Spec: specs/模块-preview/07-TOC面板.md 风险条目
+        // restoreState 后 TOC 可能被挤到 <= 0，此处 sanity clamp
+        {
+            auto sizes = m_mainSplitter->sizes();
+            int tocIdx = sizes.size() - 1;  // TOC 始终是最后一个子 widget
+            int minimumTocW = qBound(120, m_mainSplitter->width() * 12 / 100, 240);
+            if (tocIdx >= 1 && sizes[tocIdx] < 100) {
+                int totalW = m_mainSplitter->width();
+                if (totalW <= 0) totalW = width();
+                sizes[tocIdx] = minimumTocW;
+                sizes[tocIdx - 1] = qMax(100, totalW - sizes[tocIdx] - (tocIdx >= 2 ? sizes[0] : 0));
+                m_mainSplitter->setSizes(sizes);
+            }
+        }
+
+        updateLeftPaneVisibility();
 
         // [Plan plans/2026-04-13-首次启动引导.md] 首次启动弹欢迎页
         // 延迟到下一个事件循环，避免和窗口初始化竞争
@@ -2125,9 +2150,9 @@ void MainWindow::loadSettings()
     bool wordWrap = s.value("view/wordWrap", true).toBool();
     m_wordWrapAct->setChecked(wordWrap);
 
-    // Tab 栏位置
-    bool tabOnSide = s.value("view/tabBarOnSide", false).toBool();
-    bool hideTop = s.value("view/hideTopBarWhenSide", true).toBool();
+    // Tab 栏位置（默认 "全部显示"：侧边 + 顶部都显示）
+    bool tabOnSide = s.value("view/tabBarOnSide", true).toBool();
+    bool hideTop = s.value("view/hideTopBarWhenSide", false).toBool();
     if (tabOnSide) setTabBarPosition(true, hideTop);
 
 
@@ -2984,10 +3009,12 @@ void MainWindow::setTabBarPosition(bool onSide, bool hideTopBar)
         m_leftPaneSplitter->setSizes({totalH * 2 / 3, totalH / 3});
         m_leftPaneSplitter->show();
         QList<int> mainSizes = m_mainSplitter->sizes();
-        if (mainSizes.size() >= 2 && mainSizes[0] < 150) {
-            // 自适应左侧面板宽度：窗口宽度 18%，夹紧到 [180, 350]
-            int totalW = m_mainSplitter->width();
-            mainSizes[0] = qBound(180, totalW * 18 / 100, 350);
+        int totalW = m_mainSplitter->width();
+        // 左侧面板宽度：窗口宽度的 1/8 ~ 1/6
+        int minW = totalW / 8;
+        int maxW = totalW / 6;
+        if (mainSizes.size() >= 2 && mainSizes[0] < minW) {
+            mainSizes[0] = qBound(minW, totalW * 15 / 100, maxW);
             m_mainSplitter->setSizes(mainSizes);
         }
     }
@@ -3022,12 +3049,27 @@ void MainWindow::updateLeftPaneVisibility()
         m_leftPaneSplitter->hide();
         return;
     }
-    if (m_tabBarOnSide) {
-        // 左侧模式：Tab 栏在里面，始终显示
-        m_leftPaneSplitter->show();
-    } else {
-        // 顶部模式：跟随 FolderPanel 可见性（判断是否有打开的文件夹）
-        m_leftPaneSplitter->setVisible(!m_folderPanel->rootPath().isEmpty());
+    // 无论 Tab 栏位置，只在有打开的文件夹时才显示左侧面板
+    bool shouldShow = !m_folderPanel->rootPaths().isEmpty();
+    bool wasHidden = !m_leftPaneSplitter->isVisible();
+    m_leftPaneSplitter->setVisible(shouldShow);
+
+    // 从隐藏变为可见时，确保宽度不低于窗口宽度的 1/8
+    if (shouldShow && wasHidden && m_mainSplitter) {
+        auto sizes = m_mainSplitter->sizes();
+        int totalW = m_mainSplitter->width();
+        if (totalW > 0 && sizes.size() >= 2) {
+            int minW = totalW / 8;
+            int maxW = totalW / 6;
+            if (sizes[0] < minW) {
+                sizes[0] = qBound(minW, totalW * 15 / 100, maxW);
+                // 调整中间区域宽度以补偿
+                int otherW = 0;
+                for (int i = 2; i < sizes.size(); ++i) otherW += sizes[i];
+                sizes[1] = qMax(100, totalW - sizes[0] - otherW);
+                m_mainSplitter->setSizes(sizes);
+            }
+        }
     }
 }
 
