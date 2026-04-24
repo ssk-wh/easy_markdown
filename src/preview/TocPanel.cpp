@@ -385,9 +385,16 @@ int TocPanel::preferredWidth() const
         if (i < m_visible.size() && !m_visible[i]) continue;
         const auto& e = m_entries[i];
         QFont f;
-        f.setPixelSize(e.level == 1 ? 14 : 13);
+        const int pixSize = e.level == 1 ? 14 : 13;
+        f.setPixelSize(pixSize);
         QFontMetricsF fm(f, const_cast<QWidget*>(dev));
-        int tw = static_cast<int>(std::ceil(fm.horizontalAdvance(e.title)));
+        qreal advance = fm.horizontalAdvance(e.title);
+        // headless CI（如 Linux GitHub Actions）中字体度量可能返回 0；
+        // 此时降级用字符数 × 像素字号 × 0.6 粗估宽度，确保长短标题可区分。
+        if (advance <= 0.0 && !e.title.isEmpty()) {
+            advance = e.title.size() * pixSize * 0.6;
+        }
+        int tw = static_cast<int>(std::ceil(advance));
         int indent = (e.level - 1) * kStepIndent;
         maxText = std::max(maxText, tw + indent);
     }
