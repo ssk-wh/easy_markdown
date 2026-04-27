@@ -50,24 +50,32 @@ void ShortcutsDialog::setupUI()
     m_table->setColumnCount(3);
     m_table->setHorizontalHeaderLabels({tr("Category"), tr("Action"), tr("Shortcut")});
     m_table->horizontalHeader()->setStretchLastSection(false);
-    m_table->horizontalHeader()->setSectionResizeMode(0, QHeaderView::ResizeToContents);
+    // 类别列与快捷键列等宽（取两者内容最大宽度，统一在 populateShortcuts 末尾设置）
+    m_table->horizontalHeader()->setSectionResizeMode(0, QHeaderView::Fixed);
     m_table->horizontalHeader()->setSectionResizeMode(1, QHeaderView::Stretch);
-    m_table->horizontalHeader()->setSectionResizeMode(2, QHeaderView::ResizeToContents);
+    m_table->horizontalHeader()->setSectionResizeMode(2, QHeaderView::Fixed);
     m_table->verticalHeader()->setVisible(false);
     m_table->setSelectionBehavior(QAbstractItemView::SelectRows);
     m_table->setSelectionMode(QAbstractItemView::SingleSelection);
     m_table->setEditTriggers(QAbstractItemView::NoEditTriggers);
     m_table->setAlternatingRowColors(true);
+    // [Spec 07 INV-6] 单元格选中或获得焦点时不绘制虚线焦点框（focus rectangle）
+    // 仅保留行背景色变化作为选中提示。这是 Windows 下 QTableWidget 的默认 focus
+    // 矩形，stylesheet 的 outline 在此 widget 上无效，必须设 NoFocus 焦点策略。
+    m_table->setFocusPolicy(Qt::NoFocus);
     mainLayout->addWidget(m_table);
 
-    // 关闭按钮
-    auto* btnLayout = new QHBoxLayout();
-    btnLayout->addStretch();
-    auto* closeBtn = new QPushButton(tr("Close"));
-    closeBtn->setDefault(true);
-    connect(closeBtn, &QPushButton::clicked, this, &QDialog::accept);
-    btnLayout->addWidget(closeBtn);
-    mainLayout->addLayout(btnLayout);
+    // 关闭按钮：与 onShowWelcome 首次启动欢迎对话框完全一致的最简实现
+    // [Spec 模块-app/07-快捷键弹窗.md INV-6]
+    //   - new QPushButton(text, this)
+    //   - connect accept 信号
+    //   - addWidget 到主 VBox（默认横向铺满）
+    //   - 不 setStyleSheet / setObjectName / setSizePolicy / setMinimumHeight /
+    //     setCursor / setDefault：颜色与尺寸完全靠 MainWindow::applyTheme 的
+    //     全局 "QDialog QPushButton {...}" cascade 决定。
+    m_closeBtn = new QPushButton(tr("Close"), this);
+    connect(m_closeBtn, &QPushButton::clicked, this, &QDialog::accept);
+    mainLayout->addWidget(m_closeBtn);
 
     // 搜索过滤
     connect(m_searchEdit, &QLineEdit::textChanged, this, &ShortcutsDialog::filterShortcuts);
@@ -109,12 +117,30 @@ void ShortcutsDialog::populateShortcuts()
     };
 
     m_table->setRowCount(m_shortcuts.size());
+    // [Spec 07 INV-7] 表格三列内容统一水平居中
+    auto makeCentered = [](const QString& text) {
+        auto* it = new QTableWidgetItem(text);
+        it->setTextAlignment(Qt::AlignCenter);
+        return it;
+    };
     for (int i = 0; i < m_shortcuts.size(); ++i) {
         const auto& info = m_shortcuts[i];
-        m_table->setItem(i, 0, new QTableWidgetItem(info.category));
-        m_table->setItem(i, 1, new QTableWidgetItem(info.action));
-        m_table->setItem(i, 2, new QTableWidgetItem(info.shortcut));
+        m_table->setItem(i, 0, makeCentered(info.category));
+        m_table->setItem(i, 1, makeCentered(info.action));
+        m_table->setItem(i, 2, makeCentered(info.shortcut));
     }
+
+    // [Spec 07 INV-7] 类别列与快捷键列等宽：临时让 Qt 按内容算各列最小宽度，
+    // 取两者最大值再加 padding 作为统一列宽。固定模式下用户不会破坏对齐。
+    m_table->horizontalHeader()->setSectionResizeMode(0, QHeaderView::ResizeToContents);
+    m_table->horizontalHeader()->setSectionResizeMode(2, QHeaderView::ResizeToContents);
+    const int catW = m_table->columnWidth(0);
+    const int scW = m_table->columnWidth(2);
+    const int unifiedW = qMax(catW, scW) + 16;  // 左右额外 padding
+    m_table->horizontalHeader()->setSectionResizeMode(0, QHeaderView::Fixed);
+    m_table->horizontalHeader()->setSectionResizeMode(2, QHeaderView::Fixed);
+    m_table->setColumnWidth(0, unifiedW);
+    m_table->setColumnWidth(2, unifiedW);
 }
 
 void ShortcutsDialog::setTheme(const Theme& theme)
@@ -148,6 +174,7 @@ void ShortcutsDialog::applyTheme()
     const QColor gridColor  = m_theme.previewTableBorder;
     QColor selColor         = m_theme.editorSelection;
     selColor.setAlpha(255);  // 去掉 alpha，stylesheet 样式表解析需要不透明色
+    const QColor accent     = m_theme.accentColor;
 
     // ---- 1) palette：解决 viewport（QAbstractScrollArea 的内容区）背景 ----
     QPalette pal = palette();
@@ -193,8 +220,11 @@ void ShortcutsDialog::applyTheme()
 
     // ---- 2) stylesheet：解决 header / gridline / border / 滚动条等细节 ----
     //
+    // 关闭按钮不在本 stylesheet 中处理：它走 MainWindow::applyTheme 的全局
+    // "QDialog QPushButton {...}" cascade，与首次启动欢迎对话框完全一致。
+    //
     // 占位符严格限制在 %1..%9 之内，避免 QString::arg 处理 %10 的 bug。
-    // %1=窗口背景, %2=前景文字, %3=输入框背景, %4=边框, %5=交替行, %6=表头, %7=网格, %8=按钮背景, %9=选中背景
+    // %1=窗口背景, %2=前景文字, %3=输入框背景, %4=边框, %5=交替行, %6=表头, %7=网格, %8=选中背景, %9=accent
     QString style = QString(
         "QDialog { background: %1; color: %2; }"
         "QLabel { color: %2; background: transparent; }"
@@ -204,7 +234,7 @@ void ShortcutsDialog::applyTheme()
         "  border: 1px solid %4;"
         "  border-radius: 3px;"
         "  padding: 4px 6px;"
-        "  selection-background-color: %9;"
+        "  selection-background-color: %8;"
         "  selection-color: %2;"
         "}"
         "QTableWidget {"
@@ -213,8 +243,9 @@ void ShortcutsDialog::applyTheme()
         "  color: %2;"
         "  gridline-color: %7;"
         "  border: 1px solid %4;"
-        "  selection-background-color: %9;"
+        "  selection-background-color: %8;"
         "  selection-color: %2;"
+        "  outline: 0;"
         "}"
         "QTableWidget QHeaderView::section {"
         "  background: %6;"
@@ -224,8 +255,10 @@ void ShortcutsDialog::applyTheme()
         "  border-bottom: 1px solid %4;"
         "  border-right: 1px solid %4;"
         "}"
-        "QTableWidget::item { padding: 6px; color: %2; }"
-        "QTableWidget::item:selected { background: %9; color: %2; }"
+        // [Spec 07 INV-6] 单元格无 focus 虚线框；padding 同时控制行高
+        "QTableWidget::item { padding: 6px; color: %2; outline: 0; border: none; }"
+        "QTableWidget::item:selected { background: %8; color: %2; }"
+        "QTableWidget::item:focus { outline: 0; border: none; }"
         "QTableCornerButton::section { background: %6; border: none; }"
         "QHeaderView { background: %6; }"
         "QHeaderView::section {"
@@ -236,16 +269,6 @@ void ShortcutsDialog::applyTheme()
         "  border-bottom: 1px solid %4;"
         "  border-right: 1px solid %4;"
         "}"
-        "QPushButton {"
-        "  background: %8;"
-        "  color: %2;"
-        "  border: 1px solid %4;"
-        "  border-radius: 3px;"
-        "  padding: 6px 16px;"
-        "  min-width: 80px;"
-        "}"
-        "QPushButton:hover { background: %6; }"
-        "QPushButton:pressed { background: %6; }"
         "QAbstractScrollArea {"
         "  background: %1;"
         "  color: %2;"
@@ -272,12 +295,38 @@ void ShortcutsDialog::applyTheme()
           inputBg.name(),     // %3 输入框背景
           border.name(),      // %4 边框、滚动条
           tableAltBg.name(),  // %5 交替行背景
-          headerBg.name(),    // %6 表头、hover 背景
+          headerBg.name(),    // %6 表头背景
           gridColor.name(),   // %7 网格线
-          inputBg.name(),     // %8 按钮背景
-          selColor.name());   // %9 选中行背景
+          selColor.name(),    // %8 选中行背景
+          accent.name());     // %9 accent（用于 :default 边框）
 
     setStyleSheet(style);
+
+    // 关闭按钮：复刻 MainWindow::applyTheme 全局 dialog 按钮规则，让本对话框关闭按钮
+    // 与"首次启动欢迎对话框 / 更新历史 / 关于"对话框关闭按钮视觉一致。
+    // 必须在按钮自身上 setStyleSheet——dialog 整体 setStyleSheet 后会切断 MainWindow 的
+    // 全局 cascade 对子按钮的传递（Qt 5 子 widget setStyleSheet 后父级规则不再穿透）。
+    if (m_closeBtn) {
+        QString btnCss;
+        if (m_theme.isDark) {
+            btnCss = QString(
+                "QPushButton { background: #3c3f41; color: #ccc; border: 1px solid #555;"
+                "  padding: 6px 16px; border-radius: 3px; min-width: 70px; }"
+                "QPushButton:hover { background: %1; color: white; border-color: %1; }"
+                "QPushButton:pressed { background: %1; color: white; }"
+                "QPushButton:default { border: 1px solid %1; }"
+            ).arg(accent.name());
+        } else {
+            btnCss = QString(
+                "QPushButton { background: %1; color: %2; border: 1px solid %3;"
+                "  padding: 6px 16px; border-radius: 3px; min-width: 70px; }"
+                "QPushButton:hover { background: %4; color: white; border-color: %4; }"
+                "QPushButton:pressed { background: %4; color: white; }"
+                "QPushButton:default { border: 1px solid %4; }"
+            ).arg(headerBg.name(), fg.name(), border.name(), accent.name());
+        }
+        m_closeBtn->setStyleSheet(btnCss);
+    }
 }
 
 void ShortcutsDialog::filterShortcuts(const QString& text)

@@ -23,6 +23,7 @@ class QStatusBar;
 class QVBoxLayout;
 class QTranslator;
 class SideTabBar;
+class WelcomePanel;  // Spec: specs/模块-app/22-空白引导页.md
 
 class MainWindow : public QMainWindow {
     Q_OBJECT
@@ -86,6 +87,9 @@ private:
     //                 右：m_tocPanel
     TabBarWithAdd* m_tabBar = nullptr;
     QStackedWidget* m_contentStack = nullptr;
+    // Spec: specs/模块-app/22-空白引导页.md
+    // m_tabs 为空时显示 m_welcomePanel，m_contentStack 隐藏（INV-EMPTY-WELCOME-MUTUAL）
+    WelcomePanel* m_welcomePanel = nullptr;
     QSplitter* m_mainSplitter = nullptr;
     QSplitter* m_leftPaneSplitter = nullptr;     // 左侧面板容器（文件夹 + 可选侧边 Tab 栏）
     QWidget* m_folderContainer = nullptr;      // folderPanel 的容器（始终在 splitter 中可见）
@@ -168,6 +172,9 @@ private:
     void setTabBarPosition(bool onSide, bool hideTopBar = true);
     void updateLeftPaneVisibility();
     void syncSideTabBar();           // 从 m_tabBar 全量同步到 m_sideTabBar
+    // Spec: specs/模块-app/22-空白引导页.md INV-EMPTY-WELCOME-MUTUAL
+    // 根据 m_tabs.isEmpty() 切换 WelcomePanel / m_contentStack 的可见性
+    void updateEmptyState();
 
     // Ctrl+B 切换左侧资源管理器显隐
     QAction* m_toggleSidebarAct = nullptr;

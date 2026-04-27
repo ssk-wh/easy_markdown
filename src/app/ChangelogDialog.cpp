@@ -3,6 +3,7 @@
 #include "MarkdownParser.h"
 
 #include <QVBoxLayout>
+#include <QHBoxLayout>
 #include <QPushButton>
 #include <QFile>
 #include <QApplication>
@@ -18,7 +19,10 @@ ChangelogDialog::ChangelogDialog(const Theme& theme, QWidget* parent)
     m_previewWidget = new PreviewWidget(this);
     m_previewWidget->setTheme(theme);
 
-    // 关闭按钮
+    // 关闭按钮：与 onShowWelcome 首次启动欢迎对话框完全一致的最简实现
+    // [Spec 模块-app/07-快捷键弹窗.md INV-6] 不 setStyleSheet / setObjectName /
+    // setSizePolicy / setDefault：颜色与尺寸完全靠 MainWindow::applyTheme 的
+    // 全局 "QDialog QPushButton {...}" cascade 决定。
     QPushButton* closeBtn = new QPushButton(tr("Close"), this);
     connect(closeBtn, &QPushButton::clicked, this, &QDialog::accept);
 

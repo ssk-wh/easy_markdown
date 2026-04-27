@@ -8,6 +8,7 @@
 #include "RecentFiles.h"
 #include "ChangelogDialog.h"
 #include "ShortcutsDialog.h"
+#include "WelcomePanel.h"  // Spec: specs/模块-app/22-空白引导页.md
 #include "EditorLayout.h"
 #include "PreviewLayout.h"
 #include "FontDefaults.h"
@@ -48,6 +49,8 @@
 #include <QPropertyAnimation>
 #include <QGraphicsOpacityEffect>
 #include <QVBoxLayout>
+#include <QHBoxLayout>
+#include <QLabel>
 #include <QDialog>
 #include <QPushButton>
 #include <QScreen>
@@ -133,6 +136,14 @@ MainWindow::MainWindow(QWidget* parent)
 
     m_contentStack = new QStackedWidget(this);
 
+    // Spec: specs/模块-app/22-空白引导页.md
+    // 空白引导面板：m_tabs.isEmpty() 时取代 m_contentStack 显示
+    m_welcomePanel = new WelcomePanel(this);
+    m_welcomePanel->hide();
+    connect(m_welcomePanel, &WelcomePanel::openFileClicked, this, &MainWindow::onOpenFile);
+    connect(m_welcomePanel, &WelcomePanel::openFolderClicked, this, &MainWindow::onOpenFolder);
+    connect(m_welcomePanel, &WelcomePanel::newFileClicked, this, &MainWindow::onNewFile);
+
     m_tocPanel = new TocPanel(this);
     m_tocPanel->setMinimumWidth(160);
 
@@ -168,6 +179,9 @@ MainWindow::MainWindow(QWidget* parent)
     m_centralLayout->setSpacing(0);
     m_centralLayout->addWidget(m_tabBar);
     m_centralLayout->addWidget(m_contentStack, /*stretch=*/1);
+    // Spec: specs/模块-app/22-空白引导页.md INV-EMPTY-WELCOME-MUTUAL
+    // WelcomePanel 与 m_contentStack 互斥占用 stretch=1 的中央区域
+    m_centralLayout->addWidget(m_welcomePanel, /*stretch=*/1);
 
     m_mainSplitter = new QSplitter(Qt::Horizontal, this);
     m_mainSplitter->addWidget(m_leftPaneSplitter); // 0: 左侧面板容器
@@ -611,7 +625,43 @@ void MainWindow::setupMenuBar()
               tr("Qt Version:"),
               qVersion(),
               tr("Source"));
-        QMessageBox::about(this, tr("About SimpleMarkdown"), about);
+        // About 对话框改为自定义 QDialog（参考 onShowWelcome / ChangelogDialog 结构），
+        // 关闭按钮借 QVBoxLayout 默认横向铺满，颜色靠全局 cascade。QMessageBox 内部按钮 row
+        // 无法控制布局，故弃用。
+        QDialog dlg(this);
+        dlg.setWindowTitle(tr("About SimpleMarkdown"));
+        dlg.setMinimumWidth(460);
+
+        auto* layout = new QVBoxLayout(&dlg);
+        layout->setContentsMargins(20, 20, 20, 20);
+        layout->setSpacing(14);
+
+        // 顶部：图标 + 富文本（横向 HBox）
+        auto* topRow = new QHBoxLayout();
+        topRow->setSpacing(16);
+        auto* iconLabel = new QLabel(&dlg);
+        iconLabel->setPixmap(this->windowIcon().pixmap(64, 64));
+        iconLabel->setAlignment(Qt::AlignTop | Qt::AlignHCenter);
+        iconLabel->setFixedSize(64, 64);
+        topRow->addWidget(iconLabel, 0, Qt::AlignTop);
+
+        auto* textLabel = new QLabel(about, &dlg);
+        textLabel->setTextFormat(Qt::RichText);
+        textLabel->setOpenExternalLinks(true);
+        textLabel->setTextInteractionFlags(Qt::TextBrowserInteraction);
+        textLabel->setWordWrap(true);
+        topRow->addWidget(textLabel, 1);
+
+        layout->addLayout(topRow);
+
+        // 关闭按钮：与首次启动欢迎对话框（onShowWelcome）完全一致的最简实现
+        // 不 setStyleSheet / setObjectName / setSizePolicy / setDefault：
+        // 颜色与尺寸完全靠 MainWindow::applyTheme 全局 "QDialog QPushButton {...}" cascade
+        auto* closeBtn = new QPushButton(tr("Close"), &dlg);
+        connect(closeBtn, &QPushButton::clicked, &dlg, &QDialog::accept);
+        layout->addWidget(closeBtn);
+
+        dlg.exec();
     });
 }
 
@@ -718,6 +768,9 @@ void MainWindow::newTab()
     );
     tab.editor->document()->setModified(false);
     // parseNow 会由 textChanged → debounce 自动触发
+
+    // Spec: specs/模块-app/22-空白引导页.md INV-EMPTY-OPEN-EXITS
+    updateEmptyState();
 }
 
 void MainWindow::restoreSession(const QString& requestedFile)
@@ -865,7 +918,9 @@ void MainWindow::restoreSession(const QString& requestedFile)
         }
     }
 
-    newTab();
+    // Spec: specs/模块-app/22-空白引导页.md INV-EMPTY-NO-AUTO-CREATE
+    // 无可恢复 Tab 且无命令行文件时，不再自动创建 Untitled，改显示空白引导面板
+    updateEmptyState();
     reapplyTheme();
 }
 
@@ -899,6 +954,8 @@ void MainWindow::openFile(const QString& path)
     m_tabs.append(tab);
     setTabCloseButton(index);
     m_tabBar->setCurrentIndex(index);
+    // Spec: specs/模块-app/22-空白引导页.md INV-EMPTY-OPEN-EXITS
+    updateEmptyState();
 
     tab.editor->document()->loadFromFile(path);
     tab.preview->setDocumentDir(QFileInfo(path).absolutePath());
@@ -1318,6 +1375,7 @@ void MainWindow::applyTheme(const Theme& theme)
     m_tocPanel->setTheme(theme);
     m_folderPanel->setTheme(theme);
     m_sideTabBar->setTheme(theme);
+    if (m_welcomePanel) m_welcomePanel->setTheme(theme);  // INV-EMPTY-THEME
     // "+" 按钮前景色和 hover 背景跟随主题
     m_tabBar->setAddButtonColors(
         theme.editorFg,
@@ -1393,14 +1451,19 @@ void MainWindow::applyTheme(const Theme& theme)
             "QDialog { background: #2b2b2b; color: #ccc; }"
             "QDialog QLabel { color: #ccc; }"
             "QDialog QTextEdit, QDialog QTextBrowser { background: #1e1e1e; color: #ccc; border: 1px solid #555; }"
-            "QDialog QPushButton { background: #3c3f41; color: #ccc; border: 1px solid #555; padding: 6px 16px; border-radius: 3px; }"
+            // [Spec 模块-app/22-空白引导页.md] 通用规则用 
+            // 排除主操作按钮，让 styleDialogPrimaryButtonWide 在按钮上设的 stylesheet
+            // 不会被祖先规则的 :default / 灰底 / 70px min-width 覆盖。
+            "QDialog QPushButton { background: #3c3f41; color: #ccc; border: 1px solid #555; padding: 6px 16px; border-radius: 3px; min-width: 70px; }"
             "QDialog QPushButton:hover { background: %1; color: white; border-color: %1; }"
             "QDialog QPushButton:pressed { background: %1; color: white; }"
+            "QDialog QPushButton:default { border: 1px solid %1; }"
             "QMessageBox { background: #2b2b2b; color: #ccc; }"
             "QMessageBox QLabel { color: #ccc; }"
             "QMessageBox QPushButton { background: #3c3f41; color: #ccc; border: 1px solid #555; padding: 6px 16px; border-radius: 3px; min-width: 70px; }"
             "QMessageBox QPushButton:hover { background: %1; color: white; border-color: %1; }"
             "QMessageBox QPushButton:pressed { background: %1; color: white; }"
+            "QMessageBox QPushButton:default { border: 1px solid %1; }"
         ).arg(accent);
 
         css += QStringLiteral(
@@ -1494,6 +1557,7 @@ void MainWindow::applyTheme(const Theme& theme)
             "QDialog { background: %1; color: %2; }"
             "QDialog QLabel { color: %2; }"
             "QDialog QTextEdit, QDialog QTextBrowser { background: %1; color: %2; border: 1px solid %3; }"
+            // [Spec 模块-app/22-空白引导页.md] 通用规则用  排除主按钮
             "QDialog QPushButton { background: %4; color: %2; border: 1px solid %3; padding: 6px 16px; border-radius: 3px; min-width: 70px; }"
             "QDialog QPushButton:hover { background: %5; color: white; border-color: %5; }"
             "QDialog QPushButton:pressed { background: %5; color: white; }"
@@ -1671,9 +1735,9 @@ void MainWindow::onCloseTab(int index)
     removePage(index);  // 从 tabBar + contentStack 移除
     if (sp) sp->deleteLater();
 
-    // 若无剩余标签页，新建一个
-    if (m_tabs.isEmpty())
-        newTab();
+    // Spec: specs/模块-app/22-空白引导页.md INV-EMPTY-CLOSE-LAST
+    // 关闭最后一个 Tab 后回到空白引导状态（不再自动 newTab）
+    updateEmptyState();
 
     saveSessionLater();
 }
@@ -3047,6 +3111,15 @@ void MainWindow::syncSideTabBar()
     for (int i = 0; i < m_tabBar->count(); ++i)
         m_sideTabBar->addTab(m_tabBar->tabText(i));
     m_sideTabBar->setCurrentIndex(m_tabBar->currentIndex());
+}
+
+void MainWindow::updateEmptyState()
+{
+    // Spec: specs/模块-app/22-空白引导页.md INV-EMPTY-WELCOME-MUTUAL
+    // m_tabs 为空：显示空白引导面板、隐藏内容堆栈；否则反之
+    const bool empty = m_tabs.isEmpty();
+    if (m_welcomePanel) m_welcomePanel->setVisible(empty);
+    if (m_contentStack) m_contentStack->setVisible(!empty);
 }
 
 void MainWindow::updateLeftPaneVisibility()

@@ -1,4 +1,4 @@
-set(APP_SOURCES main.cpp MainWindow.h MainWindow.cpp ChangelogDialog.h ChangelogDialog.cpp ShortcutsDialog.h ShortcutsDialog.cpp TabBarWithAdd.h TabBarWithAdd.cpp SideTabBar.h SideTabBar.cpp SnapSplitter.h SnapSplitter.cpp FolderPanel.h FolderPanel.cpp)
+set(APP_SOURCES main.cpp MainWindow.h MainWindow.cpp ChangelogDialog.h ChangelogDialog.cpp ShortcutsDialog.h ShortcutsDialog.cpp WelcomePanel.h WelcomePanel.cpp TabBarWithAdd.h TabBarWithAdd.cpp SideTabBar.h SideTabBar.cpp SnapSplitter.h SnapSplitter.cpp FolderPanel.h FolderPanel.cpp)
 
 if(WIN32)
     list(APPEND APP_SOURCES app.rc)

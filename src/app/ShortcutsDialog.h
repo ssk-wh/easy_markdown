@@ -9,6 +9,7 @@
 #include "Theme.h"
 
 class QLineEdit;
+class QPushButton;
 class QTableWidget;
 
 class ShortcutsDialog : public QDialog {
@@ -26,6 +27,7 @@ private:
 
     QLineEdit* m_searchEdit;
     QTableWidget* m_table;
+    QPushButton* m_closeBtn = nullptr;
     Theme m_theme;
 
     struct ShortcutInfo {

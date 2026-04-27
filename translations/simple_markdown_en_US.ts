@@ -2,6 +2,29 @@
 <!DOCTYPE TS>
 <TS version="2.1" language="en_US">
 <context>
+    <name>WelcomePanel</name>
+    <message>
+        <source>Get started by opening a file or folder</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Open File...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Open Folder...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>New File</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Shortcuts: Ctrl+N New, Ctrl+O Open, Ctrl+B Toggle Sidebar</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
     <name>ChangelogDialog</name>
     <message>
         <source>Update History</source>

@@ -2,6 +2,29 @@
 <!DOCTYPE TS>
 <TS version="2.1" language="zh_CN">
 <context>
+    <name>WelcomePanel</name>
+    <message>
+        <source>Get started by opening a file or folder</source>
+        <translation>从下面开始，打开文件或文件夹</translation>
+    </message>
+    <message>
+        <source>Open File...</source>
+        <translation>打开文件...</translation>
+    </message>
+    <message>
+        <source>Open Folder...</source>
+        <translation>打开文件夹...</translation>
+    </message>
+    <message>
+        <source>New File</source>
+        <translation>新建文件</translation>
+    </message>
+    <message>
+        <source>Shortcuts: Ctrl+N New, Ctrl+O Open, Ctrl+B Toggle Sidebar</source>
+        <translation>快捷键：Ctrl+N 新建，Ctrl+O 打开，Ctrl+B 显隐侧边栏</translation>
+    </message>
+</context>
+<context>
     <name>ChangelogDialog</name>
     <message>
         <source>Update History</source>
